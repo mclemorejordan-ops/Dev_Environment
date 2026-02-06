@@ -1,4 +1,3 @@
-```html
 <!doctype html>
 <html lang="en">
 <head>
@@ -383,16 +382,17 @@
     <!-- PPL ROUTINE -->
     <section class="card">
       <div class="topRight">
-  <h2>PPL Routine (Mon–Wed) — repeats Thu–Sat</h2>
-  <div class="row" style="gap:6px;">
-    <button id="startTodayBtn">Start Today</button>
-  </div>
-</div>
+        <h2>PPL Routine (Mon–Sat)</h2>
+        <div class="row" style="gap:6px;">
+          <button id="startTodayBtn">Start Today</button>
+        </div>
+      </div>
+
       <div class="splitTabs" id="pplTabs"></div>
       <div class="exerciseList" id="pplList"></div>
  
       <div class="notice" style="margin-top:10px;">
-        Tip: Set your “Target” to what you plan today. If it beats your lifetime max, you’ll see 🏆 PR.
+        Tip: Tap “Log Sets” on an exercise to record sets/reps/weight. PR is based on your lifetime max for that exercise.
       </div>
     </section>
  
@@ -444,9 +444,37 @@
       </div>
  
       <div class="notice" style="margin-top:10px;">
-        “Last 7 days max” is your “previous week” reference. PR is based on lifetime max.
+        Tip: Use the PPL “Log Sets” popup for daily tracking. This table is your history (search + PRs).
       </div>
     </section>
+  </div>
+
+  <!-- LOG SETS MODAL -->
+  <div id="logModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
+    <div style="max-width:520px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
+      <div class="topRight">
+        <h2 style="margin:0;">Log Sets</h2>
+        <button id="logModalClose">Close</button>
+      </div>
+
+      <div class="notice" style="margin-top:10px;">
+        <div><strong id="logModalExercise">—</strong></div>
+        <div class="small muted">Enter what you actually did. Add/remove sets as needed.</div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label>Date
+          <input type="date" id="logModalDate" />
+        </label>
+      </div>
+
+      <div id="logModalSets" style="margin-top:10px; display:grid; gap:8px;"></div>
+
+      <div class="btnRow">
+        <button id="logAddSetBtn">Add Set</button>
+        <button id="logSaveBtn">Confirm & Save</button>
+      </div>
+    </div>
   </div>
  
 </main>
@@ -472,7 +500,7 @@ const KEY_BW = "gym_bw_logs_v1";
 const KEY_ATT = "gym_attendance_v1"; // array of ISO dates
 const KEY_PRO = "gym_protein_v1";    // map date -> meal numbers
 const KEY_LIFTS = "gym_lifts_v1";    // array
-const KEY_TARGETS = "gym_targets_v1";// map exercise -> target weight
+const KEY_TARGETS = "gym_targets_v1";// kept for compatibility, no longer used in UI
  
 /* ---------------------------
    Date utils
@@ -488,7 +516,7 @@ function daysAgo(n){
 function sameMonth(d, y, m){ return d.getFullYear()===y && d.getMonth()===m; }
  
 /* ---------------------------
-   Seed PPL routine
+   Seed PPL routine (Mon–Sat)
 ---------------------------- */
 const PPL = {
   "Push (Mon)": [
@@ -520,6 +548,35 @@ const PPL = {
     {ex:"Leg Extensions", sets:3, reps:"12–15"},
     {ex:"Cable Crunches", sets:3, reps:"20"},
   ],
+  "Push (Thu)": [
+    {ex:"Incline Dumbbell Press", sets:4, reps:"8–10"},
+    {ex:"Dumbbell Bench Press", sets:4, reps:"8–10"},
+    {ex:"Chest Dips", sets:3, reps:"10–12"},
+    {ex:"Lateral Raises", sets:3, reps:"12–15"},
+    {ex:"Cable Chest Flys", sets:3, reps:"12–15"},
+    {ex:"Triceps Rope Pushdowns", sets:3, reps:"12–15"},
+    {ex:"Overhead Dumbbell Triceps Extension", sets:3, reps:"12–15"},
+  ],
+  "Pull (Fri)": [
+    {ex:"Underhand Lat Pulldown", sets:4, reps:"8–10"},
+    {ex:"Barbell Row", sets:4, reps:"6–8"},
+    {ex:"Dumbbell Row", sets:3, reps:"10–12"},
+    {ex:"Seated Cable Row", sets:3, reps:"10–12"},
+    {ex:"Rear Delt Fly", sets:3, reps:"12–15"},
+    {ex:"Barbell Curl", sets:3, reps:"10–12"},
+    {ex:"Hammer Curl", sets:3, reps:"12–15"},
+    {ex:"Dumbbell Alternating Curl", sets:3, reps:"10–12"},
+    {ex:"Hanging Leg Raises", sets:3, reps:"12–15"},
+  ],
+  "Legs (Sat)": [
+    {ex:"Barbell Back Squat", sets:4, reps:"6–8"},
+    {ex:"Leg Press", sets:3, reps:"10–12"},
+    {ex:"Goblet Squats", sets:3, reps:"12–15 steps"},
+    {ex:"Leg Curl Machine", sets:3, reps:"12–15"},
+    {ex:"Standing Calf Raise", sets:3, reps:"15–20"},
+    {ex:"Leg Extensions", sets:3, reps:"12–15"},
+    {ex:"Cable Crunches", sets:3, reps:"20"},
+  ],
 };
  
 function allExercises(){
@@ -531,10 +588,13 @@ function allExercises(){
 function getTodaySplitTab(){
   // 0 Sun, 1 Mon, 2 Tue, 3 Wed, 4 Thu, 5 Fri, 6 Sat
   const dow = new Date().getDay();
-  if(dow === 1 || dow === 4) return "Push (Mon)";
-  if(dow === 2 || dow === 5) return "Pull (Tue)";
-  if(dow === 3 || dow === 6) return "Legs (Wed)";
-  // Sunday: default to Push (you said rest days hidden)
+  if(dow === 1) return "Push (Mon)";
+  if(dow === 2) return "Pull (Tue)";
+  if(dow === 3) return "Legs (Wed)";
+  if(dow === 4) return "Push (Thu)";
+  if(dow === 5) return "Pull (Fri)";
+  if(dow === 6) return "Legs (Sat)";
+  // Sunday: default to Push (Mon)
   return "Push (Mon)";
 }
 
@@ -790,10 +850,9 @@ document.getElementById("pSaveBtn").addEventListener("click", ()=>{
 });
  
 /* ---------------------------
-   PPL display + Targets + PR
+   PPL display + PR
 ---------------------------- */
-let targets = LS.get(KEY_TARGETS, {}); // exercise -> number
-let lifts = LS.get(KEY_LIFTS, []);     // [{id, date, ex, sets, reps, weight}]
+let lifts = LS.get(KEY_LIFTS, []);     // [{id, date, ex, sets, reps, weight, pr, details?}]
  
 const pplTabs = document.getElementById("pplTabs");
 const pplList = document.getElementById("pplList");
@@ -844,10 +903,10 @@ function renderPPL(){
   pplList.innerHTML = "";
   list.forEach(item=>{
     const ex = item.ex;
-    const target = (targets[ex] ?? "");
     const {life, thisWeekMax, lastWeekMax} = liftStatsForExercise(ex);
-    const isPR = (target!=="" && life!==null && Number(target) > life);
-    const prBadge = isPR ? `<span class="badge">🏆 PR</span>` : ``;
+
+    const isPRThisWeek = (life !== null && thisWeekMax !== null && thisWeekMax === life);
+    const prBadge = isPRThisWeek ? `<span class="badge">🏆 PR (this week)</span>` : ``;
  
     const card = document.createElement("div");
     card.className = "exerciseItem";
@@ -862,35 +921,17 @@ function renderPPL(){
         <div class="line2">Lifetime max: <span class="mono">${life===null?"—":life}</span> lbs</div>
         <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
           ${prBadge}
-          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
-            <button type="button" data-inc="2.5" data-ex="${ex}">+2.5</button>
-            <button type="button" data-inc="5" data-ex="${ex}">+5</button>
-            <button type="button" data-inc="10" data-ex="${ex}">+10</button>
-            <input style="max-width:140px;" type="number" inputmode="decimal" step="0.5"
-                   placeholder="Target lbs" value="${target}"
-                   data-target="${ex}" />
-          </div>
+          <button type="button" data-log="${ex}">Log Sets</button>
         </div>
       </div>
     `;
-    card.querySelector('input[data-target]').addEventListener("change", (e)=>{
-      const val = e.target.value === "" ? "" : Number(e.target.value);
-      if(val !== "" && !isFinite(val)) return;
-      if(val === "") delete targets[ex];
-      else targets[ex] = val;
-      LS.set(KEY_TARGETS, targets);
-      renderPPL(); // refresh badges
-    });
 
-    card.querySelectorAll('button[data-inc]').forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const inc = Number(btn.getAttribute("data-inc"));
-        const cur = Number(targets[ex] ?? 0);
-        targets[ex] = cur + inc;
-        LS.set(KEY_TARGETS, targets);
-        renderPPL();
+    const logBtn = card.querySelector('button[data-log]');
+    if(logBtn){
+      logBtn.addEventListener("click", ()=>{
+        openLogModal(ex, item.sets || 3);
       });
-    });
+    }
 
     pplList.appendChild(card);
   });
@@ -968,7 +1009,7 @@ liftAddBtn.addEventListener("click", ()=>{
   liftWeight.value = "";
  
   renderLifts();
-  renderPPL(); // refresh PR badges + last week
+  renderPPL();
   renderLiftStatsForInput();
 });
  
@@ -999,6 +1040,124 @@ function renderLifts(){
     });
   });
 }
+
+/* ---------------------------
+   Log Sets Modal (PPL -> Lift Progress)
+---------------------------- */
+const logModal = document.getElementById("logModal");
+const logModalClose = document.getElementById("logModalClose");
+const logModalExercise = document.getElementById("logModalExercise");
+const logModalDate = document.getElementById("logModalDate");
+const logModalSets = document.getElementById("logModalSets");
+const logAddSetBtn = document.getElementById("logAddSetBtn");
+const logSaveBtn = document.getElementById("logSaveBtn");
+
+let modalExerciseName = null;
+
+function openLogModal(exName, defaultSets=3){
+  modalExerciseName = exName;
+  logModalExercise.textContent = exName;
+  logModalDate.value = todayISO();
+
+  logModalSets.innerHTML = "";
+  for(let i=0;i<defaultSets;i++) addSetRow();
+
+  logModal.style.display = "block";
+}
+
+function closeLogModal(){
+  logModal.style.display = "none";
+  modalExerciseName = null;
+}
+
+function addSetRow(weight="", reps=""){
+  const idx = logModalSets.children.length + 1;
+  const row = document.createElement("div");
+  row.className = "row";
+  row.style.alignItems = "end";
+  row.innerHTML = `
+    <span class="pill"><span class="muted">Set</span> <strong class="mono">${idx}</strong></span>
+    <label>Weight (lbs)
+      <input type="number" step="0.5" inputmode="decimal" class="setWeight" placeholder="e.g., 75" value="${weight}" />
+    </label>
+    <label>Reps
+      <input type="number" inputmode="numeric" class="setReps" placeholder="e.g., 8" value="${reps}" />
+    </label>
+    <button type="button" class="removeSetBtn">Remove</button>
+  `;
+  row.querySelector(".removeSetBtn").addEventListener("click", ()=>{
+    row.remove();
+    // re-number set pills
+    [...logModalSets.children].forEach((child, i)=>{
+      const pillStrong = child.querySelector(".pill strong");
+      if(pillStrong) pillStrong.textContent = String(i+1);
+    });
+  });
+  logModalSets.appendChild(row);
+}
+
+logAddSetBtn.addEventListener("click", ()=> addSetRow());
+logModalClose.addEventListener("click", closeLogModal);
+
+// Close if you click outside the modal card
+logModal.addEventListener("click", (e)=>{
+  if(e.target === logModal) closeLogModal();
+});
+
+logSaveBtn.addEventListener("click", ()=>{
+  if(!modalExerciseName) return;
+
+  const date = logModalDate.value || todayISO();
+  const setRows = [...logModalSets.querySelectorAll(".row")];
+
+  const setsArr = [];
+  for(const r of setRows){
+    const w = Number(r.querySelector(".setWeight")?.value);
+    const reps = Number(r.querySelector(".setReps")?.value);
+    if(isFinite(w) && w > 0 && isFinite(reps) && reps > 0){
+      setsArr.push({weight:w, reps:reps});
+    }
+  }
+
+  if(setsArr.length === 0){
+    alert("Enter at least one valid set (weight + reps).");
+    return;
+  }
+
+  // pick the heaviest set for the main log
+  let top = setsArr[0];
+  for(const s of setsArr){
+    if(s.weight > top.weight) top = s;
+  }
+
+  const {life} = liftStatsForExercise(modalExerciseName);
+  const isPR = (life === null) ? true : (top.weight > life);
+
+  lifts.push({
+    id: uid(),
+    date,
+    ex: modalExerciseName,
+    sets: setsArr.length,
+    reps: top.reps,
+    weight: top.weight,
+    pr: isPR,
+    details: setsArr
+  });
+
+  lifts.sort((a,b)=>b.date.localeCompare(a.date));
+  LS.set(KEY_LIFTS, lifts);
+
+  // OPTIONAL slick behavior: auto-focus the history on what you just logged
+  liftExercise.value = modalExerciseName;
+  renderLiftStatsForInput();
+
+  closeLogModal();
+  renderLifts();
+  renderPPL();
+
+  // scroll to log section
+  document.getElementById("liftTable").scrollIntoView({behavior:"smooth", block:"start"});
+});
  
 /* ---------------------------
    Reset all
@@ -1025,7 +1184,6 @@ renderPPL();
 document.getElementById("startTodayBtn").addEventListener("click", ()=>{
   activeTab = getTodaySplitTab();
   renderPPL();
-  // scroll into view on mobile
   document.getElementById("pplList").scrollIntoView({behavior:"smooth", block:"start"});
 });
 renderExerciseDatalist();
@@ -1033,4 +1191,3 @@ renderLiftStatsForInput();
 </script>
 </body>
 </html>
-```
