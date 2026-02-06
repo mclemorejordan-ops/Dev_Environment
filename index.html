@@ -31,8 +31,16 @@
       backdrop-filter: blur(10px);
       z-index:10;
     }
-    h1{ margin:0 0 6px 0; font-size:18px; letter-spacing:.5px; font-weight:700; }
-    .sub{ color:var(--muted); font-size:12px; }
+    h1{
+      margin:0 0 6px 0;
+      font-size:18px;
+      letter-spacing:.5px;
+      font-weight:700;
+    }
+    .sub{
+      color:var(--muted);
+      font-size:12px;
+    }
     main{
       padding:14px 12px 80px;
       display:grid;
@@ -40,16 +48,25 @@
       max-width:1100px;
       margin:0 auto;
     }
-    .grid2{ display:grid; gap:12px; grid-template-columns: 1fr; }
-    @media (min-width: 980px){ .grid2{grid-template-columns: 1fr 1fr;} }
-
+    .grid2{
+      display:grid;
+      gap:12px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 980px){
+      .grid2{grid-template-columns: 1fr 1fr;}
+    }
     .card{
       background:var(--card);
       border:1px solid var(--line);
       border-radius:14px;
       padding:12px;
     }
-    .card h2{ margin:0 0 10px 0; font-size:14px; letter-spacing:.4px; }
+    .card h2{
+      margin:0 0 10px 0;
+      font-size:14px;
+      letter-spacing:.4px;
+    }
     .row{
       display:flex;
       gap:10px;
@@ -74,16 +91,19 @@
       outline:none;
       font-size:14px;
     }
-    textarea{ resize:vertical; min-height:42px; }
+    textarea{min-height:38px; resize:vertical;}
     input::placeholder{color:#666}
-    button{ cursor:pointer; background:#0f0f10; font-weight:600; }
+    button{
+      cursor:pointer;
+      background:#0f0f10;
+      font-weight:600;
+    }
     button:hover{border-color:#2a2b2f}
     .btnRow{
       display:flex;
       gap:8px;
       flex-wrap:wrap;
       margin-top:10px;
-      align-items:center;
     }
     .pill{
       display:inline-flex;
@@ -140,9 +160,18 @@
       color:var(--muted);
       background:#0f0f10;
       user-select:none;
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
     }
-    .tab.active{ color:var(--text); border-color:#2a2b2f; }
-    .exerciseList{ display:grid; gap:8px; }
+    .tab.active{
+      color:var(--text);
+      border-color:#2a2b2f;
+    }
+    .exerciseList{
+      display:grid;
+      gap:8px;
+    }
     .exerciseItem{
       border:1px solid var(--line);
       border-radius:12px;
@@ -153,11 +182,34 @@
       gap:10px;
       align-items:flex-start;
     }
-    .exerciseItem .left{ display:flex; flex-direction:column; gap:2px; }
-    .exerciseItem .title{ font-size:13px; font-weight:700; }
-    .exerciseItem .meta{ font-size:11px; color:var(--muted); }
-    .exerciseItem .right{ text-align:right; min-width:170px; display:flex; flex-direction:column; gap:4px; }
-    .exerciseItem .right .line2{ font-size:11px; color:var(--muted); }
+    .exerciseItem .left{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .exerciseItem .title{
+      font-size:13px;
+      font-weight:700;
+    }
+    .exerciseItem .meta{
+      font-size:11px;
+      color:var(--muted);
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+    .exerciseItem .right{
+      text-align:right;
+      min-width:160px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .exerciseItem .right .line2{
+      font-size:11px;
+      color:var(--muted);
+    }
     .badge{
       display:inline-block;
       padding:4px 8px;
@@ -174,7 +226,12 @@
       margin-top:10px;
       user-select:none;
     }
-    .calHead{ font-size:10px; color:var(--muted); text-align:center; padding:4px 0; }
+    .calHead{
+      font-size:10px;
+      color:var(--muted);
+      text-align:center;
+      padding:4px 0;
+    }
     .day{
       border:1px solid var(--line);
       border-radius:10px;
@@ -203,7 +260,10 @@
       align-items:center;
       flex-wrap:wrap;
     }
-    .ghost{ border-color:transparent; color:var(--muted); }
+    .ghost{
+      border-color:transparent;
+      color:var(--muted);
+    }
     .ghost:hover{border-color:var(--line)}
     .notice{
       border:1px dashed #2a2b2f;
@@ -215,13 +275,18 @@
     }
     .clickEx{cursor:pointer; text-decoration:underline; text-decoration-color:#2a2b2f;}
     .clickEx:hover{opacity:.85;}
-    .twoCol{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:10px;
+    .divider{
+      height:1px;
+      background:var(--line);
+      margin:10px 0;
     }
-    @media (min-width: 720px){
-      .twoCol{ grid-template-columns: 1fr 1fr; }
+    .miniBtn{
+      padding:8px 10px;
+      font-size:12px;
+    }
+    .danger{
+      border-color: rgba(255, 107, 107, .35);
+      color: var(--bad);
     }
   </style>
 </head>
@@ -340,19 +405,26 @@
   </section>
 
   <div class="grid2">
-    <!-- ROUTINE + PPL -->
+    <!-- PPL ROUTINE -->
     <section class="card">
       <div class="topRight">
-        <h2>Routine</h2>
+        <div>
+          <h2 style="margin-bottom:6px;">Routine (Mon–Sun)</h2>
+          <div class="small muted" id="activeRoutineMeta">—</div>
+        </div>
+
         <div class="row" style="gap:6px;">
-          <label style="min-width:220px;">Active Routine
+          <label style="min-width:220px; flex:0 0 auto;">
+            Active Routine
             <select id="routineSelect"></select>
           </label>
-          <button id="routineNewBtn">New</button>
-          <button id="routineEditBtn" class="ghost">Edit</button>
-          <button id="routineDupBtn" class="ghost">Duplicate</button>
-          <button id="routineDelBtn" class="ghost">Delete</button>
-          <button id="startTodayBtn">Start Today</button>
+
+          <button id="newRoutineBtn" class="miniBtn">New</button>
+          <button id="editRoutineBtn" class="miniBtn">Edit</button>
+          <button id="dupRoutineBtn" class="miniBtn">Duplicate</button>
+          <button id="delRoutineBtn" class="miniBtn danger">Delete</button>
+
+          <button id="startTodayBtn" class="miniBtn">Start Today</button>
         </div>
       </div>
 
@@ -360,36 +432,26 @@
       <div class="exerciseList" id="pplList"></div>
 
       <div class="notice" style="margin-top:10px;">
-        Tip: Tap “Log Sets” to record sets/reps/weight. The modal auto-fills this week’s weekday date. Your logs stay forever across routines.
+        Tip: Tap “Log Sets” on an exercise to record sets/reps/weight. PR is based on your lifetime max for that exercise.
       </div>
     </section>
 
     <!-- LIFT PROGRESS LOG -->
     <section class="card">
-      <div class="topRight">
-        <h2>Lift Progress Log</h2>
-        <div class="row" style="gap:6px;">
-          <button id="logViewTableBtn" class="tab active" type="button">Table</button>
-          <button id="logViewGraphBtn" class="tab" type="button">Graph</button>
-          <button id="graphDownloadBtn" class="ghost" type="button" style="display:none;">Download PNG</button>
-        </div>
-      </div>
+      <h2>Lift Progress Log (Searchable History)</h2>
 
-      <div class="twoCol">
+      <div class="row">
         <label>Exercise
           <select id="liftSearch"></select>
         </label>
 
-        <label>Routine
-          <select id="liftRoutineFilter"></select>
-        </label>
-
-        <label>Date From
-          <input type="date" id="liftDateFrom" />
-        </label>
-
-        <label>Date To
-          <input type="date" id="liftDateTo" />
+        <label>Date Range
+          <select id="liftFilterRange">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="0">All time</option>
+          </select>
         </label>
 
         <label>Rows
@@ -400,24 +462,9 @@
             <option value="0">All</option>
           </select>
         </label>
-
-        <label>Graph Metric
-          <select id="graphMetric">
-            <option value="top">Top Weight</option>
-            <option value="e1rm">Estimated 1RM (Epley)</option>
-            <option value="vol">Volume</option>
-          </select>
-        </label>
       </div>
 
-      <div class="btnRow">
-        <button id="liftApplyBtn" type="button">Search</button>
-        <button id="liftClearBtn" type="button" class="ghost">Clear</button>
-        <span class="pill"><span class="muted">Results:</span> <strong class="mono" id="liftResultCount">0</strong></span>
-      </div>
-
-      <!-- TABLE -->
-      <div id="liftTableWrap" style="margin-top:10px; overflow:auto;">
+      <div style="margin-top:10px; overflow:auto;">
         <table>
           <thead>
             <tr>
@@ -425,7 +472,6 @@
               <th>Exercise</th>
               <th>Top Set</th>
               <th>Sets</th>
-              <th>Routine</th>
               <th>PR</th>
               <th></th>
             </tr>
@@ -434,40 +480,33 @@
         </table>
       </div>
 
-      <!-- GRAPH -->
-      <div id="liftGraphWrap" style="margin-top:10px; display:none;">
-        <canvas id="liftChart" height="140"></canvas>
-        <div class="notice" style="margin-top:10px;">
-          Graph shows the selected exercise over time. Weekly separators help you see progress blocks.
-        </div>
-      </div>
-
       <div class="notice" style="margin-top:10px;">
-        Tap an exercise name in the table to view history.
+        Tap an exercise name in the log to view history.
       </div>
     </section>
   </div>
 
   <!-- LOG SETS MODAL -->
   <div id="logModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
-    <div style="max-width:560px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
+    <div style="max-width:520px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
       <div class="topRight">
-        <h2 style="margin:0;">Log Sets</h2>
+        <div>
+          <h2 style="margin:0;">Log Sets</h2>
+          <div class="small muted" id="logRoutineLine">—</div>
+        </div>
         <button id="logModalClose">Close</button>
       </div>
 
       <div class="notice" style="margin-top:10px;">
         <div><strong id="logModalExercise">—</strong></div>
-        <div class="small muted">
-          Routine: <span id="logModalRoutine">—</span> • Day: <span id="logModalDay">—</span>
-        </div>
+        <div class="small muted">Enter what you actually did. Add/remove sets as needed.</div>
       </div>
 
       <div id="logPrevBox" class="notice" style="margin-top:10px; display:none;">
-        <div class="small muted">Last time (same exercise):</div>
+        <div class="small muted">Last time:</div>
         <div id="logPrevText" class="mono">—</div>
         <div class="btnRow" style="margin-top:8px;">
-          <button id="logCopyLastBtn" type="button">Copy last session</button>
+          <button id="logCopyLastBtn" type="button">Copy last time</button>
           <button id="logViewHistoryBtn" type="button" class="ghost">View history</button>
         </div>
       </div>
@@ -476,23 +515,20 @@
         <label>Date
           <input type="date" id="logModalDate" />
         </label>
-        <label style="flex:2 1 240px;">Notes (optional)
-          <input id="logModalNotes" placeholder="how it felt, tempo, etc." />
-        </label>
       </div>
 
       <div id="logModalSets" style="margin-top:10px; display:grid; gap:8px;"></div>
 
       <div class="btnRow">
-        <button id="logAddSetBtn" type="button">Add Set Row</button>
-        <button id="logSaveBtn" type="button">Confirm & Save</button>
+        <button id="logAddSetBtn">Add Set</button>
+        <button id="logSaveBtn">Confirm & Save</button>
       </div>
     </div>
   </div>
 
   <!-- HISTORY MODAL -->
   <div id="histModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
-    <div style="max-width:760px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
+    <div style="max-width:640px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
       <div class="topRight">
         <h2 style="margin:0;">Exercise History</h2>
         <button id="histCloseBtn">Close</button>
@@ -500,7 +536,7 @@
 
       <div class="notice" style="margin-top:10px;">
         <div><strong id="histExercise">—</strong></div>
-        <div class="small muted">Most recent first. Groups by the normalized exercise name so history follows you across routines.</div>
+        <div class="small muted">Most recent first. Shows your saved set details (if available).</div>
       </div>
 
       <div style="margin-top:10px; overflow:auto;">
@@ -510,7 +546,6 @@
               <th>Date</th>
               <th>Top Set</th>
               <th>All Sets</th>
-              <th>Routine</th>
               <th>PR</th>
             </tr>
           </thead>
@@ -521,55 +556,68 @@
   </div>
 
   <!-- ROUTINE EDITOR MODAL -->
-  <div id="routineModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
-    <div style="max-width:920px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
+  <div id="rtModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
+    <div style="max-width:760px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
       <div class="topRight">
         <h2 style="margin:0;">Routine Editor</h2>
-        <button id="routineModalClose">Close</button>
+        <button id="rtCloseBtn">Close</button>
       </div>
 
       <div class="row" style="margin-top:10px;">
-        <label style="flex:2 1 260px;">Routine Name
-          <input id="routineNameInput" placeholder="e.g., PPL Strength Block" />
+        <label>Routine Name
+          <input id="rtName" placeholder="e.g., PPL (6 days)" />
         </label>
-        <label style="min-width:180px;">Day
-          <select id="routineDaySelect"></select>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="splitTabs" id="rtDayTabs"></div>
+
+      <div class="row" style="margin-top:8px;">
+        <label style="min-width:220px; flex:0 0 auto;">Day Label (optional)
+          <input id="rtDayLabel" placeholder="e.g., Push / Pull / Legs / Upper" />
         </label>
-        <label style="min-width:180px;">Day Label (optional)
-          <input id="routineDayLabel" placeholder="Push / Pull / Legs" />
-        </label>
-        <label style="min-width:160px;">Rest Day
-          <select id="routineDayRest">
-            <option value="0">No</option>
-            <option value="1">Yes</option>
+
+        <label style="min-width:220px; flex:0 0 auto;">Rest Day?
+          <select id="rtRestToggle">
+            <option value="0" selected>No</option>
+            <option value="1">Yes (hide day)</option>
           </select>
         </label>
-        <button id="routineSaveBtn" type="button">Save</button>
+      </div>
+
+      <div id="rtDayRestNotice" class="notice" style="margin-top:10px; display:none;">
+        This day is marked as a Rest Day. Exercises are kept but hidden on the dashboard.
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="row">
+        <label style="min-width:280px; flex:1 1 280px;">Add Exercise (suggestions)
+          <input id="rtAddExName" list="rtExSuggestions" placeholder="Start typing a known exercise name..." />
+          <datalist id="rtExSuggestions"></datalist>
+        </label>
+        <label>Sets
+          <input id="rtAddExSets" type="number" min="1" placeholder="3" />
+        </label>
+        <label>Reps
+          <input id="rtAddExReps" placeholder="8–10" />
+        </label>
+        <button id="rtAddExBtn">Add</button>
+      </div>
+
+      <div id="rtExList" style="margin-top:10px; display:grid; gap:8px;"></div>
+
+      <div class="divider"></div>
+
+      <div class="btnRow">
+        <button id="rtSaveBtn">Save Routine</button>
+        <button id="rtCancelBtn" class="ghost">Cancel</button>
       </div>
 
       <div class="notice" style="margin-top:10px;">
-        Add exercises to the selected day. Use Up/Down to reorder. Editing the name acts as a day-specific “Swap exercise”.
+        Swap replaces an exercise only for this day. Reorder uses Up/Down.
       </div>
-
-      <div id="routineDayExercises" style="margin-top:10px; display:grid; gap:8px;"></div>
-
-      <div class="row" style="margin-top:10px;">
-        <label style="flex:2 1 260px;">Exercise name
-          <input id="addExName" list="exerciseSuggest" placeholder="Start typing..." />
-        </label>
-        <label>Sets
-          <input id="addExSets" type="number" placeholder="e.g., 4" />
-        </label>
-        <label>Reps
-          <input id="addExReps" placeholder="e.g., 8–10" />
-        </label>
-        <label style="flex:2 1 220px;">Notes
-          <input id="addExNotes" placeholder="optional" />
-        </label>
-        <button id="addExBtn" type="button">Add</button>
-      </div>
-
-      <datalist id="exerciseSuggest"></datalist>
     </div>
   </div>
 
@@ -595,9 +643,11 @@ const LS = {
 const KEY_BW = "gym_bw_logs_v1";
 const KEY_ATT = "gym_attendance_v1";
 const KEY_PRO = "gym_protein_v1";
-const KEY_LIFTS = "gym_lifts_v2";          // upgraded schema
+const KEY_LIFTS = "gym_lifts_v1";
+const KEY_TARGETS = "gym_targets_v1"; // compatibility (unused UI)
+
 const KEY_ROUTINES = "gym_routines_v1";
-const KEY_ACTIVE_ROUTINE = "gym_active_routine_v1";
+const KEY_ACTIVE_ROUTINE = "gym_active_routine_id_v1";
 
 /* ---------------------------
    LOCAL date utils (fixes 1-day offset issue)
@@ -619,121 +669,136 @@ function daysAgo(n){
 }
 function sameMonth(d, y, m){ return d.getFullYear()===y && d.getMonth()===m; }
 
-/* ---------------------------
-   Week-date helper for day tabs (Mon..Sun)
----------------------------- */
-const DAY_ORDER = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const DOW_MAP = {Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6};
-
 function weekStartMonday(baseDate=new Date()){
   const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
   const dow = d.getDay(); // 0 Sun..6 Sat
-  const delta = (dow === 0) ? 6 : (dow - 1);
+  const delta = (dow === 0) ? 6 : (dow - 1); // days since Monday
   d.setDate(d.getDate() - delta);
-  return d;
+  return d; // Monday of current week
 }
-function dateForDayAbbr(dayAbbr){
-  const targetDow = DOW_MAP[dayAbbr] ?? 1;
-  const start = weekStartMonday(new Date());
+const DAY_KEYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+function dateForWeekdayIndex(dayIndex, baseDate=new Date()){
+  const start = weekStartMonday(baseDate);
   const out = new Date(start);
-  out.setDate(start.getDate() + (targetDow - 1));
+  out.setDate(start.getDate() + dayIndex);
   return localISODate(out);
 }
-function todayDayAbbr(){
-  const dow = new Date().getDay();
-  if(dow===0) return "Sun";
-  return DAY_ORDER[dow-1];
-}
 
 /* ---------------------------
-   Normalization (history continuity across routines)
+   Normalization (exercise continuity across routines)
 ---------------------------- */
-function normExName(name){
-  return String(name||"")
-    .trim()
+function normExName(s){
+  return String(s||"")
     .toLowerCase()
-    .replace(/\s+/g," ");
+    .replace(/\s+/g," ")
+    .trim();
 }
 
 /* ---------------------------
-   Seed default routine (your current PPL)
+   Default Routine Seed (your original PPL + Sunday rest)
 ---------------------------- */
-function makeEmptyDay(){
-  return { label:"", rest:false, exercises:[] };
-}
-function makeDefaultRoutine(){
-  const push = [
-    {name:"Incline Dumbbell Press", sets:4, reps:"8–10", notes:""},
-    {name:"Dumbbell Bench Press", sets:4, reps:"8–10", notes:""},
-    {name:"Chest Dips", sets:3, reps:"10–12", notes:""},
-    {name:"Lateral Raises", sets:3, reps:"12–15", notes:""},
-    {name:"Cable Chest Flys", sets:3, reps:"12–15", notes:""},
-    {name:"Triceps Rope Pushdowns", sets:3, reps:"12–15", notes:""},
-    {name:"Overhead Dumbbell Triceps Extension", sets:3, reps:"12–15", notes:""},
-  ];
-  const pull = [
-    {name:"Underhand Lat Pulldown", sets:4, reps:"8–10", notes:""},
-    {name:"Barbell Row", sets:4, reps:"6–8", notes:""},
-    {name:"Dumbbell Row", sets:3, reps:"10–12", notes:""},
-    {name:"Seated Cable Row", sets:3, reps:"10–12", notes:""},
-    {name:"Rear Delt Fly", sets:3, reps:"12–15", notes:""},
-    {name:"Barbell Curl", sets:3, reps:"10–12", notes:""},
-    {name:"Hammer Curl", sets:3, reps:"12–15", notes:""},
-    {name:"Dumbbell Alternating Curl", sets:3, reps:"10–12", notes:""},
-    {name:"Hanging Leg Raises", sets:3, reps:"12–15", notes:"Core"},
-  ];
-  const legs = [
-    {name:"Barbell Back Squat", sets:4, reps:"6–8", notes:""},
-    {name:"Leg Press", sets:3, reps:"10–12", notes:""},
-    {name:"Goblet Squats", sets:3, reps:"12–15 steps", notes:""},
-    {name:"Leg Curl Machine", sets:3, reps:"12–15", notes:""},
-    {name:"Standing Calf Raise", sets:3, reps:"15–20", notes:""},
-    {name:"Leg Extensions", sets:3, reps:"12–15", notes:""},
-    {name:"Cable Crunches", sets:3, reps:"20", notes:""},
-  ];
-
-  const id = uid();
+function defaultRoutine(){
   return {
-    id,
-    name:"PPL (Default)",
-    days:{
-      Mon:{ label:"Push", rest:false, exercises: structuredClone(push) },
-      Tue:{ label:"Pull", rest:false, exercises: structuredClone(pull) },
-      Wed:{ label:"Legs", rest:false, exercises: structuredClone(legs) },
-      Thu:{ label:"Push", rest:false, exercises: structuredClone(push) },
-      Fri:{ label:"Pull", rest:false, exercises: structuredClone(pull) },
-      Sat:{ label:"Legs", rest:false, exercises: structuredClone(legs) },
-      Sun:{ label:"Rest", rest:true, exercises: [] },
+    id: uid(),
+    name: "PPL (Mon–Sat)",
+    days: {
+      Mon: { label:"Push", rest:false, exercises:[
+        {name:"Incline Dumbbell Press", sets:4, reps:"8–10", notes:""},
+        {name:"Dumbbell Bench Press", sets:4, reps:"8–10", notes:""},
+        {name:"Chest Dips", sets:3, reps:"10–12", notes:""},
+        {name:"Lateral Raises", sets:3, reps:"12–15", notes:""},
+        {name:"Cable Chest Flys", sets:3, reps:"12–15", notes:""},
+        {name:"Triceps Rope Pushdowns", sets:3, reps:"12–15", notes:""},
+        {name:"Overhead Dumbbell Triceps Extension", sets:3, reps:"12–15", notes:""},
+      ]},
+      Tue: { label:"Pull", rest:false, exercises:[
+        {name:"Underhand Lat Pulldown", sets:4, reps:"8–10", notes:""},
+        {name:"Barbell Row", sets:4, reps:"6–8", notes:""},
+        {name:"Dumbbell Row", sets:3, reps:"10–12", notes:""},
+        {name:"Seated Cable Row", sets:3, reps:"10–12", notes:""},
+        {name:"Rear Delt Fly", sets:3, reps:"12–15", notes:""},
+        {name:"Barbell Curl", sets:3, reps:"10–12", notes:""},
+        {name:"Hammer Curl", sets:3, reps:"12–15", notes:""},
+        {name:"Dumbbell Alternating Curl", sets:3, reps:"10–12", notes:""},
+        {name:"Hanging Leg Raises", sets:3, reps:"12–15", notes:"Core"},
+      ]},
+      Wed: { label:"Legs", rest:false, exercises:[
+        {name:"Barbell Back Squat", sets:4, reps:"6–8", notes:""},
+        {name:"Leg Press", sets:3, reps:"10–12", notes:""},
+        {name:"Goblet Squats", sets:3, reps:"12–15 steps", notes:""},
+        {name:"Leg Curl Machine", sets:3, reps:"12–15", notes:""},
+        {name:"Standing Calf Raise", sets:3, reps:"15–20", notes:""},
+        {name:"Leg Extensions", sets:3, reps:"12–15", notes:""},
+        {name:"Cable Crunches", sets:3, reps:"20", notes:"Core"},
+      ]},
+      Thu: { label:"Push", rest:false, exercises:[] },
+      Fri: { label:"Pull", rest:false, exercises:[] },
+      Sat: { label:"Legs", rest:false, exercises:[] },
+      Sun: { label:"Rest", rest:true, exercises:[] }
     }
   };
 }
 
 /* ---------------------------
-   Routine state
+   Routines state
+---------------------------- */
+function loadRoutines(){
+  let routines = LS.get(KEY_ROUTINES, null);
+  if(!Array.isArray(routines) || routines.length === 0){
+    routines = [defaultRoutine()];
+    LS.set(KEY_ROUTINES, routines);
+  }
+  // backfill all days for older data
+  routines.forEach(r=>{
+    if(!r.days) r.days = {};
+    DAY_KEYS.forEach(k=>{
+      if(!r.days[k]) r.days[k] = {label:"", rest:false, exercises:[]};
+      if(!Array.isArray(r.days[k].exercises)) r.days[k].exercises = [];
+      if(typeof r.days[k].rest !== "boolean") r.days[k].rest = !!r.days[k].rest;
+      if(typeof r.days[k].label !== "string") r.days[k].label = String(r.days[k].label||"");
+      // normalize exercise objects
+      r.days[k].exercises = r.days[k].exercises.map(e=>({
+        name: String(e.name||e.ex||""),
+        sets: Number(e.sets)||0,
+        reps: String(e.reps||""),
+        notes: String(e.notes||"")
+      })).filter(e=>e.name);
+    });
+    if(!r.id) r.id = uid();
+    if(!r.name) r.name = "Routine";
+  });
+
+  LS.set(KEY_ROUTINES, routines);
+
+  let activeId = LS.get(KEY_ACTIVE_ROUTINE, null);
+  if(!activeId || !routines.some(r=>r.id===activeId)){
+    activeId = routines[0].id;
+    LS.set(KEY_ACTIVE_ROUTINE, activeId);
+  }
+  return {routines, activeId};
+}
+let {routines, activeId: activeRoutineId} = loadRoutines();
+
+function saveRoutines(){
+  LS.set(KEY_ROUTINES, routines);
+}
+function setActiveRoutine(id){
+  activeRoutineId = id;
+  LS.set(KEY_ACTIVE_ROUTINE, id);
+}
+function getActiveRoutine(){
+  return routines.find(r=>r.id===activeRoutineId) || routines[0];
+}
+
+/* ---------------------------
+   UID helper
 ---------------------------- */
 function uid(){
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
-let routines = LS.get(KEY_ROUTINES, null);
-if(!Array.isArray(routines) || routines.length === 0){
-  routines = [makeDefaultRoutine()];
-  LS.set(KEY_ROUTINES, routines);
-  LS.set(KEY_ACTIVE_ROUTINE, routines[0].id);
-}
-
-let activeRoutineId = LS.get(KEY_ACTIVE_ROUTINE, routines[0].id);
-if(!routines.some(r => r.id === activeRoutineId)){
-  activeRoutineId = routines[0].id;
-  LS.set(KEY_ACTIVE_ROUTINE, activeRoutineId);
-}
-
-function getActiveRoutine(){
-  return routines.find(r => r.id === activeRoutineId) || routines[0];
-}
-
 /* ---------------------------
-   BW Tracker
+   Weight Tracker
 ---------------------------- */
 let bwLogs = LS.get(KEY_BW, []);
 function sortBW(){ bwLogs.sort((a,b)=>a.date.localeCompare(b.date)); }
@@ -968,29 +1033,33 @@ document.getElementById("pSaveBtn").addEventListener("click", ()=>{
 });
 
 /* ---------------------------
-   Lifts (permanent across routines)
-   Schema:
-   {
-     id, date,
-     ex, exNorm,
-     sets, reps, weight,
-     pr,
-     details:[{weight,reps}],
-     notes,
-     routineId, routineName
-   }
+   Lifts + PR helpers
 ---------------------------- */
 let lifts = LS.get(KEY_LIFTS, []);
-if(!Array.isArray(lifts)) lifts = [];
 
-function liftLifeMax(exNorm){
-  const exLifts = lifts.filter(x => x.exNorm === exNorm);
-  return exLifts.length ? Math.max(...exLifts.map(x=>Number(x.weight)||0)) : null;
+function ensureLiftCompatibility(){
+  // backfill normalization + routine fields for older entries
+  lifts = lifts.map(x=>{
+    const ex = String(x.ex || x.exercise || "");
+    const exNorm = x.exNorm || normExName(ex);
+    return {
+      ...x,
+      ex,
+      exNorm,
+      routineId: x.routineId || "",
+      routineName: x.routineName || "",
+      dayKey: x.dayKey || ""
+    };
+  });
+  LS.set(KEY_LIFTS, lifts);
 }
-function liftStatsForExerciseName(exName){
-  const exNorm = normExName(exName);
-  const exLifts = lifts.filter(x=>x.exNorm===exNorm);
-  const life = exLifts.length ? Math.max(...exLifts.map(x=>x.weight)) : null;
+ensureLiftCompatibility();
+
+function liftStatsForExercise(exName){
+  const n = normExName(exName);
+  const exLifts = lifts.filter(x=> (x.exNorm || normExName(x.ex)) === n);
+
+  const life = exLifts.length ? Math.max(...exLifts.map(x=>Number(x.weight)||0)) : null;
 
   const thisWeekStart = daysAgo(7);
   const lastWeekStart = daysAgo(14);
@@ -1001,52 +1070,43 @@ function liftStatsForExerciseName(exName){
     return d >= lastWeekStart && d < thisWeekStart;
   });
 
-  const thisWeekMax = thisWeek.length ? Math.max(...thisWeek.map(x=>x.weight)) : null;
-  const lastWeekMax = lastWeek.length ? Math.max(...lastWeek.map(x=>x.weight)) : null;
+  const thisWeekMax = thisWeek.length ? Math.max(...thisWeek.map(x=>Number(x.weight)||0)) : null;
+  const lastWeekMax = lastWeek.length ? Math.max(...lastWeek.map(x=>Number(x.weight)||0)) : null;
 
   return { life, thisWeekMax, lastWeekMax };
 }
-function getLastLiftForExerciseName(exName){
-  const exNorm = normExName(exName);
-  const exLifts = lifts.filter(x=>x.exNorm===exNorm).sort((a,b)=>b.date.localeCompare(a.date));
+
+function getLastLiftForExercise(exName){
+  const n = normExName(exName);
+  const exLifts = lifts
+    .filter(x=> (x.exNorm || normExName(x.ex)) === n)
+    .sort((a,b)=>b.date.localeCompare(a.date));
   return exLifts[0] || null;
 }
+
 function formatSetsDetail(lift){
   if(!lift) return "—";
   const topSet = (lift.weight && lift.reps) ? `${lift.weight} x ${lift.reps}` : "—";
   const details = Array.isArray(lift.details) && lift.details.length
     ? lift.details.map((s,i)=>`S${i+1}:${s.weight}x${s.reps}`).join("  ")
     : null;
-  const r = lift.routineName ? ` • ${lift.routineName}` : "";
-  return `${lift.date}${r} • Top: ${topSet}${details ? " • " + details : ""}`;
-}
-function volumeForLift(l){
-  if(Array.isArray(l.details) && l.details.length){
-    return l.details.reduce((sum,s)=>sum + (Number(s.weight)||0)*(Number(s.reps)||0), 0);
-  }
-  const w = Number(l.weight)||0;
-  const r = Number(l.reps)||0;
-  const sets = Number(l.sets)||0;
-  // fallback: approximate volume as topSet * reps * sets
-  return w * r * sets;
-}
-function e1rmEpley(weight,reps){
-  const w = Number(weight)||0;
-  const r = Number(reps)||0;
-  if(!w || !r) return 0;
-  return w * (1 + (r/30));
+  return `${lift.date} • Top: ${topSet}${details ? " • " + details : ""}`;
 }
 
 /* ---------------------------
-   Routine dropdown + persistence
+   Routine UI
 ---------------------------- */
 const routineSelect = document.getElementById("routineSelect");
-const routineNewBtn = document.getElementById("routineNewBtn");
-const routineEditBtn = document.getElementById("routineEditBtn");
-const routineDupBtn = document.getElementById("routineDupBtn");
-const routineDelBtn = document.getElementById("routineDelBtn");
+const activeRoutineMeta = document.getElementById("activeRoutineMeta");
+const newRoutineBtn = document.getElementById("newRoutineBtn");
+const editRoutineBtn = document.getElementById("editRoutineBtn");
+const dupRoutineBtn = document.getElementById("dupRoutineBtn");
+const delRoutineBtn = document.getElementById("delRoutineBtn");
 
-function renderRoutineSelect(){
+let activeDayIndex = 0; // Mon=0..Sun=6
+
+function renderRoutineDropdown(){
+  const prev = routineSelect.value || activeRoutineId;
   routineSelect.innerHTML = "";
   routines.forEach(r=>{
     const opt = document.createElement("option");
@@ -1054,164 +1114,298 @@ function renderRoutineSelect(){
     opt.textContent = r.name;
     routineSelect.appendChild(opt);
   });
-  routineSelect.value = activeRoutineId;
+  routineSelect.value = routines.some(r=>r.id===prev) ? prev : routines[0].id;
+  setActiveRoutine(routineSelect.value);
+
+  const ar = getActiveRoutine();
+  activeRoutineMeta.textContent = `${ar.name} • ${DAY_KEYS.length} days`;
 }
+
 routineSelect.addEventListener("change", ()=>{
-  activeRoutineId = routineSelect.value;
-  LS.set(KEY_ACTIVE_ROUTINE, activeRoutineId);
-  activeDay = todayDayAbbr(); // snap tabs to something sensible
-  renderAllRoutineViews();
+  setActiveRoutine(routineSelect.value);
+  // keep the same day tab index when switching
+  renderRoutineDropdown();
+  renderPPL();
 });
 
-routineNewBtn.addEventListener("click", ()=>{
-  const id = uid();
-  const r = {
-    id,
-    name:"New Routine",
-    days:{
-      Mon:makeEmptyDay(), Tue:makeEmptyDay(), Wed:makeEmptyDay(),
-      Thu:makeEmptyDay(), Fri:makeEmptyDay(), Sat:makeEmptyDay(),
-      Sun:makeEmptyDay()
-    }
-  };
-  routines.push(r);
-  LS.set(KEY_ROUTINES, routines);
-  activeRoutineId = id;
-  LS.set(KEY_ACTIVE_ROUTINE, activeRoutineId);
-  renderRoutineSelect();
-  openRoutineEditor(); // auto-open editor
+newRoutineBtn.addEventListener("click", ()=>{
+  const base = defaultRoutine();
+  base.name = `New Routine ${routines.length+1}`;
+  // start empty but keep days
+  DAY_KEYS.forEach(k=>{
+    base.days[k].exercises = [];
+    base.days[k].rest = (k==="Sun"); // default Sunday rest
+    if(k==="Sun") base.days[k].label = "Rest";
+  });
+  routines.push(base);
+  saveRoutines();
+  setActiveRoutine(base.id);
+  renderRoutineDropdown();
+  openRoutineEditor(base.id); // auto-open editor
 });
 
-routineDupBtn.addEventListener("click", ()=>{
-  const src = getActiveRoutine();
-  const copy = structuredClone(src);
+dupRoutineBtn.addEventListener("click", ()=>{
+  const ar = getActiveRoutine();
+  const copy = JSON.parse(JSON.stringify(ar));
   copy.id = uid();
-  copy.name = `${src.name} (Copy)`;
+  copy.name = `${ar.name} (Copy)`;
   routines.push(copy);
-  LS.set(KEY_ROUTINES, routines);
-  activeRoutineId = copy.id;
-  LS.set(KEY_ACTIVE_ROUTINE, activeRoutineId);
-  renderRoutineSelect();
-  renderAllRoutineViews();
+  saveRoutines();
+  setActiveRoutine(copy.id);
+  renderRoutineDropdown();
+  renderPPL();
 });
 
-routineDelBtn.addEventListener("click", ()=>{
+delRoutineBtn.addEventListener("click", ()=>{
   if(routines.length <= 1){
     alert("You must keep at least one routine.");
     return;
   }
-  const src = getActiveRoutine();
-  const ok = confirm(`Delete routine "${src.name}"? This will NOT delete your logs.`);
+  const ar = getActiveRoutine();
+  const ok = confirm(`Delete routine "${ar.name}"? (Logs will NOT be deleted.)`);
   if(!ok) return;
-  routines = routines.filter(r=>r.id !== src.id);
-  LS.set(KEY_ROUTINES, routines);
-  activeRoutineId = routines[0].id;
-  LS.set(KEY_ACTIVE_ROUTINE, activeRoutineId);
-  renderRoutineSelect();
-  renderAllRoutineViews();
+  routines = routines.filter(r=>r.id!==ar.id);
+  saveRoutines();
+  setActiveRoutine(routines[0].id);
+  renderRoutineDropdown();
+  renderPPL();
+});
+
+editRoutineBtn.addEventListener("click", ()=>{
+  openRoutineEditor(getActiveRoutine().id);
 });
 
 /* ---------------------------
-   Day tabs + routine display
+   PPL display (Mon–Sun)
 ---------------------------- */
 const pplTabs = document.getElementById("pplTabs");
 const pplList = document.getElementById("pplList");
-let activeDay = todayDayAbbr();
 
-function tabLabelForDay(dayAbbr, routine){
-  const d = routine.days[dayAbbr] || makeEmptyDay();
-  const label = d.label ? ` • ${d.label}` : "";
-  const rest = d.rest ? " (Rest)" : "";
-  return `${dayAbbr}${label}${rest}`;
+function getTodaySplitIndex(){
+  // Mon=0..Sun=6
+  const dow = new Date().getDay(); // Sun=0..Sat=6
+  if(dow === 0) return 6;
+  return dow - 1;
 }
 
 function renderDayTabs(){
-  const r = getActiveRoutine();
   pplTabs.innerHTML = "";
-  DAY_ORDER.forEach(day=>{
+  const ar = getActiveRoutine();
+
+  DAY_KEYS.forEach((k, idx)=>{
+    const day = ar.days[k];
+    const label = (day.label || "").trim();
+    const rest = !!day.rest;
+
     const b = document.createElement("div");
-    b.className = "tab" + (day===activeDay ? " active" : "");
-    b.textContent = tabLabelForDay(day, r);
+    b.className = "tab" + (idx===activeDayIndex ? " active" : "");
+    b.innerHTML = `
+      <span>${k}</span>
+      ${label ? `<span class="badge">${label}</span>` : ""}
+      ${rest ? `<span class="badge">Rest</span>` : ""}
+    `;
     b.addEventListener("click", ()=>{
-      activeDay = day;
-      renderPPLDay();
+      activeDayIndex = idx;
+      renderPPL();
     });
     pplTabs.appendChild(b);
   });
 }
 
-function renderPPLDay(){
-  const r = getActiveRoutine();
+function renderPPL(){
   renderDayTabs();
 
-  const dayObj = r.days[activeDay] || makeEmptyDay();
+  const ar = getActiveRoutine();
+  const dayKey = DAY_KEYS[activeDayIndex];
+  const day = ar.days[dayKey];
+
   pplList.innerHTML = "";
 
-  if(dayObj.rest){
-    const box = document.createElement("div");
-    box.className = "notice";
-    box.textContent = "Rest day for this routine.";
-    pplList.appendChild(box);
-    renderLiftFilters(); // keep dropdowns updated
+  if(day.rest){
+    const restCard = document.createElement("div");
+    restCard.className = "notice";
+    restCard.innerHTML = `
+      <div><strong>${dayKey}</strong> is marked as a Rest Day.</div>
+      <div class="small muted">Exercises are stored but hidden. Toggle rest off in the Routine Editor.</div>
+    `;
+    pplList.appendChild(restCard);
+    renderLiftSearchDropdown();
     return;
   }
 
-  const list = Array.isArray(dayObj.exercises) ? dayObj.exercises : [];
-  list.forEach(exObj=>{
-    const exName = exObj.name;
-    const {life, thisWeekMax, lastWeekMax} = liftStatsForExerciseName(exName);
+  const list = Array.isArray(day.exercises) ? day.exercises : [];
+
+  if(!list.length){
+    const empty = document.createElement("div");
+    empty.className = "notice";
+    empty.textContent = "No exercises yet for this day. Click Edit to add exercises.";
+    pplList.appendChild(empty);
+    renderLiftSearchDropdown();
+    return;
+  }
+
+  list.forEach(item=>{
+    const ex = item.name;
+    const {life, thisWeekMax, lastWeekMax} = liftStatsForExercise(ex);
 
     const isPRThisWeek = (life !== null && thisWeekMax !== null && thisWeekMax === life);
     const prBadge = isPRThisWeek ? `<span class="badge">🏆 PR (this week)</span>` : ``;
-
-    const last = getLastLiftForExerciseName(exName);
-    const lastTxt = last ? formatSetsDetail(last) : "—";
 
     const card = document.createElement("div");
     card.className = "exerciseItem";
     card.innerHTML = `
       <div class="left">
-        <div class="title">${exName}</div>
-        <div class="meta">${exObj.sets || "—"} sets • ${exObj.reps || "—"} reps${exObj.notes ? " • " + exObj.notes : ""}</div>
+        <div class="title">${ex}</div>
+        <div class="meta">
+          <span>${item.sets || "—"} sets</span>
+          <span>•</span>
+          <span>${item.reps || "—"} reps</span>
+          ${item.notes ? `<span class="badge">${item.notes}</span>` : ""}
+        </div>
       </div>
       <div class="right">
-        <div class="line2">Last time: <span class="mono">${last ? `${last.weight} x ${last.reps}` : "—"}</span> lbs</div>
         <div class="line2">This week: <span class="mono">${thisWeekMax===null?"—":thisWeekMax}</span> lbs</div>
         <div class="line2">Last week: <span class="mono">${lastWeekMax===null?"—":lastWeekMax}</span> lbs</div>
         <div class="line2">Lifetime max: <span class="mono">${life===null?"—":life}</span> lbs</div>
         <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
           ${prBadge}
-          <button type="button" data-log="${exName}">Log Sets</button>
+          <button type="button" data-log="${ex}">Log Sets</button>
         </div>
       </div>
     `;
 
-    card.querySelector('button[data-log]').addEventListener("click", ()=>{
-      openLogModal(exObj, r, activeDay);
-    });
+    const logBtn = card.querySelector('button[data-log]');
+    if(logBtn){
+      logBtn.addEventListener("click", ()=>{
+        openLogModal(ex, Number(item.sets)||3, ar, dayKey, activeDayIndex);
+      });
+    }
 
     pplList.appendChild(card);
   });
 
-  renderLiftFilters();
+  renderLiftSearchDropdown();
 }
 
 document.getElementById("startTodayBtn").addEventListener("click", ()=>{
-  activeDay = todayDayAbbr();
-  renderPPLDay();
-  pplList.scrollIntoView({behavior:"smooth", block:"start"});
+  activeDayIndex = getTodaySplitIndex();
+  renderPPL();
+  document.getElementById("pplList").scrollIntoView({behavior:"smooth", block:"start"});
 });
 
 /* ---------------------------
-   Log Sets Modal
+   Lift Progress Log (Dropdown + Filters)
+---------------------------- */
+const liftTable = document.getElementById("liftTable");
+const liftSearch = document.getElementById("liftSearch");
+const liftFilterRange = document.getElementById("liftFilterRange");
+const liftLimit = document.getElementById("liftLimit");
+
+function collectAllExerciseNames(){
+  const set = new Set();
+  // from routines
+  routines.forEach(r=>{
+    DAY_KEYS.forEach(k=>{
+      (r.days?.[k]?.exercises || []).forEach(e=>{
+        if(e?.name) set.add(e.name);
+      });
+    });
+  });
+  // from logs
+  lifts.forEach(x=>{
+    if(x.ex) set.add(x.ex);
+  });
+  return [...set].sort();
+}
+
+function renderLiftSearchDropdown(){
+  const prev = liftSearch.value || "";
+  const items = ["", ...collectAllExerciseNames()]; // "" = All
+  liftSearch.innerHTML = "";
+
+  items.forEach(v=>{
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v === "" ? "All exercises" : v;
+    liftSearch.appendChild(opt);
+  });
+
+  liftSearch.value = items.includes(prev) ? prev : "";
+}
+
+function getFilteredLifts(){
+  let arr = [...lifts];
+
+  const selected = (liftSearch?.value || "").trim();
+  if(selected){
+    const n = normExName(selected);
+    arr = arr.filter(x => (x.exNorm || normExName(x.ex)) === n);
+  }
+
+  const days = Number(liftFilterRange?.value || 30);
+  if(days > 0){
+    const cutoff = daysAgo(days);
+    arr = arr.filter(x => parseISO(x.date) >= cutoff);
+  }
+
+  arr.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const lim = Number(liftLimit?.value || 25);
+  if(lim > 0) arr = arr.slice(0, lim);
+
+  return arr;
+}
+
+liftSearch.addEventListener("change", renderLifts);
+liftFilterRange.addEventListener("change", renderLifts);
+liftLimit.addEventListener("change", renderLifts);
+
+function renderLifts(){
+  liftTable.innerHTML = "";
+  const visible = getFilteredLifts();
+
+  visible.forEach(x=>{
+    const topSet = (x.weight && x.reps) ? `${x.weight} x ${x.reps}` : "—";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${x.date}</td>
+      <td><span class="clickEx" data-hist="${x.ex}">${x.ex}</span></td>
+      <td class="mono">${topSet}</td>
+      <td class="mono">${x.sets ?? "—"}</td>
+      <td>${x.pr ? '<span class="badge">🏆</span>' : ''}</td>
+      <td><button data-dellift="${x.id}">Delete</button></td>
+    `;
+    liftTable.appendChild(tr);
+  });
+
+  liftTable.querySelectorAll("button[data-dellift]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const id = btn.getAttribute("data-dellift");
+      lifts = lifts.filter(x=>x.id!==id);
+      LS.set(KEY_LIFTS, lifts);
+      renderLiftSearchDropdown();
+      renderLifts();
+      renderPPL();
+      buildRoutineExerciseSuggestions();
+    });
+  });
+
+  liftTable.querySelectorAll("[data-hist]").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const ex = el.getAttribute("data-hist");
+      openHistoryModal(ex);
+    });
+  });
+}
+
+/* ---------------------------
+   Log Sets Modal (Routine -> Lift Progress)
 ---------------------------- */
 const logModal = document.getElementById("logModal");
 const logModalClose = document.getElementById("logModalClose");
 const logModalExercise = document.getElementById("logModalExercise");
-const logModalRoutine = document.getElementById("logModalRoutine");
-const logModalDay = document.getElementById("logModalDay");
+const logRoutineLine = document.getElementById("logRoutineLine");
 const logModalDate = document.getElementById("logModalDate");
-const logModalNotes = document.getElementById("logModalNotes");
 const logModalSets = document.getElementById("logModalSets");
 const logAddSetBtn = document.getElementById("logAddSetBtn");
 const logSaveBtn = document.getElementById("logSaveBtn");
@@ -1221,7 +1415,49 @@ const logPrevText = document.getElementById("logPrevText");
 const logCopyLastBtn = document.getElementById("logCopyLastBtn");
 const logViewHistoryBtn = document.getElementById("logViewHistoryBtn");
 
-let modalCtx = null; // {exObj, routine, dayAbbr, lastLift}
+let modalExerciseName = null;
+let modalLastLift = null;
+let modalRoutine = null;
+let modalDayKey = null;
+let modalDayIndex = null;
+
+function openLogModal(exName, defaultSets=3, routineObj=null, dayKey="", dayIndex=0){
+  modalExerciseName = exName;
+  modalRoutine = routineObj;
+  modalDayKey = dayKey;
+  modalDayIndex = dayIndex;
+
+  logModalExercise.textContent = exName;
+  logRoutineLine.textContent = routineObj
+    ? `${routineObj.name} • ${dayKey}`
+    : "—";
+
+  // ✅ date = this week’s weekday (Mon..Sun), still editable
+  logModalDate.value = dateForWeekdayIndex(dayIndex, new Date()) || todayISO();
+
+  modalLastLift = getLastLiftForExercise(exName);
+  if(modalLastLift){
+    logPrevBox.style.display = "block";
+    logPrevText.textContent = formatSetsDetail(modalLastLift);
+  } else {
+    logPrevBox.style.display = "none";
+    logPrevText.textContent = "—";
+  }
+
+  logModalSets.innerHTML = "";
+  for(let i=0;i<defaultSets;i++) addSetRow();
+
+  logModal.style.display = "block";
+}
+
+function closeLogModal(){
+  logModal.style.display = "none";
+  modalExerciseName = null;
+  modalLastLift = null;
+  modalRoutine = null;
+  modalDayKey = null;
+  modalDayIndex = null;
+}
 
 function renumberSetPills(){
   [...logModalSets.children].forEach((child, i)=>{
@@ -1229,6 +1465,7 @@ function renumberSetPills(){
     if(pillStrong) pillStrong.textContent = String(i+1);
   });
 }
+
 function addSetRow(weight="", reps=""){
   const idx = logModalSets.children.length + 1;
   const row = document.createElement("div");
@@ -1250,75 +1487,34 @@ function addSetRow(weight="", reps=""){
   });
   logModalSets.appendChild(row);
 }
-function closeLogModal(){
-  logModal.style.display = "none";
-  modalCtx = null;
-}
+
+logAddSetBtn.addEventListener("click", ()=> addSetRow());
 logModalClose.addEventListener("click", closeLogModal);
 logModal.addEventListener("click", (e)=>{ if(e.target === logModal) closeLogModal(); });
-logAddSetBtn.addEventListener("click", ()=> addSetRow());
-
-function openLogModal(exObj, routine, dayAbbr){
-  const exName = exObj.name;
-  const exNorm = normExName(exName);
-
-  modalCtx = {
-    exObj, routine, dayAbbr,
-    lastLift: getLastLiftForExerciseName(exName),
-  };
-
-  logModalExercise.textContent = exName;
-  logModalRoutine.textContent = routine.name;
-  const dayLabel = routine.days[dayAbbr]?.label ? `${dayAbbr} • ${routine.days[dayAbbr].label}` : dayAbbr;
-  logModalDay.textContent = dayLabel;
-
-  // ✅ Always this week’s weekday date (editable)
-  logModalDate.value = dateForDayAbbr(dayAbbr);
-  logModalNotes.value = "";
-
-  if(modalCtx.lastLift){
-    logPrevBox.style.display = "block";
-    logPrevText.textContent = formatSetsDetail(modalCtx.lastLift);
-  }else{
-    logPrevBox.style.display = "none";
-    logPrevText.textContent = "—";
-  }
-
-  // pre-fill set rows to the programmed sets
-  logModalSets.innerHTML = "";
-  const defaultSets = Number(exObj.sets)||3;
-  for(let i=0;i<defaultSets;i++) addSetRow();
-
-  logModal.style.display = "block";
-}
 
 logCopyLastBtn.addEventListener("click", ()=>{
-  if(!modalCtx?.lastLift) return;
-  const last = modalCtx.lastLift;
+  if(!modalLastLift) return;
   logModalSets.innerHTML = "";
-  if(Array.isArray(last.details) && last.details.length){
-    last.details.forEach(s => addSetRow(String(s.weight ?? ""), String(s.reps ?? "")));
+
+  if(Array.isArray(modalLastLift.details) && modalLastLift.details.length){
+    modalLastLift.details.forEach(s=> addSetRow(String(s.weight ?? ""), String(s.reps ?? "")));
   } else {
-    addSetRow(String(last.weight ?? ""), String(last.reps ?? ""));
+    addSetRow(String(modalLastLift.weight ?? ""), String(modalLastLift.reps ?? ""));
   }
   renumberSetPills();
 });
 
 logViewHistoryBtn.addEventListener("click", ()=>{
-  if(!modalCtx?.exObj?.name) return;
-  openHistoryModal(modalCtx.exObj.name);
+  if(!modalExerciseName) return;
+  openHistoryModal(modalExerciseName);
 });
 
 logSaveBtn.addEventListener("click", ()=>{
-  if(!modalCtx) return;
-
-  const exName = modalCtx.exObj.name;
-  const exNorm = normExName(exName);
+  if(!modalExerciseName) return;
 
   const date = logModalDate.value || todayISO();
-  const notes = (logModalNotes.value || "").trim();
-
   const setRows = [...logModalSets.querySelectorAll(".row")];
+
   const setsArr = [];
   for(const r of setRows){
     const w = Number(r.querySelector(".setWeight")?.value);
@@ -1327,47 +1523,49 @@ logSaveBtn.addEventListener("click", ()=>{
       setsArr.push({weight:w, reps:reps});
     }
   }
+
   if(setsArr.length === 0){
     alert("Enter at least one valid set (weight + reps).");
     return;
   }
 
-  // top set = heaviest weight (tie keeps first)
   let top = setsArr[0];
   for(const s of setsArr){
     if(s.weight > top.weight) top = s;
   }
 
-  const life = liftLifeMax(exNorm);
+  const {life} = liftStatsForExercise(modalExerciseName);
   const isPR = (life === null) ? true : (top.weight > life);
 
   lifts.push({
     id: uid(),
     date,
-    ex: exName,
-    exNorm,
+    ex: modalExerciseName,
+    exNorm: normExName(modalExerciseName),
     sets: setsArr.length,
     reps: top.reps,
     weight: top.weight,
     pr: isPR,
     details: setsArr,
-    notes,
-    routineId: modalCtx.routine.id,
-    routineName: modalCtx.routine.name
+    routineId: modalRoutine?.id || "",
+    routineName: modalRoutine?.name || "",
+    dayKey: modalDayKey || ""
   });
 
   lifts.sort((a,b)=>b.date.localeCompare(a.date));
   LS.set(KEY_LIFTS, lifts);
 
   closeLogModal();
-  renderAllRoutineViews();
+  renderLiftSearchDropdown();
+  renderLifts();
+  renderPPL();
+  buildRoutineExerciseSuggestions();
 
-  // jump to results
-  document.getElementById("liftTableWrap").scrollIntoView({behavior:"smooth", block:"start"});
+  document.getElementById("liftTable").scrollIntoView({behavior:"smooth", block:"start"});
 });
 
 /* ---------------------------
-   History Modal (by normalized exercise)
+   History Modal
 ---------------------------- */
 const histModal = document.getElementById("histModal");
 const histCloseBtn = document.getElementById("histCloseBtn");
@@ -1379,13 +1577,13 @@ histCloseBtn.addEventListener("click", closeHistoryModal);
 histModal.addEventListener("click", (e)=>{ if(e.target === histModal) closeHistoryModal(); });
 
 function openHistoryModal(exName){
-  const exNorm = normExName(exName);
   histExercise.textContent = exName;
+  const n = normExName(exName);
 
   const exLifts = lifts
-    .filter(x=>x.exNorm === exNorm)
+    .filter(x=> (x.exNorm || normExName(x.ex)) === n)
     .sort((a,b)=>b.date.localeCompare(a.date))
-    .slice(0, 20);
+    .slice(0, 12);
 
   histTable.innerHTML = "";
 
@@ -1400,7 +1598,6 @@ function openHistoryModal(exName){
       <td class="mono">${x.date}</td>
       <td class="mono">${topSet}</td>
       <td class="mono">${allSets}</td>
-      <td class="mono">${x.routineName || "—"}</td>
       <td>${x.pr ? '<span class="badge">🏆</span>' : ''}</td>
     `;
     histTable.appendChild(tr);
@@ -1410,583 +1607,257 @@ function openHistoryModal(exName){
 }
 
 /* ---------------------------
-   Routine Editor (multi-routine)
+   Routine Editor
 ---------------------------- */
-const routineModal = document.getElementById("routineModal");
-const routineModalClose = document.getElementById("routineModalClose");
-const routineNameInput = document.getElementById("routineNameInput");
-const routineDaySelect = document.getElementById("routineDaySelect");
-const routineDayLabel = document.getElementById("routineDayLabel");
-const routineDayRest = document.getElementById("routineDayRest");
-const routineSaveBtn = document.getElementById("routineSaveBtn");
-const routineDayExercises = document.getElementById("routineDayExercises");
+const rtModal = document.getElementById("rtModal");
+const rtCloseBtn = document.getElementById("rtCloseBtn");
+const rtCancelBtn = document.getElementById("rtCancelBtn");
+const rtSaveBtn = document.getElementById("rtSaveBtn");
 
-const addExName = document.getElementById("addExName");
-const addExSets = document.getElementById("addExSets");
-const addExReps = document.getElementById("addExReps");
-const addExNotes = document.getElementById("addExNotes");
-const addExBtn = document.getElementById("addExBtn");
-const exerciseSuggest = document.getElementById("exerciseSuggest");
+const rtName = document.getElementById("rtName");
+const rtDayTabs = document.getElementById("rtDayTabs");
+const rtDayLabel = document.getElementById("rtDayLabel");
+const rtRestToggle = document.getElementById("rtRestToggle");
+const rtDayRestNotice = document.getElementById("rtDayRestNotice");
 
-routineEditBtn.addEventListener("click", openRoutineEditor);
-routineModalClose.addEventListener("click", closeRoutineEditor);
-routineModal.addEventListener("click", (e)=>{ if(e.target === routineModal) closeRoutineEditor(); });
-routineSaveBtn.addEventListener("click", saveRoutineEditor);
+const rtAddExName = document.getElementById("rtAddExName");
+const rtAddExSets = document.getElementById("rtAddExSets");
+const rtAddExReps = document.getElementById("rtAddExReps");
+const rtAddExBtn = document.getElementById("rtAddExBtn");
+const rtExList = document.getElementById("rtExList");
+const rtExSuggestions = document.getElementById("rtExSuggestions");
 
-function openRoutineEditor(){
-  const r = getActiveRoutine();
+let editRoutineId = null;
+let editDayIndex = 0;
+let draftRoutine = null;
 
-  routineNameInput.value = r.name;
-
-  routineDaySelect.innerHTML = "";
-  DAY_ORDER.forEach(d=>{
+function buildRoutineExerciseSuggestions(){
+  const list = collectAllExerciseNames();
+  rtExSuggestions.innerHTML = "";
+  list.forEach(n=>{
     const opt = document.createElement("option");
-    opt.value = d;
-    opt.textContent = d;
-    routineDaySelect.appendChild(opt);
+    opt.value = n;
+    rtExSuggestions.appendChild(opt);
   });
-
-  routineDaySelect.value = activeDay || "Mon";
-  loadRoutineDayIntoEditor();
-  rebuildExerciseSuggest();
-  routineModal.style.display = "block";
-}
-function closeRoutineEditor(){
-  routineModal.style.display = "none";
 }
 
-routineDaySelect.addEventListener("change", loadRoutineDayIntoEditor);
+function openRoutineEditor(routineId){
+  const r = routines.find(x=>x.id===routineId);
+  if(!r) return;
 
-function loadRoutineDayIntoEditor(){
-  const r = getActiveRoutine();
-  const day = routineDaySelect.value;
-  const d = r.days[day] || makeEmptyDay();
+  editRoutineId = routineId;
+  editDayIndex = activeDayIndex; // open on currently viewed day
+  draftRoutine = JSON.parse(JSON.stringify(r)); // safe draft copy
 
-  routineDayLabel.value = d.label || "";
-  routineDayRest.value = d.rest ? "1" : "0";
+  rtName.value = draftRoutine.name;
 
-  renderRoutineDayExerciseList();
+  buildRoutineExerciseSuggestions();
+  renderRtDayTabs();
+  renderRtDayPanel();
+
+  rtModal.style.display = "block";
 }
 
-function renderRoutineDayExerciseList(){
-  const r = getActiveRoutine();
-  const day = routineDaySelect.value;
-  const d = r.days[day] || makeEmptyDay();
-  const list = Array.isArray(d.exercises) ? d.exercises : [];
+function closeRoutineEditor(discard=true){
+  rtModal.style.display = "none";
+  editRoutineId = null;
+  editDayIndex = 0;
+  draftRoutine = null;
+}
 
-  routineDayExercises.innerHTML = "";
-  if(d.rest){
-    const box = document.createElement("div");
-    box.className = "notice";
-    box.textContent = "This day is marked as Rest Day. Toggle Rest Day to No to add exercises.";
-    routineDayExercises.appendChild(box);
+rtCloseBtn.addEventListener("click", ()=>closeRoutineEditor(true));
+rtCancelBtn.addEventListener("click", ()=>closeRoutineEditor(true));
+rtModal.addEventListener("click", (e)=>{ if(e.target === rtModal) closeRoutineEditor(true); });
+
+function renderRtDayTabs(){
+  rtDayTabs.innerHTML = "";
+  DAY_KEYS.forEach((k, idx)=>{
+    const day = draftRoutine.days[k];
+    const label = (day.label||"").trim();
+    const rest = !!day.rest;
+
+    const b = document.createElement("div");
+    b.className = "tab" + (idx===editDayIndex ? " active" : "");
+    b.innerHTML = `
+      <span>${k}</span>
+      ${label ? `<span class="badge">${label}</span>` : ""}
+      ${rest ? `<span class="badge">Rest</span>` : ""}
+    `;
+    b.addEventListener("click", ()=>{
+      editDayIndex = idx;
+      renderRtDayTabs();
+      renderRtDayPanel();
+    });
+    rtDayTabs.appendChild(b);
+  });
+}
+
+function renderRtDayPanel(){
+  const k = DAY_KEYS[editDayIndex];
+  const day = draftRoutine.days[k];
+
+  rtDayLabel.value = day.label || "";
+  rtRestToggle.value = day.rest ? "1" : "0";
+  rtDayRestNotice.style.display = day.rest ? "block" : "none";
+
+  rtExList.innerHTML = "";
+  const list = day.exercises || [];
+
+  if(!list.length){
+    const empty = document.createElement("div");
+    empty.className = "notice";
+    empty.textContent = "No exercises for this day yet.";
+    rtExList.appendChild(empty);
     return;
   }
 
   list.forEach((ex, idx)=>{
-    const row = document.createElement("div");
-    row.className = "exerciseItem";
-    row.innerHTML = `
-      <div class="left" style="width:100%;">
-        <div class="row" style="align-items:end;">
-          <label style="flex:2 1 260px;">Name
-            <input data-k="name" value="${escapeHtml(ex.name)}" />
-          </label>
-          <label>Sets
-            <input data-k="sets" type="number" value="${ex.sets ?? ""}" />
-          </label>
-          <label>Reps
-            <input data-k="reps" value="${escapeHtml(ex.reps ?? "")}" />
-          </label>
-          <label style="flex:2 1 220px;">Notes
-            <input data-k="notes" value="${escapeHtml(ex.notes ?? "")}" />
-          </label>
-        </div>
-        <div class="btnRow">
-          <button type="button" data-up>Up</button>
-          <button type="button" data-down>Down</button>
-          <button type="button" class="ghost" data-del>Remove</button>
-        </div>
+    const wrap = document.createElement("div");
+    wrap.className = "card";
+    wrap.style.padding = "10px";
+    wrap.style.background = "#0f0f10";
+
+    wrap.innerHTML = `
+      <div class="row" style="align-items:center;">
+        <label style="flex:2 1 240px;">Name
+          <input data-field="name" value="${ex.name || ""}" />
+        </label>
+
+        <label style="flex:0 0 120px;">Sets
+          <input data-field="sets" type="number" min="1" value="${ex.sets || ""}" />
+        </label>
+
+        <label style="flex:1 1 160px;">Reps
+          <input data-field="reps" value="${ex.reps || ""}" />
+        </label>
+      </div>
+
+      <div class="row" style="margin-top:8px;">
+        <label style="flex:1 1 100%;">Notes
+          <textarea data-field="notes" placeholder="optional">${ex.notes || ""}</textarea>
+        </label>
+      </div>
+
+      <div class="btnRow">
+        <button type="button" class="miniBtn" data-up="${idx}">Up</button>
+        <button type="button" class="miniBtn" data-down="${idx}">Down</button>
+        <button type="button" class="miniBtn" data-swap="${idx}">Swap</button>
+        <button type="button" class="miniBtn danger" data-remove="${idx}">Remove</button>
       </div>
     `;
 
-    // edits = swap exercise + edit sets/reps/notes
-    row.querySelectorAll("input[data-k]").forEach(inp=>{
-      inp.addEventListener("change", ()=>{
-        const k = inp.getAttribute("data-k");
-        if(k==="sets"){
-          const v = inp.value === "" ? "" : Number(inp.value);
-          list[idx][k] = (v==="" || isFinite(v)) ? v : list[idx][k];
-        } else {
-          list[idx][k] = inp.value;
+    // bind input changes
+    wrap.querySelectorAll("[data-field]").forEach(inp=>{
+      inp.addEventListener("input", ()=>{
+        const field = inp.getAttribute("data-field");
+        if(field === "sets"){
+          day.exercises[idx][field] = Number(inp.value)||0;
+        }else{
+          day.exercises[idx][field] = inp.value;
         }
-        r.days[day].exercises = list;
-        persistRoutines();
-        rebuildExerciseSuggest();
-        renderPPLDay();
       });
     });
 
-    row.querySelector("[data-up]").addEventListener("click", ()=>{
+    wrap.querySelector("[data-up]")?.addEventListener("click", ()=>{
       if(idx<=0) return;
-      [list[idx-1], list[idx]] = [list[idx], list[idx-1]];
-      r.days[day].exercises = list;
-      persistRoutines();
-      renderRoutineDayExerciseList();
-      renderPPLDay();
-    });
-    row.querySelector("[data-down]").addEventListener("click", ()=>{
-      if(idx>=list.length-1) return;
-      [list[idx+1], list[idx]] = [list[idx], list[idx+1]];
-      r.days[day].exercises = list;
-      persistRoutines();
-      renderRoutineDayExerciseList();
-      renderPPLDay();
-    });
-    row.querySelector("[data-del]").addEventListener("click", ()=>{
-      list.splice(idx,1);
-      r.days[day].exercises = list;
-      persistRoutines();
-      rebuildExerciseSuggest();
-      renderRoutineDayExerciseList();
-      renderPPLDay();
+      const tmp = day.exercises[idx-1];
+      day.exercises[idx-1] = day.exercises[idx];
+      day.exercises[idx] = tmp;
+      renderRtDayPanel();
     });
 
-    routineDayExercises.appendChild(row);
+    wrap.querySelector("[data-down]")?.addEventListener("click", ()=>{
+      if(idx>=day.exercises.length-1) return;
+      const tmp = day.exercises[idx+1];
+      day.exercises[idx+1] = day.exercises[idx];
+      day.exercises[idx] = tmp;
+      renderRtDayPanel();
+    });
+
+    wrap.querySelector("[data-remove]")?.addEventListener("click", ()=>{
+      day.exercises.splice(idx,1);
+      renderRtDayPanel();
+    });
+
+    wrap.querySelector("[data-swap]")?.addEventListener("click", ()=>{
+      const cur = day.exercises[idx]?.name || "";
+      const next = prompt(`Swap this exercise for what? (Day-specific)\nCurrent: ${cur}`, cur);
+      if(next === null) return;
+      const trimmed = String(next).trim();
+      if(!trimmed) return;
+      day.exercises[idx].name = trimmed;
+      renderRtDayPanel();
+    });
+
+    rtExList.appendChild(wrap);
   });
 }
 
-addExBtn.addEventListener("click", ()=>{
-  const r = getActiveRoutine();
-  const day = routineDaySelect.value;
-  const d = r.days[day] || makeEmptyDay();
-
-  if(d.rest){
-    alert("This day is marked Rest Day. Set Rest Day to No first.");
-    return;
+// Day-level fields
+rtDayLabel.addEventListener("input", ()=>{
+  const k = DAY_KEYS[editDayIndex];
+  draftRoutine.days[k].label = rtDayLabel.value;
+  renderRtDayTabs();
+});
+rtRestToggle.addEventListener("change", ()=>{
+  const k = DAY_KEYS[editDayIndex];
+  draftRoutine.days[k].rest = (rtRestToggle.value === "1");
+  // optional: auto-label rest if blank
+  if(draftRoutine.days[k].rest && !draftRoutine.days[k].label){
+    draftRoutine.days[k].label = "Rest";
+    rtDayLabel.value = "Rest";
   }
+  rtDayRestNotice.style.display = draftRoutine.days[k].rest ? "block" : "none";
+  renderRtDayTabs();
+});
 
-  const name = (addExName.value || "").trim();
-  const sets = Number(addExSets.value);
-  const reps = (addExReps.value || "").trim();
-  const notes = (addExNotes.value || "").trim();
+// Add exercise
+rtAddExBtn.addEventListener("click", ()=>{
+  const k = DAY_KEYS[editDayIndex];
+  const day = draftRoutine.days[k];
+
+  const name = String(rtAddExName.value||"").trim();
+  const sets = Number(rtAddExSets.value)||0;
+  const reps = String(rtAddExReps.value||"").trim();
 
   if(!name) return alert("Enter an exercise name.");
-  if(!isFinite(sets) || sets<=0) return alert("Enter sets (number).");
-  if(!reps) return alert("Enter reps (text like 8–10).");
+  if(!sets || sets <= 0) return alert("Enter sets (number).");
+  if(!reps) return alert("Enter reps (e.g., 8–10).");
 
-  d.exercises.push({name, sets, reps, notes});
-  r.days[day] = d;
+  day.exercises.push({name, sets, reps, notes:""});
+  rtAddExName.value = "";
+  rtAddExSets.value = "";
+  rtAddExReps.value = "";
 
-  persistRoutines();
-  rebuildExerciseSuggest();
-
-  // clear add fields
-  addExName.value = "";
-  addExSets.value = "";
-  addExReps.value = "";
-  addExNotes.value = "";
-
-  renderRoutineDayExerciseList();
-  renderPPLDay();
+  renderRtDayPanel();
+  buildRoutineExerciseSuggestions();
 });
 
-function saveRoutineEditor(){
-  const r = getActiveRoutine();
-  const name = (routineNameInput.value || "").trim();
-  if(name) r.name = name;
+rtSaveBtn.addEventListener("click", ()=>{
+  if(!draftRoutine) return;
 
-  const day = routineDaySelect.value;
-  const d = r.days[day] || makeEmptyDay();
-  d.label = (routineDayLabel.value || "").trim();
-  d.rest = (routineDayRest.value === "1");
-  if(d.rest) d.exercises = []; // keep clean
+  const name = String(rtName.value||"").trim();
+  if(!name) return alert("Routine needs a name.");
+  draftRoutine.name = name;
 
-  r.days[day] = d;
+  // write draft back into routines array
+  const idx = routines.findIndex(r=>r.id===editRoutineId);
+  if(idx < 0) return;
 
-  persistRoutines();
-  renderRoutineSelect();
-  renderPPLDay();
-  renderLiftFilters();
-  alert("Routine saved ✅");
-}
+  routines[idx] = draftRoutine;
+  saveRoutines();
 
-routineDayRest.addEventListener("change", ()=>{
-  const r = getActiveRoutine();
-  const day = routineDaySelect.value;
-  const d = r.days[day] || makeEmptyDay();
-  d.rest = (routineDayRest.value === "1");
-  if(d.rest) d.exercises = [];
-  r.days[day] = d;
-  persistRoutines();
-  renderRoutineDayExerciseList();
-  renderPPLDay();
+  // keep active routine pointing here
+  setActiveRoutine(draftRoutine.id);
+
+  closeRoutineEditor(true);
+  renderRoutineDropdown();
+  renderPPL();
+  buildRoutineExerciseSuggestions();
 });
-
-function persistRoutines(){
-  LS.set(KEY_ROUTINES, routines);
-}
-
-function rebuildExerciseSuggest(){
-  const names = new Set();
-  // from routines
-  routines.forEach(r=>{
-    DAY_ORDER.forEach(d=>{
-      (r.days[d]?.exercises || []).forEach(ex=> names.add(ex.name));
-    });
-  });
-  // from logs
-  lifts.forEach(l => names.add(l.ex));
-  // render datalist
-  exerciseSuggest.innerHTML = "";
-  [...names].sort().forEach(n=>{
-    const opt = document.createElement("option");
-    opt.value = n;
-    exerciseSuggest.appendChild(opt);
-  });
-}
-
-function escapeHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;");
-}
 
 /* ---------------------------
-   Lift Progress Log (Search button + Clear + routine/date filtering)
-   + Table/Graph views
----------------------------- */
-const liftTable = document.getElementById("liftTable");
-const liftSearch = document.getElementById("liftSearch");
-const liftRoutineFilter = document.getElementById("liftRoutineFilter");
-const liftDateFrom = document.getElementById("liftDateFrom");
-const liftDateTo = document.getElementById("liftDateTo");
-const liftLimit = document.getElementById("liftLimit");
-const liftApplyBtn = document.getElementById("liftApplyBtn");
-const liftClearBtn = document.getElementById("liftClearBtn");
-const liftResultCount = document.getElementById("liftResultCount");
-
-const logViewTableBtn = document.getElementById("logViewTableBtn");
-const logViewGraphBtn = document.getElementById("logViewGraphBtn");
-const liftTableWrap = document.getElementById("liftTableWrap");
-const liftGraphWrap = document.getElementById("liftGraphWrap");
-const graphMetric = document.getElementById("graphMetric");
-const graphDownloadBtn = document.getElementById("graphDownloadBtn");
-
-let appliedFilters = {
-  exNorm: "",
-  routineId: "",
-  dateFrom: "",
-  dateTo: "",
-  limit: 25
-};
-
-function renderLiftFilters(){
-  // Exercise dropdown (All + known names)
-  const prevEx = liftSearch.value || "";
-  const exMap = new Map(); // exNorm -> display (first encountered)
-  // prefer routine exercise names for display, then logs
-  routines.forEach(r=>{
-    DAY_ORDER.forEach(d=>{
-      (r.days[d]?.exercises || []).forEach(ex=>{
-        const n = ex.name;
-        const k = normExName(n);
-        if(k && !exMap.has(k)) exMap.set(k, n);
-      });
-    });
-  });
-  lifts.forEach(l=>{
-    if(l.exNorm && !exMap.has(l.exNorm)) exMap.set(l.exNorm, l.ex);
-  });
-
-  const exItems = [["","All exercises"], ...[...exMap.entries()].sort((a,b)=>a[1].localeCompare(b[1]))];
-  liftSearch.innerHTML = "";
-  exItems.forEach(([k, display])=>{
-    const opt = document.createElement("option");
-    opt.value = k;               // store exNorm
-    opt.textContent = display;
-    liftSearch.appendChild(opt);
-  });
-
-  // Routine dropdown (All + routines)
-  const prevR = liftRoutineFilter.value || "";
-  liftRoutineFilter.innerHTML = "";
-  const optAll = document.createElement("option");
-  optAll.value = "";
-  optAll.textContent = "All routines";
-  liftRoutineFilter.appendChild(optAll);
-  routines.forEach(r=>{
-    const opt = document.createElement("option");
-    opt.value = r.id;
-    opt.textContent = r.name;
-    liftRoutineFilter.appendChild(opt);
-  });
-
-  // restore selection safely
-  if(exItems.some(x=>x[0]===prevEx)) liftSearch.value = prevEx;
-  else liftSearch.value = appliedFilters.exNorm || "";
-
-  if(["", ...routines.map(r=>r.id)].includes(prevR)) liftRoutineFilter.value = prevR;
-  else liftRoutineFilter.value = appliedFilters.routineId || "";
-}
-
-function applyFiltersFromUI(){
-  appliedFilters.exNorm = liftSearch.value || "";
-  appliedFilters.routineId = liftRoutineFilter.value || "";
-  appliedFilters.dateFrom = liftDateFrom.value || "";
-  appliedFilters.dateTo = liftDateTo.value || "";
-  appliedFilters.limit = Number(liftLimit.value || 25);
-}
-
-function clearFiltersUI(){
-  liftSearch.value = "";
-  liftRoutineFilter.value = "";
-  liftDateFrom.value = "";
-  liftDateTo.value = "";
-  liftLimit.value = "25";
-}
-
-function getFilteredLifts(){
-  let arr = [...lifts];
-
-  if(appliedFilters.exNorm){
-    arr = arr.filter(x => x.exNorm === appliedFilters.exNorm);
-  }
-  if(appliedFilters.routineId){
-    arr = arr.filter(x => x.routineId === appliedFilters.routineId);
-  }
-  if(appliedFilters.dateFrom){
-    const from = parseISO(appliedFilters.dateFrom);
-    arr = arr.filter(x => parseISO(x.date) >= from);
-  }
-  if(appliedFilters.dateTo){
-    const to = parseISO(appliedFilters.dateTo);
-    arr = arr.filter(x => parseISO(x.date) <= to);
-  }
-
-  arr.sort((a,b)=>b.date.localeCompare(a.date));
-
-  if(appliedFilters.limit > 0){
-    arr = arr.slice(0, appliedFilters.limit);
-  }
-
-  return arr;
-}
-
-liftApplyBtn.addEventListener("click", ()=>{
-  applyFiltersFromUI();
-  renderLiftsAndGraph();
-});
-liftClearBtn.addEventListener("click", ()=>{
-  appliedFilters = { exNorm:"", routineId:"", dateFrom:"", dateTo:"", limit:25 };
-  clearFiltersUI();
-  renderLiftsAndGraph();
-});
-
-function renderLiftsTable(rows){
-  liftTable.innerHTML = "";
-  liftResultCount.textContent = String(rows.length);
-
-  rows.forEach(x=>{
-    const topSet = (x.weight && x.reps) ? `${x.weight} x ${x.reps}` : "—";
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="mono">${x.date}</td>
-      <td><span class="clickEx" data-hist="${escapeHtml(x.ex)}">${escapeHtml(x.ex)}</span></td>
-      <td class="mono">${topSet}</td>
-      <td class="mono">${x.sets ?? "—"}</td>
-      <td class="mono">${escapeHtml(x.routineName || "—")}</td>
-      <td>${x.pr ? '<span class="badge">🏆</span>' : ''}</td>
-      <td><button data-dellift="${x.id}">Delete</button></td>
-    `;
-    liftTable.appendChild(tr);
-  });
-
-  liftTable.querySelectorAll("button[data-dellift]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-dellift");
-      lifts = lifts.filter(x=>x.id!==id);
-      LS.set(KEY_LIFTS, lifts);
-      renderLiftFilters();
-      renderAllRoutineViews();
-    });
-  });
-
-  liftTable.querySelectorAll("[data-hist]").forEach(el=>{
-    el.addEventListener("click", ()=>{
-      const ex = el.getAttribute("data-hist");
-      openHistoryModal(ex);
-    });
-  });
-}
-
-/* ---------------------------
-   Graph (Table/Graph toggle + weekly separators + download PNG)
----------------------------- */
-let liftChart = null;
-
-const weekLinesPlugin = {
-  id: "weekLines",
-  afterDraw(chart, args, pluginOptions){
-    const {ctx, chartArea, scales} = chart;
-    if(!chartArea) return;
-    const xScale = scales.x;
-    if(!xScale) return;
-
-    const labels = chart.data.labels || [];
-    if(labels.length < 2) return;
-
-    // draw line whenever Monday occurs (or when week changes)
-    ctx.save();
-    ctx.strokeStyle = "#202124";
-    ctx.lineWidth = 1;
-
-    for(let i=1;i<labels.length;i++){
-      const dPrev = parseISO(labels[i-1]);
-      const dCur  = parseISO(labels[i]);
-      // week boundary if cur is Monday OR the week number changes
-      const curDow = dCur.getDay(); // 0 Sun, 1 Mon
-      const isMonday = curDow === 1;
-      if(isMonday){
-        const x = xScale.getPixelForValue(i);
-        ctx.beginPath();
-        ctx.moveTo(x, chartArea.top);
-        ctx.lineTo(x, chartArea.bottom);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-  }
-};
-
-function buildGraphSeries(allRows){
-  // Graph is meaningful when exercise selected; otherwise show nothing
-  if(!appliedFilters.exNorm){
-    return {labels:[], data:[], note:"Select an exercise to graph."};
-  }
-
-  const rows = allRows
-    .filter(x => x.exNorm === appliedFilters.exNorm)
-    .slice()
-    .sort((a,b)=>a.date.localeCompare(b.date)); // chronological
-
-  const labels = rows.map(r=>r.date);
-  const metric = graphMetric.value;
-
-  const data = rows.map(r=>{
-    if(metric==="top") return Number(r.weight)||0;
-    if(metric==="e1rm") return Math.round(e1rmEpley(r.weight, r.reps)*10)/10;
-    if(metric==="vol") return Math.round(volumeForLift(r));
-    return Number(r.weight)||0;
-  });
-
-  return {labels, data, note:""};
-}
-
-function renderLiftGraph(allRows){
-  const ctx = document.getElementById("liftChart");
-  const {labels, data, note} = buildGraphSeries(allRows);
-
-  if(liftChart) { liftChart.destroy(); liftChart = null; }
-
-  if(!labels.length){
-    graphDownloadBtn.style.display = "none";
-    // show a tiny notice by drawing an empty chart? simpler: create chart with no data
-    liftChart = new Chart(ctx, {
-      type:"line",
-      data:{ labels:[], datasets:[{ data:[], tension:.25, pointRadius:3 }] },
-      options:{
-        responsive:true,
-        plugins:{ legend:{display:false}, tooltip:{enabled:false} },
-        scales:{
-          x:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}},
-          y:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}}
-        }
-      },
-      plugins:[weekLinesPlugin]
-    });
-    return;
-  }
-
-  graphDownloadBtn.style.display = "inline-block";
-
-  liftChart = new Chart(ctx, {
-    type:"line",
-    data:{
-      labels,
-      datasets:[{
-        label:"Progress",
-        data,
-        tension:.25,
-        pointRadius:3,
-      }]
-    },
-    options:{
-      responsive:true,
-      plugins:{
-        legend:{display:false},
-        tooltip:{mode:"index", intersect:false}
-      },
-      scales:{
-        x:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}},
-        y:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}}
-      }
-    },
-    plugins:[weekLinesPlugin]
-  });
-}
-
-graphDownloadBtn.addEventListener("click", ()=>{
-  if(!liftChart) return;
-  const url = liftChart.toBase64Image();
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `lift-graph-${localISODate(new Date())}.png`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-});
-
-logViewTableBtn.addEventListener("click", ()=>{
-  logViewTableBtn.classList.add("active");
-  logViewGraphBtn.classList.remove("active");
-  liftTableWrap.style.display = "";
-  liftGraphWrap.style.display = "none";
-  graphDownloadBtn.style.display = "none";
-});
-logViewGraphBtn.addEventListener("click", ()=>{
-  logViewGraphBtn.classList.add("active");
-  logViewTableBtn.classList.remove("active");
-  liftTableWrap.style.display = "none";
-  liftGraphWrap.style.display = "";
-  // download button only shows when chart has data (set in renderLiftGraph)
-  renderLiftsAndGraph();
-});
-graphMetric.addEventListener("change", ()=>{
-  if(liftGraphWrap.style.display !== "none"){
-    renderLiftsAndGraph();
-  }
-});
-
-function renderLiftsAndGraph(){
-  const rows = getFilteredLifts();
-  renderLiftsTable(rows);
-  if(liftGraphWrap.style.display !== "none"){
-    // for graph we need all rows of that exercise (ignoring limit) but respecting other filters
-    // We'll rebuild a "graphRows" with filters except limit
-    const savedLimit = appliedFilters.limit;
-    appliedFilters.limit = 0;
-    const graphRows = getFilteredLifts();
-    appliedFilters.limit = savedLimit;
-
-    renderLiftGraph(graphRows);
-  }
-}
-
-/* ---------------------------
-   Export / Import / Reset (includes routines + active routine + logs)
+   Export / Import (now includes routines + active routine)
 ---------------------------- */
 const exportBtn = document.getElementById("exportBtn");
 const importBtn = document.getElementById("importBtn");
@@ -2001,7 +1872,7 @@ function buildExportPayload(){
     proteinMap: LS.get(KEY_PRO, {}),
     lifts: LS.get(KEY_LIFTS, []),
     routines: LS.get(KEY_ROUTINES, []),
-    activeRoutineId: LS.get(KEY_ACTIVE_ROUTINE, "")
+    activeRoutineId: LS.get(KEY_ACTIVE_ROUTINE, null)
   };
 }
 function downloadJSON(filename, obj){
@@ -2036,10 +1907,10 @@ importFile.addEventListener("change", async ()=>{
     const att = Array.isArray(data.attendance) ? data.attendance : null;
     const pro = (data.proteinMap && typeof data.proteinMap === "object") ? data.proteinMap : null;
     const lf = Array.isArray(data.lifts) ? data.lifts : null;
-    const rt = Array.isArray(data.routines) ? data.routines : null;
-    const ar = typeof data.activeRoutineId === "string" ? data.activeRoutineId : "";
+    const rts = Array.isArray(data.routines) ? data.routines : null;
+    const arId = (typeof data.activeRoutineId === "string" || data.activeRoutineId === null) ? data.activeRoutineId : null;
 
-    if(!bw || !att || !pro || !lf || !rt){
+    if(!bw || !att || !pro || !lf || !rts){
       alert("That file doesn’t look like a valid export from this dashboard.");
       return;
     }
@@ -2051,32 +1922,30 @@ importFile.addEventListener("change", async ()=>{
     LS.set(KEY_ATT, att);
     LS.set(KEY_PRO, pro);
     LS.set(KEY_LIFTS, lf);
-    LS.set(KEY_ROUTINES, rt);
-    LS.set(KEY_ACTIVE_ROUTINE, ar);
+    LS.set(KEY_ROUTINES, rts);
+    LS.set(KEY_ACTIVE_ROUTINE, arId);
 
     // reload state
     bwLogs = LS.get(KEY_BW, []);
     attendance = new Set(LS.get(KEY_ATT, []));
     proteinMap = LS.get(KEY_PRO, {});
     lifts = LS.get(KEY_LIFTS, []);
+    ensureLiftCompatibility();
 
-    routines = LS.get(KEY_ROUTINES, []);
-    if(!Array.isArray(routines) || routines.length===0){
-      routines = [makeDefaultRoutine()];
-      LS.set(KEY_ROUTINES, routines);
-    }
-    activeRoutineId = LS.get(KEY_ACTIVE_ROUTINE, routines[0].id);
-    if(!routines.some(r=>r.id===activeRoutineId)){
-      activeRoutineId = routines[0].id;
-      LS.set(KEY_ACTIVE_ROUTINE, activeRoutineId);
-    }
+    ({routines, activeId: activeRoutineId} = loadRoutines());
 
     renderBW();
     renderCal();
     loadProteinDay(todayISO());
-    renderRoutineSelect();
-    activeDay = todayDayAbbr();
-    renderAllRoutineViews();
+
+    renderRoutineDropdown();
+    activeDayIndex = getTodaySplitIndex();
+    renderPPL();
+
+    renderLiftSearchDropdown();
+    renderLifts();
+
+    buildRoutineExerciseSuggestions();
 
     alert("Imported ✅");
   }catch(e){
@@ -2084,34 +1953,37 @@ importFile.addEventListener("change", async ()=>{
   }
 });
 
+/* ---------------------------
+   Reset all (now wipes routines too)
+---------------------------- */
 document.getElementById("wipeAllBtn").addEventListener("click", ()=>{
-  const ok = confirm("Reset ALL saved gym data (including routines + logs) on this device/browser?");
+  const ok = confirm("Reset ALL saved gym data on this device/browser?");
   if(!ok) return;
   localStorage.removeItem(KEY_BW);
   localStorage.removeItem(KEY_ATT);
   localStorage.removeItem(KEY_PRO);
   localStorage.removeItem(KEY_LIFTS);
+  localStorage.removeItem(KEY_TARGETS);
   localStorage.removeItem(KEY_ROUTINES);
   localStorage.removeItem(KEY_ACTIVE_ROUTINE);
   location.reload();
 });
 
 /* ---------------------------
-   Init + shared render
+   Init
 ---------------------------- */
-function renderAllRoutineViews(){
-  renderRoutineSelect();
-  rebuildExerciseSuggest();
-  renderPPLDay();
-  renderLiftFilters();
-  // keep applied filters intact; just rerender results
-  renderLiftsAndGraph();
-}
-
 renderBW();
 renderCal();
 loadProteinDay(todayISO());
-renderAllRoutineViews();
+
+renderRoutineDropdown();
+activeDayIndex = getTodaySplitIndex();
+renderPPL();
+
+renderLiftSearchDropdown();
+renderLifts();
+
+buildRoutineExerciseSuggestions();
 </script>
 </body>
 </html>
