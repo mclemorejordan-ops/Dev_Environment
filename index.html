@@ -732,10 +732,11 @@ function uid(){
    Default Routine Seed
 ---------------------------- */
 function defaultRoutine(){
-  const r = {
+  return {
     id: uid(),
     name: "PPL",
     days: {
+
       Mon: { label:"Push", rest:false, exercises:[
         {name:"Incline Dumbbell Press", sets:4, reps:"8–10", notes:""},
         {name:"Dumbbell Bench Press", sets:4, reps:"8–10", notes:""},
@@ -745,6 +746,7 @@ function defaultRoutine(){
         {name:"Triceps Rope Pushdowns", sets:3, reps:"12–15", notes:""},
         {name:"Overhead Dumbbell Triceps Extension", sets:3, reps:"12–15", notes:""},
       ]},
+
       Tue: { label:"Pull", rest:false, exercises:[
         {name:"Underhand Lat Pulldown", sets:4, reps:"8–10", notes:""},
         {name:"Barbell Row", sets:4, reps:"6–8", notes:""},
@@ -756,6 +758,7 @@ function defaultRoutine(){
         {name:"Dumbbell Alternating Curl", sets:3, reps:"10–12", notes:""},
         {name:"Hanging Leg Raises", sets:3, reps:"12–15", notes:"Core"},
       ]},
+
       Wed: { label:"Legs", rest:false, exercises:[
         {name:"Barbell Back Squat", sets:4, reps:"6–8", notes:""},
         {name:"Leg Press", sets:3, reps:"10–12", notes:""},
@@ -766,22 +769,41 @@ function defaultRoutine(){
         {name:"Cable Crunches", sets:3, reps:"20", notes:"Core"},
       ]},
 
-      // will be filled by deep-copies below
-      Thu: { label:"Push", rest:false, exercises:[] },
-      Fri: { label:"Pull", rest:false, exercises:[] },
-      Sat: { label:"Legs", rest:false, exercises:[] },
+      Thu: { label:"Push", rest:false, exercises:[
+        {name:"Incline Dumbbell Press", sets:4, reps:"8–10", notes:""},
+        {name:"Dumbbell Bench Press", sets:4, reps:"8–10", notes:""},
+        {name:"Chest Dips", sets:3, reps:"10–12", notes:""},
+        {name:"Lateral Raises", sets:3, reps:"12–15", notes:""},
+        {name:"Cable Chest Flys", sets:3, reps:"12–15", notes:""},
+        {name:"Triceps Rope Pushdowns", sets:3, reps:"12–15", notes:""},
+        {name:"Overhead Dumbbell Triceps Extension", sets:3, reps:"12–15", notes:""},
+      ]},
 
-      // Sunday rest
+      Fri: { label:"Pull", rest:false, exercises:[
+        {name:"Underhand Lat Pulldown", sets:4, reps:"8–10", notes:""},
+        {name:"Barbell Row", sets:4, reps:"6–8", notes:""},
+        {name:"Dumbbell Row", sets:3, reps:"10–12", notes:""},
+        {name:"Seated Cable Row", sets:3, reps:"10–12", notes:""},
+        {name:"Rear Delt Fly", sets:3, reps:"12–15", notes:""},
+        {name:"Barbell Curl", sets:3, reps:"10–12", notes:""},
+        {name:"Hammer Curl", sets:3, reps:"12–15", notes:""},
+        {name:"Dumbbell Alternating Curl", sets:3, reps:"10–12", notes:""},
+        {name:"Hanging Leg Raises", sets:3, reps:"12–15", notes:"Core"},
+      ]},
+
+      Sat: { label:"Legs", rest:false, exercises:[
+        {name:"Barbell Back Squat", sets:4, reps:"6–8", notes:""},
+        {name:"Leg Press", sets:3, reps:"10–12", notes:""},
+        {name:"Goblet Squats", sets:3, reps:"12–15 steps", notes:""},
+        {name:"Leg Curl Machine", sets:3, reps:"12–15", notes:""},
+        {name:"Standing Calf Raise", sets:3, reps:"15–20", notes:""},
+        {name:"Leg Extensions", sets:3, reps:"12–15", notes:""},
+        {name:"Cable Crunches", sets:3, reps:"20", notes:"Core"},
+      ]},
+
       Sun: { label:"Rest", rest:true, exercises:[] }
     }
   };
-
-  // ✅ Duplicate Mon→Thu, Tue→Fri, Wed→Sat (deep copy so edits won’t link)
-  r.days.Thu.exercises = JSON.parse(JSON.stringify(r.days.Mon.exercises));
-  r.days.Fri.exercises = JSON.parse(JSON.stringify(r.days.Tue.exercises));
-  r.days.Sat.exercises = JSON.parse(JSON.stringify(r.days.Wed.exercises));
-
-  return r;
 }
 
 /* ---------------------------
