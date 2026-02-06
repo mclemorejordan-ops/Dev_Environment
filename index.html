@@ -15,59 +15,56 @@
       --bad:#ff6b6b;
       --warn:#ffd166;
     }
-    /* ... ALL your existing CSS stays here ... */
-
-    .danger{
-      border-color: rgba(255, 107, 107, .35);
-      color: var(--bad);
-    }
-
     /* ---------------------------
-       MODAL SCROLL FIX (mobile + desktop)
-       - keeps modal within screen
-       - allows scrolling inside the modal
-    ---------------------------- */
-    #logModal,
-    #histModal,
-    #rtModal{
-      overflow-y:auto;
-      -webkit-overflow-scrolling:touch;
-    }
+   MODAL SCROLL FIX (mobile + desktop)
+   - make the MODAL CARD the scroller
+   - avoid nested scrolling on iOS
+---------------------------- */
 
-    /* the modal "card" (your inner <div>) */
-    #logModal > div,
-    #histModal > div,
-    #rtModal > div{
-      max-height:90vh;
-      display:flex;
-      flex-direction:column;
-    }
-    /* allow the long lists inside modals to scroll */
-    #logModalSets,
-    #rtExList{
-      overflow-y:auto;
-      -webkit-overflow-scrolling:touch;
-      max-height:50vh;
-    }
-    /* scrollable content inside modals */
-    #logModalSets,
-    #rtExList{
-      overflow-y:auto;
-      -webkit-overflow-scrolling:touch;
-      max-height:50vh;
-    }
-    /* keep action buttons visible in modals */
-    #rtModal .btnRow,
-    #logModal .btnRow{
-      position:sticky;
-      bottom:0;
-      background:linear-gradient(
-        to bottom,
-        rgba(18,18,20,0),
-        rgba(18,18,20,1) 35%
-      );
-      padding-top:10px;
-    }
+/* overlays */
+#logModal,
+#histModal,
+#rtModal{
+  overflow: hidden;                 /* ✅ prevents overlay scroll fighting */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* modal cards scroll as a whole */
+#logModal > div,
+#histModal > div,
+#rtModal > div{
+  max-height: calc(100dvh - 32px);  /* ✅ true mobile viewport height */
+  overflow-y: auto;                 /* ✅ scroll the whole modal */
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* only Log Sets list can scroll (optional) */
+#logModalSets{
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 50vh;
+}
+
+/* ✅ Routine Editor list should NOT be its own scrollbar */
+#rtExList{
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* keep action buttons visible in modals */
+#rtModal .btnRow,
+#logModal .btnRow{
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(18,18,20,0),
+    rgba(18,18,20,1) 35%
+  );
+  padding-top: 10px;
+}
     *{box-sizing:border-box}
     body{
       margin:0;
