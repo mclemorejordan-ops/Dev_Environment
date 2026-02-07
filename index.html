@@ -54,11 +54,6 @@
   overflow: visible !important;
   max-height: none !important;
 }
-    /* ✅ Exercise Picker list should NOT be its own scrollbar */
-#exPickList{
-  overflow: visible !important;
-  max-height: none !important;
-}
 
 /* keep action buttons visible in modals */
 #rtModal .btnRow,
@@ -1574,7 +1569,7 @@ function renderLiftSearchDropdown(){
   });
   liftSearch.value = items.includes(prev) ? prev : "";
 }
-  /* ---------------------------
+/* ---------------------------
    Exercise Picker (Add + Swap)
 ---------------------------- */
 const exPickModal = document.getElementById("exPickModal");
@@ -1642,6 +1637,12 @@ exPickConfirmBtn.addEventListener("click", ()=>{
     exPickOnConfirm(exPickSelected);
   }
   closeExercisePicker();
+});
+
+[exPickCloseBtn, exPickCancelBtn].forEach(btn=>btn.addEventListener("click", closeExercisePicker));
+
+exPickModal.addEventListener("click", (e)=>{
+  if(e.target === exPickModal) closeExercisePicker();
 });
 
 [exPickCloseBtn, exPickCancelBtn].forEach(btn=>btn.addEventListener("click", closeExercisePicker));
