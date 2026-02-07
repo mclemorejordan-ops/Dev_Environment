@@ -352,6 +352,35 @@
   outline:2px solid rgba(124,252,0,.25);
   background:#0f0f10;
 }
+    /* ---------------------------
+   APP SCREENS (Option A)
+---------------------------- */
+.screen{ display:none; }
+.screen.active{ display:block; }
+
+.screenTop{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  position:sticky;
+  top:0;
+  padding:12px 0;
+  background:rgba(11,11,12,.92);
+  backdrop-filter: blur(10px);
+  z-index:20;
+}
+
+.homeGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+}
+
+.homeGrid button{
+  padding:18px 12px;
+  border-radius:14px;
+  text-align:left;
+}
   </style>
 </head>
 
@@ -363,8 +392,29 @@
 
 <main>
 
-  <div class="grid2">
-    <!-- WEIGHT -->
+  <!-- HOME SCREEN -->
+  <section id="screen-home" class="screen active">
+    <div class="homeGrid">
+      <button class="card" data-go="weight">📉 Weight</button>
+      <button class="card" data-go="attendance">📅 Attendance</button>
+      <button class="card" data-go="protein">🍗 Protein</button>
+      <button class="card" data-go="routine">🗓️ Routine</button>
+      <button class="card" data-go="lifts">📈 Progress</button>
+    </div>
+
+    <div class="notice" style="margin-top:12px;">
+      Tap a section to open it. Everything auto-saves on this device.
+    </div>
+  </section>
+
+  <!-- WEIGHT SCREEN -->
+  <section id="screen-weight" class="screen">
+    <div class="screenTop">
+      <button class="ghost" type="button" data-home>← Back</button>
+      <h2 style="margin:0;">Weight</h2>
+    </div>
+
+    <!-- WEIGHT CARD (your original card restored) -->
     <section class="card">
       <div class="topRight">
         <h2>Weekly Weight Tracker</h2>
@@ -411,8 +461,15 @@
         </table>
       </div>
     </section>
+  </section>
 
-    <!-- ATTENDANCE -->
+  <!-- ATTENDANCE SCREEN -->
+  <section id="screen-attendance" class="screen">
+    <div class="screenTop">
+      <button class="ghost" type="button" data-home>← Back</button>
+      <h2 style="margin:0;">Attendance</h2>
+    </div>
+
     <section class="card">
       <div class="topRight">
         <h2>Attendance (Tap days you went)</h2>
@@ -434,42 +491,54 @@
         Rest days are hidden because we only record the days you actually went.
       </div>
     </section>
-  </div>
-
-  <!-- PROTEIN -->
-  <section class="card">
-    <h2>Protein Intake (Goal 240g)</h2>
-    <div class="row">
-      <label>Date
-        <input type="date" id="pDate" />
-      </label>
-      <label>Morning (g)
-        <input type="number" id="pMorning" placeholder="0" />
-      </label>
-      <label>Lunch (g)
-        <input type="number" id="pLunch" placeholder="0" />
-      </label>
-      <label>Pre-Gym (g)
-        <input type="number" id="pPre" placeholder="0" />
-      </label>
-      <label>Dinner (g)
-        <input type="number" id="pDinner" placeholder="0" />
-      </label>
-      <label>Bedtime (g)
-        <input type="number" id="pBed" placeholder="0" />
-      </label>
-      <button id="pSaveBtn">Save</button>
-    </div>
-
-    <div class="btnRow">
-      <span class="pill"><span class="muted">Total:</span> <strong class="mono" id="pTotal">0</strong>g</span>
-      <span class="pill"><span class="muted">Remaining:</span> <strong class="mono" id="pRemain">240</strong>g</span>
-      <span class="pill"><span class="muted">Status:</span> <strong id="pStatus">—</strong></span>
-    </div>
   </section>
 
-  <div class="grid2">
-    <!-- PPL ROUTINE -->
+  <!-- PROTEIN SCREEN -->
+  <section id="screen-protein" class="screen">
+    <div class="screenTop">
+      <button class="ghost" type="button" data-home>← Back</button>
+      <h2 style="margin:0;">Protein</h2>
+    </div>
+
+    <section class="card">
+      <h2>Protein Intake (Goal 240g)</h2>
+      <div class="row">
+        <label>Date
+          <input type="date" id="pDate" />
+        </label>
+        <label>Morning (g)
+          <input type="number" id="pMorning" placeholder="0" />
+        </label>
+        <label>Lunch (g)
+          <input type="number" id="pLunch" placeholder="0" />
+        </label>
+        <label>Pre-Gym (g)
+          <input type="number" id="pPre" placeholder="0" />
+        </label>
+        <label>Dinner (g)
+          <input type="number" id="pDinner" placeholder="0" />
+        </label>
+        <label>Bedtime (g)
+          <input type="number" id="pBed" placeholder="0" />
+        </label>
+        <button id="pSaveBtn">Save</button>
+      </div>
+
+      <div class="btnRow">
+        <span class="pill"><span class="muted">Total:</span> <strong class="mono" id="pTotal">0</strong>g</span>
+        <span class="pill"><span class="muted">Remaining:</span> <strong class="mono" id="pRemain">240</strong>g</span>
+        <span class="pill"><span class="muted">Status:</span> <strong id="pStatus">—</strong></span>
+      </div>
+    </section>
+  </section>
+
+  <!-- ROUTINE SCREEN -->
+  <section id="screen-routine" class="screen">
+    <div class="screenTop">
+      <button class="ghost" type="button" data-home>← Back</button>
+      <h2 style="margin:0;">Routine</h2>
+    </div>
+
     <section class="card">
       <div class="topRight">
         <div>
@@ -499,8 +568,15 @@
         Tip: Tap “Log Sets” on an exercise to record sets/reps/weight. PR is based on your lifetime max for that exercise.
       </div>
     </section>
+  </section>
 
-    <!-- LIFT PROGRESS LOG -->
+  <!-- LIFTS SCREEN -->
+  <section id="screen-lifts" class="screen">
+    <div class="screenTop">
+      <button class="ghost" type="button" data-home>← Back</button>
+      <h2 style="margin:0;">Progress</h2>
+    </div>
+
     <section class="card">
       <div class="topRight">
         <h2>Lift Progress Log</h2>
@@ -551,7 +627,6 @@
         <button id="liftClearBtn" class="ghost">Clear</button>
       </div>
 
-      <!-- TABLE -->
       <div id="liftTableWrap" style="margin-top:10px; overflow:auto;">
         <table>
           <thead>
@@ -568,7 +643,6 @@
         </table>
       </div>
 
-      <!-- GRAPH -->
       <div id="liftGraphWrap" style="margin-top:10px; display:none;">
         <canvas id="liftChart" height="140"></canvas>
         <div class="notice" style="margin-top:10px;">
@@ -580,8 +654,9 @@
         Tap an exercise name in the table to view history.
       </div>
     </section>
-  </div>
+  </section>
 
+  <!-- ✅ KEEP YOUR MODALS EXACTLY AS-IS BELOW -->
   <!-- LOG SETS MODAL -->
   <div id="logModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
     <div style="max-width:520px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
@@ -716,6 +791,7 @@
       </div>
     </div>
   </div>
+
   <!-- EXERCISE PICKER MODAL -->
   <div id="exPickModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
     <div style="max-width:520px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
@@ -730,7 +806,7 @@
         </label>
       </div>
 
-          <div id="exPickList" style="margin-top:10px; border:1px solid #202124; border-radius:12px;"></div>
+      <div id="exPickList" style="margin-top:10px; border:1px solid #202124; border-radius:12px;"></div>
 
       <div class="btnRow">
         <button id="exPickConfirmBtn">Confirm</button>
@@ -766,6 +842,52 @@ const KEY_TARGETS = "gym_targets_v1";
 
 const KEY_ROUTINES = "gym_routines_v1";
 const KEY_ACTIVE_ROUTINE = "gym_active_routine_id_v1";
+
+  /* ---------------------------
+   Screen Router (Option A)
+---------------------------- */
+const KEY_ACTIVE_SCREEN = "gym_active_screen_v1";
+
+function showScreen(name){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+
+  const el = document.getElementById(`screen-${name}`);
+  if(el) el.classList.add("active");
+
+  localStorage.setItem(KEY_ACTIVE_SCREEN, name);
+  window.scrollTo(0,0);
+
+  // ✅ refresh only what’s needed when a screen becomes visible
+  if(name === "weight"){
+    renderBW();
+  }
+  if(name === "attendance"){
+    renderCal();
+  }
+  if(name === "protein"){
+    loadProteinDay(pDate.value || todayISO());
+  }
+  if(name === "routine"){
+    renderRoutineDropdown();
+    renderPPL();
+  }
+  if(name === "lifts"){
+    // make sure dropdowns are current, then render in current view
+    renderLiftSearchDropdown();
+    renderLiftRoutineDropdown();
+    renderLifts();
+  }
+}
+
+// Home buttons
+document.querySelectorAll("[data-go]").forEach(btn=>{
+  btn.addEventListener("click", ()=> showScreen(btn.dataset.go));
+});
+
+// Back buttons
+document.querySelectorAll("[data-home]").forEach(btn=>{
+  btn.addEventListener("click", ()=> showScreen("home"));
+});
 
 /* ---------------------------
    LOCAL date utils
@@ -1498,10 +1620,12 @@ function renderPPL(){
 }
 
 document.getElementById("startTodayBtn").addEventListener("click", ()=>{
+  showScreen("routine");
   activeDayIndex = getTodaySplitIndex();
   renderPPL();
   document.getElementById("pplList").scrollIntoView({behavior:"smooth", block:"start"});
 });
+
 
 /* ---------------------------
    Lift Progress Log (Phase 4)
@@ -1640,13 +1764,9 @@ exPickConfirmBtn.addEventListener("click", ()=>{
 });
 
 [exPickCloseBtn, exPickCancelBtn].forEach(btn=>btn.addEventListener("click", closeExercisePicker));
-
-exPickModal.addEventListener("click", (e)=>{
-  if(e.target === exPickModal) closeExercisePicker();
-});
-
-[exPickCloseBtn, exPickCancelBtn].forEach(btn=>btn.addEventListener("click", closeExercisePicker));
 exPickModal.addEventListener("click", (e)=>{ if(e.target === exPickModal) closeExercisePicker(); });
+
+});
 
 function renderLiftRoutineDropdown(){
   const prev = liftRoutine.value || "";
@@ -2095,8 +2215,11 @@ logSaveBtn.addEventListener("click", ()=>{
   renderPPL();
   buildRoutineExerciseSuggestions();
 
-  document.getElementById("liftTable").scrollIntoView({behavior:"smooth", block:"start"});
-});
+  showScreen("lifts");
+setTimeout(()=>{
+  document.getElementById("liftTableWrap")?.scrollIntoView({behavior:"smooth", block:"start"});
+}, 0);
+}); // ✅ closes logSaveBtn click handler
 
 /* ---------------------------
    History Modal
@@ -2475,21 +2598,23 @@ importFile.addEventListener("change", async ()=>{
 
     ({routines, activeId: activeRoutineId} = loadRoutines());
 
-    renderBW();
-    renderCal();
-    loadProteinDay(todayISO());
+    // ✅ init data + state first
+renderCal();
+loadProteinDay(todayISO());
 
-    renderRoutineDropdown();
-    activeDayIndex = getTodaySplitIndex();
-    renderPPL();
+renderRoutineDropdown();
+activeDayIndex = getTodaySplitIndex();
+renderPPL();
 
-    renderLiftSearchDropdown();
-    renderLiftRoutineDropdown();
-    clearLiftFiltersUI();
-    applyLiftFiltersFromUI();
-    setLiftView("table");
+renderLiftSearchDropdown();
+renderLiftRoutineDropdown();
+applyLiftFiltersFromUI();
+setLiftView("table"); // sets UI state, table is fine hidden
 
-    buildRoutineExerciseSuggestions();
+buildRoutineExerciseSuggestions();
+
+// ✅ restore last visited screen (or home) LAST
+showScreen(localStorage.getItem(KEY_ACTIVE_SCREEN) || "home");
 
     alert("Imported ✅");
   }catch(e){
@@ -2507,13 +2632,13 @@ document.getElementById("wipeAllBtn").addEventListener("click", ()=>{
   localStorage.removeItem(KEY_TARGETS);
   localStorage.removeItem(KEY_ROUTINES);
   localStorage.removeItem(KEY_ACTIVE_ROUTINE);
+  localStorage.removeItem(KEY_ACTIVE_SCREEN);
   location.reload();
 });
 
 /* ---------------------------
    Init
 ---------------------------- */
-renderBW();
 renderCal();
 loadProteinDay(todayISO());
 
@@ -2524,9 +2649,13 @@ renderPPL();
 renderLiftSearchDropdown();
 renderLiftRoutineDropdown();
 applyLiftFiltersFromUI();
-setLiftView("table"); // default view
+setLiftView("table");
 
 buildRoutineExerciseSuggestions();
+
+// ✅ restore last visited screen (or home) LAST
+showScreen(localStorage.getItem(KEY_ACTIVE_SCREEN) || "home");
+
 </script>
 </body>
 </html>
