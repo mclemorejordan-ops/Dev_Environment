@@ -879,15 +879,17 @@ function showScreen(name){
   }
 }
 
-// Home buttons
-document.querySelectorAll("[data-go]").forEach(btn=>{
-  btn.addEventListener("click", ()=> showScreen(btn.dataset.go));
-});
+function bindNavigation(){
+  document.querySelectorAll("[data-go]").forEach(btn=>{
+    btn.onclick = () => showScreen(btn.dataset.go);
+  });
 
-// Back buttons
-document.querySelectorAll("[data-home]").forEach(btn=>{
-  btn.addEventListener("click", ()=> showScreen("home"));
-});
+  document.querySelectorAll("[data-home]").forEach(btn=>{
+    btn.onclick = () => showScreen("home");
+  });
+}
+
+window.addEventListener("DOMContentLoaded", bindNavigation);
 
 /* ---------------------------
    LOCAL date utils
