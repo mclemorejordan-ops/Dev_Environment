@@ -889,7 +889,19 @@ function bindNavigation(){
   });
 }
 
-window.addEventListener("DOMContentLoaded", bindNavigation);
+document.addEventListener("click", (e)=>{
+  const goBtn = e.target.closest("[data-go]");
+  if(goBtn){
+    showScreen(goBtn.dataset.go);
+    return;
+  }
+
+  const homeBtn = e.target.closest("[data-home]");
+  if(homeBtn){
+    showScreen("home");
+    return;
+  }
+});
 
 /* ---------------------------
    LOCAL date utils
@@ -1767,8 +1779,6 @@ exPickConfirmBtn.addEventListener("click", ()=>{
 
 [exPickCloseBtn, exPickCancelBtn].forEach(btn=>btn.addEventListener("click", closeExercisePicker));
 exPickModal.addEventListener("click", (e)=>{ if(e.target === exPickModal) closeExercisePicker(); });
-
-});
 
 function renderLiftRoutineDropdown(){
   const prev = liftRoutine.value || "";
