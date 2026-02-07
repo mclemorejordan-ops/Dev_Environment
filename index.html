@@ -24,15 +24,17 @@
 /* overlays */
 #logModal,
 #histModal,
-#rtModal{
-  overflow: hidden;                 /* ✅ prevents overlay scroll fighting */
+#rtModal,
+#exPickModal{
+  overflow: hidden;                 /* prevents overlay scroll fighting */
   -webkit-overflow-scrolling: touch;
 }
 
 /* modal cards scroll as a whole */
 #logModal > div,
 #histModal > div,
-#rtModal > div{
+#rtModal > div,
+#exPickModal > div{
   max-height: calc(100dvh - 32px);  /* ✅ true mobile viewport height */
   overflow-y: auto;                 /* ✅ scroll the whole modal */
   -webkit-overflow-scrolling: touch;
@@ -49,6 +51,11 @@
 
 /* ✅ Routine Editor list should NOT be its own scrollbar */
 #rtExList{
+  overflow: visible !important;
+  max-height: none !important;
+}
+    /* ✅ Exercise Picker list should NOT be its own scrollbar */
+#exPickList{
   overflow: visible !important;
   max-height: none !important;
 }
@@ -338,6 +345,18 @@
       border-color: rgba(255, 107, 107, .35);
       color: var(--bad);
     }
+    /* Exercise picker list items */
+.exPickItem{
+  padding:10px 12px;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+}
+.exPickItem:last-child{border-bottom:none;}
+.exPickItem:hover{opacity:.85;}
+.exPickItem.active{
+  outline:2px solid rgba(124,252,0,.25);
+  background:#0f0f10;
+}
   </style>
 </head>
 
@@ -699,6 +718,28 @@
 
       <div class="notice" style="margin-top:10px;">
         Swap replaces an exercise only for this day. Reorder uses Up/Down.
+      </div>
+    </div>
+  </div>
+  <!-- EXERCISE PICKER MODAL -->
+  <div id="exPickModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
+    <div style="max-width:520px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
+      <div class="topRight">
+        <h2 style="margin:0;" id="exPickTitle">Pick Exercise</h2>
+        <button id="exPickCloseBtn">Close</button>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label style="min-width:220px; flex:1 1 220px;">Search
+          <input id="exPickSearch" placeholder="Type to filter..." />
+        </label>
+      </div>
+
+          <div id="exPickList" style="margin-top:10px; border:1px solid #202124; border-radius:12px;"></div>
+
+      <div class="btnRow">
+        <button id="exPickConfirmBtn">Confirm</button>
+        <button id="exPickCancelBtn" class="ghost">Cancel</button>
       </div>
     </div>
   </div>
@@ -1454,6 +1495,78 @@ function renderLiftSearchDropdown(){
   });
   liftSearch.value = items.includes(prev) ? prev : "";
 }
+  /* ---------------------------
+   Exercise Picker (Add + Swap)
+---------------------------- */
+const exPickModal = document.getElementById("exPickModal");
+const exPickTitle = document.getElementById("exPickTitle");
+const exPickCloseBtn = document.getElementById("exPickCloseBtn");
+const exPickCancelBtn = document.getElementById("exPickCancelBtn");
+const exPickConfirmBtn = document.getElementById("exPickConfirmBtn");
+const exPickSearch = document.getElementById("exPickSearch");
+const exPickList = document.getElementById("exPickList");
+
+let exPickSelected = "";
+let exPickOnConfirm = null;
+
+function openExercisePicker({ title="Pick Exercise", initial="", onConfirm }){
+  exPickTitle.textContent = title;
+  exPickSelected = initial || "";
+  exPickOnConfirm = onConfirm;
+
+  exPickSearch.value = "";
+  renderExercisePickerList();
+  exPickModal.style.display = "block";
+}
+
+function closeExercisePicker(){
+  exPickModal.style.display = "none";
+  exPickSelected = "";
+  exPickOnConfirm = null;
+}
+
+function renderExercisePickerList(){
+  const q = normExName(exPickSearch.value || "");
+  const all = collectAllExerciseNames();
+  const filtered = q ? all.filter(n => normExName(n).includes(q)) : all;
+
+  exPickList.innerHTML = "";
+
+  if(filtered.length === 0){
+    exPickList.innerHTML = `<div class="notice">No matches.</div>`;
+    return;
+  }
+
+  filtered.forEach(name=>{
+    const div = document.createElement("div");
+    div.className = "exPickItem" + (name === exPickSelected ? " active" : "");
+    div.textContent = name;
+
+    div.addEventListener("click", ()=>{
+      exPickSelected = name;
+      [...exPickList.querySelectorAll(".exPickItem")].forEach(x=>x.classList.remove("active"));
+      div.classList.add("active");
+    });
+
+    exPickList.appendChild(div);
+  });
+}
+
+exPickSearch.addEventListener("input", renderExercisePickerList);
+
+exPickConfirmBtn.addEventListener("click", ()=>{
+  if(!exPickSelected){
+    alert("Pick an exercise first.");
+    return;
+  }
+  if(typeof exPickOnConfirm === "function"){
+    exPickOnConfirm(exPickSelected);
+  }
+  closeExercisePicker();
+});
+
+[exPickCloseBtn, exPickCancelBtn].forEach(btn=>btn.addEventListener("click", closeExercisePicker));
+exPickModal.addEventListener("click", (e)=>{ if(e.target === exPickModal) closeExercisePicker(); });
 
 function renderLiftRoutineDropdown(){
   const prev = liftRoutine.value || "";
@@ -1968,6 +2081,16 @@ const rtAddExBtn = document.getElementById("rtAddExBtn");
 const rtExList = document.getElementById("rtExList");
 const rtExSuggestions = document.getElementById("rtExSuggestions");
 
+  rtAddExName.addEventListener("focus", ()=>{
+  openExercisePicker({
+    title: "Pick exercise to add",
+    initial: rtAddExName.value,
+    onConfirm: (picked)=>{
+      rtAddExName.value = picked;
+    }
+  });
+});
+  
 let editRoutineId = null;
 let editDayIndex = 0;
 let draftRoutine = null;
@@ -2120,14 +2243,16 @@ function renderRtDayPanel(){
     });
 
     wrap.querySelector("[data-swap]")?.addEventListener("click", ()=>{
-      const cur = day.exercises[idx]?.name || "";
-      const next = prompt(`Swap this exercise for what? (Day-specific)\nCurrent: ${cur}`, cur);
-      if(next === null) return;
-      const trimmed = String(next).trim();
-      if(!trimmed) return;
-      day.exercises[idx].name = trimmed;
+  const cur = day.exercises[idx]?.name || "";
+  openExercisePicker({
+    title: "Swap exercise",
+    initial: cur,
+    onConfirm: (picked)=>{
+      day.exercises[idx].name = picked;
       renderRtDayPanel();
-    });
+    }
+  });
+});
 
     rtExList.appendChild(wrap);
   });
