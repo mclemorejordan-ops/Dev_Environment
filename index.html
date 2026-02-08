@@ -541,11 +541,23 @@
     </div>
 
     <div class="row">
-      <label>Routine Name
-        <input id="obRoutineName" placeholder="e.g., PPL, Upper/Lower, 3-day split" />
-      </label>
-      <button id="obRoutineCreateBtn">Create & Edit</button>
-    </div>
+  <label>Routine Name
+    <input id="obRoutineName" placeholder="e.g., PPL, Upper/Lower, 3-day split" />
+  </label>
+
+  <label style="min-width:220px; flex:0 0 auto;">
+    Start From Template
+    <select id="obRoutineTemplate">
+      <option value="blank" selected>Blank (build my own)</option>
+      <option value="ppl">PPL (6-day)</option>
+      <option value="upperlower">Upper / Lower (7-day)</option>
+      <option value="fullbody3">Full Body (3-day)</option>
+      <option value="bodypart">Body Part Split (7-day)</option>
+    </select>
+  </label>
+
+  <button id="obRoutineCreateBtn">Create & Edit</button>
+</div>
 
     <div class="notice small muted" style="margin-top:10px;">
       This will open the Routine Editor so you can add exercises.
@@ -1267,6 +1279,7 @@ const obProfileNextBtn = document.getElementById("obProfileNextBtn");
 const obRoutineBackBtn = document.getElementById("obRoutineBackBtn");
 const obRoutineName = document.getElementById("obRoutineName");
 const obRoutineCreateBtn = document.getElementById("obRoutineCreateBtn");
+const obRoutineTemplate = document.getElementById("obRoutineTemplate");
 
 // Seed onboarding inputs from existing profile (if any)
 function hydrateOnboardingInputs(){
@@ -1302,27 +1315,41 @@ obRoutineBackBtn?.addEventListener("click", ()=>{
 
 obRoutineCreateBtn?.addEventListener("click", ()=>{
   const name = String(obRoutineName?.value || "").trim() || "My Routine";
+  const tpl = String(obRoutineTemplate?.value || "blank");
 
-  // create a new empty routine
-  const base = defaultRoutine();
+  let base;
+
+  if(tpl === "upperlower"){
+    base = makeUpperLowerTemplate();
+  } else if(tpl === "fullbody3"){
+    base = makeFullBody3Template();
+  } else if(tpl === "bodypart"){
+    base = makeBodyPartTemplate();
+  } else if(tpl === "ppl"){
+    base = defaultRoutine(); // your existing PPL seed
+  } else {
+    // blank routine
+    base = defaultRoutine();
+    base.name = "Routine";
+    DAY_KEYS.forEach(k=>{
+      base.days[k].exercises = [];
+      base.days[k].rest = false;
+      base.days[k].label = "";
+    });
+  }
+
   base.name = name;
-  DAY_KEYS.forEach(k=>{
-    base.days[k].exercises = [];
-    base.days[k].rest = false;
-    base.days[k].label = "";
-  });
 
   routines.push(base);
   saveRoutines();
+
+  // ✅ make onboarding routine the default immediately
   setActiveRoutine(base.id);
-  renderRoutineDropdown();
+  renderRoutineDropdown(base.id);
 
-  // open editor so they build it now
+  // open editor (still customizable)
   openRoutineEditor(base.id);
-
-  // when they save routine, we’ll mark onboarding complete (see Step 4)
 });
-
 
   /* ---------------------------
    Profile (Onboarding base)
@@ -1753,6 +1780,163 @@ function defaultRoutine(){
       Sun: { label:"Rest", rest:true, exercises:[] }
     }
   };
+
+  function makeUpperLowerTemplate(){
+  const r = defaultRoutine();
+  r.name = "Upper / Lower";
+
+  r.days.Mon = { label:"Upper", rest:false, exercises:[
+    {name:"Barbell Bench Press", sets:4, reps:"6–8", notes:""},
+    {name:"Lat Pulldown", sets:4, reps:"8–10", notes:""},
+    {name:"Dumbbell Shoulder Press", sets:3, reps:"8–10", notes:""},
+    {name:"Seated Cable Row", sets:3, reps:"10–12", notes:""},
+    {name:"Dumbbell Lateral Raises", sets:3, reps:"12–15", notes:""},
+    {name:"Dumbbell Bicep Curl", sets:3, reps:"10–12", notes:""},
+    {name:"Triceps Rope Pushdowns", sets:3, reps:"10–12", notes:""},
+    {name:"Plank", sets:3, reps:"30–60s", notes:"Core"},
+  ]};
+
+  r.days.Tue = { label:"Lower", rest:false, exercises:[
+    {name:"Barbell Squat", sets:4, reps:"5–8", notes:""},
+    {name:"Romanian Deadlift", sets:3, reps:"8–10", notes:""},
+    {name:"Leg Press", sets:3, reps:"10–12", notes:""},
+    {name:"Dumbbell Lunges", sets:3, reps:"10/leg", notes:""},
+    {name:"Hamstring Curl", sets:3, reps:"12–15", notes:""},
+    {name:"Standing Calf Raise (Machine)", sets:4, reps:"12–15", notes:""},
+  ]};
+
+  r.days.Wed = { label:"Active Recovery", rest:true, exercises:[
+    {name:"Incline Treadmill Walk", sets:1, reps:"20–30 min", notes:"Cardio"},
+    {name:"Mobility + stretching", sets:1, reps:"—", notes:""},
+  ]};
+
+  r.days.Thu = { label:"Upper", rest:false, exercises:[
+    {name:"Incline Dumbbell Press", sets:4, reps:"8–10", notes:""},
+    {name:"Pull-Ups / Assisted Pull-Ups", sets:4, reps:"6–10", notes:""},
+    {name:"Dumbbell Row", sets:3, reps:"8–10", notes:""},
+    {name:"Dumbbell Chest Fly", sets:3, reps:"12", notes:""},
+    {name:"Hammer Curl", sets:3, reps:"10–12", notes:""},
+    {name:"Overhead Dumbbell Tricep Extension", sets:3, reps:"10–12", notes:""},
+    {name:"Leg Raises", sets:3, reps:"10–15", notes:"Core"},
+  ]};
+
+  r.days.Fri = { label:"Lower", rest:false, exercises:[
+    {name:"Deadlift (Conventional)", sets:4, reps:"3–5", notes:""},
+    {name:"Hack Squat", sets:3, reps:"8–10", notes:"(or Smith Squat)"},
+    {name:"Bulgarian Split Squat", sets:3, reps:"8/leg", notes:""},
+    {name:"Leg Extension", sets:3, reps:"12–15", notes:""},
+    {name:"Seated Calf Raise", sets:4, reps:"12–15", notes:""},
+    {name:"Cable Crunch", sets:3, reps:"12–15", notes:"Core"},
+  ]};
+
+  r.days.Sat = { label:"Rest", rest:true, exercises:[
+    {name:"Light walking or stretching", sets:1, reps:"—", notes:"Recovery"},
+  ]};
+
+  r.days.Sun = { label:"Cardio + Core", rest:false, exercises:[
+    {name:"Stair Climber", sets:1, reps:"20–30 min", notes:"(or Stationary Bike)"},
+    {name:"Russian Twist", sets:3, reps:"20", notes:"Core"},
+    {name:"Plank", sets:3, reps:"45s", notes:"Core"},
+  ]};
+
+  return r;
+}
+
+function makeFullBody3Template(){
+  const r = defaultRoutine();
+  r.name = "Full Body (3-Day)";
+
+  r.days.Mon = { label:"Full Body Day 1", rest:false, exercises:[
+    {name:"Barbell Squat", sets:4, reps:"6–8", notes:""},
+    {name:"Barbell Bench Press", sets:4, reps:"6–8", notes:""},
+    {name:"Lat Pulldown", sets:3, reps:"8–10", notes:""},
+    {name:"Dumbbell Shoulder Press", sets:3, reps:"8–10", notes:""},
+    {name:"Plank", sets:3, reps:"45s", notes:"Core"},
+  ]};
+
+  r.days.Tue = { label:"Rest / Cardio", rest:true, exercises:[
+    {name:"Incline Treadmill Walk", sets:1, reps:"25–30 min", notes:"(or Stationary Bike)"},
+  ]};
+
+  r.days.Wed = { label:"Full Body Day 2", rest:false, exercises:[
+    {name:"Deadlift (Conventional)", sets:4, reps:"4–6", notes:""},
+    {name:"Incline Dumbbell Press", sets:3, reps:"8–10", notes:""},
+    {name:"Seated Cable Row", sets:3, reps:"10", notes:""},
+    {name:"Dumbbell Lunges", sets:3, reps:"10/leg", notes:""},
+    {name:"Leg Raises", sets:3, reps:"10–15", notes:"Core"},
+  ]};
+
+  r.days.Thu = { label:"Rest", rest:true, exercises:[
+    {name:"Mobility + stretching", sets:1, reps:"—", notes:"Recovery"},
+  ]};
+
+  r.days.Fri = { label:"Full Body Day 3", rest:false, exercises:[
+    {name:"Leg Press", sets:4, reps:"10", notes:""},
+    {name:"Pull-Ups / Assisted Pull-Ups", sets:3, reps:"AMRAP", notes:""},
+    {name:"Dumbbell Chest Fly", sets:3, reps:"12", notes:""},
+    {name:"Dumbbell Lateral Raises", sets:3, reps:"15", notes:""},
+    {name:"Cable Crunch", sets:3, reps:"15", notes:"Core"},
+  ]};
+
+  r.days.Sat = { label:"Optional Conditioning", rest:true, exercises:[
+    {name:"Rowing Machine", sets:1, reps:"15–20 min", notes:"(or Battle Ropes)"},
+  ]};
+
+  r.days.Sun = { label:"Rest", rest:true, exercises:[] };
+
+  return r;
+}
+
+function makeBodyPartTemplate(){
+  const r = defaultRoutine();
+  r.name = "Body Part Split";
+
+  r.days.Mon = { label:"Chest", rest:false, exercises:[
+    {name:"Barbell Bench Press", sets:4, reps:"6–8", notes:""},
+    {name:"Incline Dumbbell Press", sets:4, reps:"8–10", notes:""},
+    {name:"Dumbbell Chest Fly", sets:3, reps:"12", notes:""},
+    {name:"Chest Fly Machine", sets:3, reps:"12–15", notes:""},
+  ]};
+
+  r.days.Tue = { label:"Back", rest:false, exercises:[
+    {name:"Deadlift (Conventional)", sets:4, reps:"4–6", notes:""},
+    {name:"Lat Pulldown", sets:4, reps:"8–10", notes:""},
+    {name:"Seated Cable Row", sets:3, reps:"10–12", notes:""},
+    {name:"Dumbbell Row", sets:3, reps:"8–10", notes:""},
+  ]};
+
+  r.days.Wed = { label:"Shoulders", rest:false, exercises:[
+    {name:"Dumbbell Shoulder Press", sets:4, reps:"8–10", notes:""},
+    {name:"Dumbbell Lateral Raises", sets:4, reps:"12–15", notes:""},
+    {name:"Dumbbell Front Raises", sets:3, reps:"12", notes:""},
+    {name:"Dumbbell Shrugs", sets:3, reps:"12", notes:""},
+  ]};
+
+  r.days.Thu = { label:"Legs", rest:false, exercises:[
+    {name:"Barbell Squat", sets:4, reps:"6–8", notes:""},
+    {name:"Leg Press", sets:3, reps:"10–12", notes:""},
+    {name:"Romanian Deadlift", sets:3, reps:"8–10", notes:""},
+    {name:"Hamstring Curl", sets:3, reps:"12–15", notes:""},
+    {name:"Standing Calf Raise (Machine)", sets:4, reps:"15", notes:""},
+  ]};
+
+  r.days.Fri = { label:"Arms + Core", rest:false, exercises:[
+    {name:"Dumbbell Bicep Curl", sets:3, reps:"10–12", notes:""},
+    {name:"Hammer Curl", sets:3, reps:"10–12", notes:""},
+    {name:"Triceps Rope Pushdowns", sets:3, reps:"10–12", notes:""},
+    {name:"Overhead Dumbbell Tricep Extension", sets:3, reps:"10–12", notes:""},
+    {name:"Cable Crunch", sets:3, reps:"15", notes:"Core"},
+    {name:"Russian Twist", sets:3, reps:"20", notes:"Core"},
+  ]};
+
+  r.days.Sat = { label:"Rest", rest:true, exercises:[] };
+
+  r.days.Sun = { label:"Light Cardio", rest:true, exercises:[
+    {name:"Stationary Bike", sets:1, reps:"20–30 min", notes:"(or Walk / Stretch)"},
+  ]};
+
+  return r;
+  
 }
 
 /* ---------------------------
@@ -2112,8 +2296,9 @@ const delRoutineBtn = document.getElementById("delRoutineBtn");
 
 let activeDayIndex = 0; // Mon=0..Sun=6
 
-function renderRoutineDropdown(){
-  const prev = routineSelect.value || activeRoutineId;
+function renderRoutineDropdown(forceId){
+  const chosen = forceId || activeRoutineId || routines[0]?.id;
+
   routineSelect.innerHTML = "";
   routines.forEach(r=>{
     const opt = document.createElement("option");
@@ -2121,12 +2306,17 @@ function renderRoutineDropdown(){
     opt.textContent = r.name;
     routineSelect.appendChild(opt);
   });
-  routineSelect.value = routines.some(r=>r.id===prev) ? prev : routines[0].id;
-  setActiveRoutine(routineSelect.value);
+
+  const finalId = routines.some(r=>r.id===chosen) ? chosen : routines[0].id;
+
+  // source of truth
+  setActiveRoutine(finalId);
+  routineSelect.value = finalId;
 
   const ar = getActiveRoutine();
   activeRoutineMeta.textContent = `${ar.name} • ${DAY_KEYS.length} days`;
 }
+
 
 routineSelect.addEventListener("change", ()=>{
   setActiveRoutine(routineSelect.value);
