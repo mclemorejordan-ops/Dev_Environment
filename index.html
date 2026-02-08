@@ -1647,16 +1647,6 @@ function dateForWeekdayIndex(dayIndex, baseDate=new Date()){
   return localISODate(out);
 }
 
-  function canonicalExerciseName(name){
-  const raw = String(name || "").trim();
-  if(!raw) return "";
-  const n = normExName(raw);
-
-  // return the exact library spelling if it exists
-  const match = EXERCISE_LIBRARY.find(x => normExName(x) === n);
-  return match || raw;
-}
-
 /* ---------------------------
    Normalization
 ---------------------------- */
@@ -2025,6 +2015,12 @@ function makeBodyPartTemplate(){
   return r;
   
 }
+  const ROUTINE_TEMPLATES = [
+  { id:"tpl_ppl",          name:"PPL (6-day)",             build: ()=> defaultRoutine() },
+  { id:"tpl_upperlower",   name:"Upper / Lower (7-day)",   build: ()=> makeUpperLowerTemplate() },
+  { id:"tpl_fullbody3",    name:"Full Body (3-day)",       build: ()=> makeFullBody3Template() },
+  { id:"tpl_bodypart",     name:"Body Part Split (7-day)", build: ()=> makeBodyPartTemplate() },
+];
 
 /* ---------------------------
    Routines state
@@ -2436,9 +2432,7 @@ function renderRoutineDropdown(forceId){
 
   routineSelect.innerHTML = "";
 
-  /* -------------------------
-     Created Workouts
-  -------------------------- */
+  // --- Created Workouts (your saved routines) ---
   const ogCreated = document.createElement("optgroup");
   ogCreated.label = "Created Workouts";
 
@@ -2449,6 +2443,40 @@ function renderRoutineDropdown(forceId){
     ogCreated.appendChild(opt);
   });
 
+  routineSelect.appendChild(ogCreated);
+
+  // --- Default / Template Workouts ---
+  const ogTemplates = document.createElement("optgroup");
+  ogTemplates.label = "Default / Template Workouts";
+
+  ROUTINE_TEMPLATES.forEach(t=>{
+    const opt = document.createElement("option");
+    opt.value = t.id;      // tpl_*
+    opt.textContent = t.name;
+    ogTemplates.appendChild(opt);
+  });
+
+  routineSelect.appendChild(ogTemplates);
+
+  // --- select active value ---
+  const allValues = [...routineSelect.options].map(o=>o.value);
+
+  // if selected is a real routine OR a template id, keep it
+  const finalVal = allValues.includes(selected) ? selected : (routines[0]?.id || "");
+
+  routineSelect.value = finalVal;
+
+  // if it's a real routine, update active routine + meta
+  if(finalVal && !finalVal.startsWith("tpl_")){
+    setActiveRoutine(finalVal);
+    const ar = getActiveRoutine();
+    activeRoutineMeta.textContent = `${ar.name} • ${DAY_KEYS.length} days`;
+  } else {
+    // template selected, meta can stay based on current active routine
+    const ar = getActiveRoutine();
+    activeRoutineMeta.textContent = `${ar.name} • ${DAY_KEYS.length} days`;
+  }
+}
   routineSelect.appendChild(ogCreated);
 
   /* -------------------------
@@ -2483,19 +2511,6 @@ function renderRoutineDropdown(forceId){
     activeRoutineMeta.textContent = `${ar.name} • 7 days`;
   }
 }
-
-  addGroup("Default / Templates", defaults);
-  addGroup("My Routines", created);
-
-  const finalId = routines.some(r=>r.id===chosen) ? chosen : routines[0].id;
-
-  setActiveRoutine(finalId);
-  routineSelect.value = finalId;
-
-  const ar = getActiveRoutine();
-  activeRoutineMeta.textContent = `${ar.name} • ${DAY_KEYS.length} days`;
-}
-
 
 routineSelect.addEventListener("change", ()=>{
   const val = routineSelect.value;
@@ -3157,8 +3172,6 @@ function openLogModal(exName, defaultSets=3, routineObj=null, dayKey="", dayInde
   modalDayKey = dayKey;
   modalDayIndex = dayIndex;
 
-  logModalExercise.textContent = exName;
-  logRoutineLine.textContent = routineObj ? `${routineObj.name} • ${dayKey}` : "—";
   logModalDate.value = dateForWeekdayIndex(dayIndex, new Date()) || todayISO();
 
   modalLastLift = getLastLiftForExercise(modalExerciseName);
