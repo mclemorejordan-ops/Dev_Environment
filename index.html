@@ -15,7 +15,7 @@
       --bad:#ff6b6b;
       --warn:#ffd166;
     }
-    /* ---------------------------
+/* ---------------------------
    MODAL SCROLL FIX (mobile + desktop)
    - make the MODAL CARD the scroller
    - avoid nested scrolling on iOS
@@ -67,6 +67,8 @@
   );
   padding-top: 10px;
 }
+/* ✅ END MODAL SCROLL FIX */
+    
     *{box-sizing:border-box}
     body{
       margin:0;
@@ -1391,7 +1393,12 @@ function showScreen(name){
   }
 }
 
+let navBound = false;
+
 function bindNavigation(){
+  if(navBound) return;
+  navBound = true;
+
   document.addEventListener("click", (e)=>{
     const goBtn = e.target.closest("[data-go]");
     if(goBtn){
@@ -1405,6 +1412,7 @@ function bindNavigation(){
     }
   });
 }
+
 
 /* ---------------------------
    LOCAL date utils
@@ -1846,6 +1854,9 @@ const pStatus= document.getElementById("pStatus");
 let proteinMap = LS.get(KEY_PRO, {});
 
 pDate.value = todayISO();
+
+const pt = document.getElementById("proteinTitle");
+if(pt) pt.textContent = `Protein Intake (Goal ${getProteinGoal()}g)`;
 
 function loadProteinDay(d){
   const obj = proteinMap[d] || {morning:0,lunch:0,pre:0,dinner:0,bed:0};
