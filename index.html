@@ -480,6 +480,79 @@
 
 <main>
 
+  <!-- ONBOARDING: PROFILE -->
+<section id="screen-profile" class="screen">
+  <div class="screenTop">
+    <h2 style="margin:0;">Create Profile</h2>
+  </div>
+
+  <section class="card">
+    <div class="notice" style="margin-bottom:10px;">
+      Let’s set up your basics. You can change this later.
+    </div>
+
+    <div class="row">
+      <label>Name
+        <input id="obName" placeholder="e.g., Jordan" />
+      </label>
+
+      <label>Units
+        <select id="obUnits">
+          <option value="lbs" selected>lbs</option>
+          <option value="kg">kg</option>
+        </select>
+      </label>
+
+      <label>Protein Goal (g)
+        <input id="obProteinGoal" type="number" min="0" placeholder="240" />
+      </label>
+
+      <label>Week Starts On
+        <select id="obWeekStart">
+          <option value="mon" selected>Monday</option>
+          <option value="sun">Sunday</option>
+        </select>
+      </label>
+
+      <label>Hide Rest Days
+        <select id="obHideRest">
+          <option value="1" selected>ON</option>
+          <option value="0">OFF</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="btnRow">
+      <button id="obProfileNextBtn">Next → Routine</button>
+    </div>
+  </section>
+</section>
+
+<!-- ONBOARDING: ROUTINE -->
+<section id="screen-onboard-routine" class="screen">
+  <div class="screenTop">
+    <button class="ghost" type="button" id="obRoutineBackBtn">← Back</button>
+    <h2 style="margin:0;">Create Routine</h2>
+  </div>
+
+  <section class="card">
+    <div class="notice" style="margin-bottom:10px;">
+      Create your routine. You can edit it anytime later.
+    </div>
+
+    <div class="row">
+      <label>Routine Name
+        <input id="obRoutineName" placeholder="e.g., PPL, Upper/Lower, 3-day split" />
+      </label>
+      <button id="obRoutineCreateBtn">Create & Edit</button>
+    </div>
+
+    <div class="notice small muted" style="margin-top:10px;">
+      This will open the Routine Editor so you can add exercises.
+    </div>
+  </section>
+</section>
+
   <!-- HOME SCREEN -->
   <section id="screen-home" class="screen active">
 
@@ -1088,6 +1161,8 @@ const KEY_ROUTINES = "gym_routines_v1";
 const KEY_ACTIVE_ROUTINE = "gym_active_routine_id_v1";
 const KEY_PROFILE = "gym_profile_v1";
 const KEY_LAST_BACKUP = "gym_last_backup_v1";
+const KEY_ONBOARD_DONE = "gym_onboard_done_v1";
+
 
   /* ---------------------------
    SETTINGS bindings
@@ -1180,6 +1255,72 @@ runRefreshBtn?.addEventListener("click", ()=>{
   refreshHome();
   renderStorageInfo();
   alert("Refreshed ✅");
+});
+
+  const obName = document.getElementById("obName");
+const obUnits = document.getElementById("obUnits");
+const obProteinGoal = document.getElementById("obProteinGoal");
+const obWeekStart = document.getElementById("obWeekStart");
+const obHideRest = document.getElementById("obHideRest");
+const obProfileNextBtn = document.getElementById("obProfileNextBtn");
+
+const obRoutineBackBtn = document.getElementById("obRoutineBackBtn");
+const obRoutineName = document.getElementById("obRoutineName");
+const obRoutineCreateBtn = document.getElementById("obRoutineCreateBtn");
+
+// Seed onboarding inputs from existing profile (if any)
+function hydrateOnboardingInputs(){
+  if(!obName) return;
+  obName.value = profile.name || "";
+  obUnits.value = profile.units || "lbs";
+  obProteinGoal.value = String(getProteinGoal());
+  obWeekStart.value = profile.weekStart || "mon";
+  obHideRest.value = profile.hideRestDays ? "1" : "0";
+}
+
+obProfileNextBtn?.addEventListener("click", ()=>{
+  const nm = String(obName?.value || "").trim();
+  if(!nm){
+    alert("Please enter a name to continue.");
+    return;
+  }
+
+  saveProfile({
+    name: nm,
+    units: (obUnits?.value === "kg") ? "kg" : "lbs",
+    proteinGoal: Number(obProteinGoal?.value || 240) || 240,
+    weekStart: (obWeekStart?.value === "sun") ? "sun" : "mon",
+    hideRestDays: (obHideRest?.value === "0") ? false : true
+  });
+
+  showScreen("onboard-routine");
+});
+
+obRoutineBackBtn?.addEventListener("click", ()=>{
+  showScreen("profile");
+});
+
+obRoutineCreateBtn?.addEventListener("click", ()=>{
+  const name = String(obRoutineName?.value || "").trim() || "My Routine";
+
+  // create a new empty routine
+  const base = defaultRoutine();
+  base.name = name;
+  DAY_KEYS.forEach(k=>{
+    base.days[k].exercises = [];
+    base.days[k].rest = false;
+    base.days[k].label = "";
+  });
+
+  routines.push(base);
+  saveRoutines();
+  setActiveRoutine(base.id);
+  renderRoutineDropdown();
+
+  // open editor so they build it now
+  openRoutineEditor(base.id);
+
+  // when they save routine, we’ll mark onboarding complete (see Step 4)
 });
 
 
@@ -3053,6 +3194,13 @@ rtSaveBtn.addEventListener("click", ()=>{
   buildRoutineExerciseSuggestions();
 });
 
+  // If onboarding is not done yet, finish it and send to Home
+if(!isOnboardingDone()){
+  setOnboardingDone();
+  refreshHome();
+  showScreen("home");
+}
+
   function renderLastBackup(){
   const el = document.getElementById("lastBackupText");
   if(!el) return;
@@ -3168,7 +3316,8 @@ setLiftView("table"); // sets UI state, table is fine hidden
 buildRoutineExerciseSuggestions();
 
 // ✅ restore last visited screen (or home) LAST
-showScreen(localStorage.getItem(KEY_ACTIVE_SCREEN) || "home");
+hydrateOnboardingInputs();
+routeInitialScreen();
 
     alert("Imported ✅");
   }catch(e){
@@ -3190,6 +3339,34 @@ document.getElementById("settingsResetBtn").addEventListener("click", ()=>{
   location.reload();
 });
 
+function isOnboardingDone(){
+  return localStorage.getItem(KEY_ONBOARD_DONE) === "1";
+}
+
+function setOnboardingDone(){
+  localStorage.setItem(KEY_ONBOARD_DONE, "1");
+}
+
+function hasProfileCompleted(){
+  const p = LS.get(KEY_PROFILE, null);
+  if(!p || typeof p !== "object") return false;
+  return String(p.name || "").trim().length > 0; // you can relax this if name is optional
+}
+
+function hasAtLeastOneRoutine(){
+  const rts = LS.get(KEY_ROUTINES, []);
+  return Array.isArray(rts) && rts.length > 0;
+}
+
+function routeInitialScreen(){
+  // HARD OVERRIDE restore behavior if onboarding not complete
+  if(!isOnboardingDone()){
+    showScreen("profile");
+    return;
+  }
+  showScreen(localStorage.getItem(KEY_ACTIVE_SCREEN) || "home");
+}
+  
 /* ---------------------------
    Init
 ---------------------------- */
