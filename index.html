@@ -604,10 +604,14 @@
 
       <div class="weekDots" id="homeWeekDots"></div>
 
-      <div class="kpiLine">
-        <span class="muted" id="homeWeekCount">—</span>
-        <button class="ghost miniBtn" type="button" data-go="attendance">Attendance →</button>
-      </div>
+     <div class="kpiLine">
+  <span class="muted" id="homeWeekCount">—</span>
+
+  <div style="display:flex; gap:8px; align-items:center;">
+    <button class="miniBtn" type="button" id="homeCheckInBtn">✅ Check In</button>
+    <button class="ghost miniBtn" type="button" data-go="attendance">Attendance →</button>
+  </div>
+</div>
     </section>
 
     <!-- Focus -->
@@ -1480,6 +1484,14 @@ function refreshHome(){
       }
     }
   }
+    // ✅ Home "Check In" button state (add this BEFORE week dots section)
+  if(homeCheckInBtn){
+    const today = todayISO();
+    const checked = attendance.has(today);
+
+    homeCheckInBtn.textContent = checked ? "✅ Checked In" : "✅ Check In";
+    homeCheckInBtn.classList.toggle("ghost", checked);
+  }
 
   // week dots + count
   const weekStart = getWeekStartDate();
@@ -1515,7 +1527,28 @@ function refreshHome(){
     }
   }
 }
-  
+  const homeCheckInBtn = document.getElementById("homeCheckInBtn");
+
+function toggleTodayAttendance(){
+  const today = todayISO();
+
+  if(attendance.has(today)){
+    attendance.delete(today);
+  } else {
+    attendance.add(today);
+  }
+
+  LS.set(KEY_ATT, [...attendance]);
+
+  // refresh the home UI immediately
+  refreshHome();
+
+  // optional: keep calendar UI accurate if you’re already on that screen later
+  // (won't error if not visible)
+  renderCal();
+}
+
+homeCheckInBtn?.addEventListener("click", toggleTodayAttendance);
 /* ---------------------------
    Screen Router (Option A) — FIXED
 ---------------------------- */
