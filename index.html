@@ -354,6 +354,24 @@
   outline:2px solid rgba(124,252,0,.25);
   background:#0f0f10;
 }
+    .exPickRow{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.exPickCheck{
+  width:16px;
+  height:16px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+}
+.exPickItem.active .exPickCheck{
+  border-color: rgba(124,252,0,.35);
+}
     /* ---------------------------
    APP SCREENS (Option A)
 ---------------------------- */
@@ -1095,18 +1113,21 @@
       <div class="divider"></div>
 
       <div class="row">
-        <label style="min-width:280px; flex:1 1 280px;">Add Exercise (suggestions)
-          <input id="rtAddExName" list="rtExSuggestions" placeholder="Start typing a known exercise name..." />
-          <datalist id="rtExSuggestions"></datalist>
-        </label>
-        <label>Sets
-          <input id="rtAddExSets" type="number" min="1" placeholder="3" />
-        </label>
-        <label>Reps
-          <input id="rtAddExReps" placeholder="8–10" />
-        </label>
-        <button id="rtAddExBtn">Add</button>
-      </div>
+  <label style="min-width:280px; flex:1 1 280px;">Add Exercise (suggestions)
+    <input id="rtAddExName" list="rtExSuggestions" placeholder="Start typing a known exercise name..." />
+    <datalist id="rtExSuggestions"></datalist>
+  </label>
+  <label>Sets
+    <input id="rtAddExSets" type="number" min="1" placeholder="3" />
+  </label>
+  <label>Reps
+    <input id="rtAddExReps" placeholder="8–10" />
+  </label>
+
+  <button id="rtAddExBtn">Add</button>
+  <button id="rtAddMultiBtn" class="ghost" type="button">Add Multiple</button>
+</div>
+
 
       <div id="rtExList" style="margin-top:10px; display:grid; gap:8px;"></div>
 
@@ -1130,6 +1151,27 @@
         <h2 style="margin:0;" id="exPickTitle">Pick Exercise</h2>
         <button id="exPickCloseBtn">Close</button>
       </div>
+
+      <!-- BATCH ADD MODAL (Multi-add sets/reps screen) -->
+<div id="batchAddModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
+  <div style="max-width:640px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
+    <div class="topRight">
+      <h2 style="margin:0;">Add Multiple Exercises</h2>
+      <button id="batchAddCloseBtn" type="button">Close</button>
+    </div>
+
+    <div class="notice" style="margin-top:10px;">
+      <div class="small muted">Set the Sets + Reps for each exercise, then confirm.</div>
+    </div>
+
+    <div id="batchAddList" style="margin-top:10px; display:grid; gap:8px;"></div>
+
+    <div class="btnRow">
+      <button id="batchAddConfirmBtn" type="button">Add to Day</button>
+      <button id="batchAddCancelBtn" type="button" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
 
       <div class="row" style="margin-top:10px;">
         <label style="min-width:220px; flex:1 1 220px;">Search
@@ -2758,22 +2800,32 @@ const exPickConfirmBtn = document.getElementById("exPickConfirmBtn");
 const exPickSearch = document.getElementById("exPickSearch");
 const exPickList = document.getElementById("exPickList");
 
-let exPickSelected = "";
+let exPickSelected = "";                 // single mode selected
+let exPickSelectedSet = new Set();       // multi mode selected set
+let exPickMulti = false;                 // are we in multi mode?
 let exPickOnConfirm = null;
 
-function openExercisePicker({ title="Pick Exercise", initial="", onConfirm }){
+function openExercisePicker({ title="Pick Exercise", initial="", onConfirm, multi=false, initialMulti=[] }){
   exPickTitle.textContent = title;
-  exPickSelected = initial || "";
+
+  exPickMulti = !!multi;
   exPickOnConfirm = onConfirm;
+
+  // reset selections
+  exPickSelected = initial || "";
+  exPickSelectedSet = new Set(Array.isArray(initialMulti) ? initialMulti : []);
 
   exPickSearch.value = "";
   renderExercisePickerList();
   exPickModal.style.display = "block";
 }
 
+
 function closeExercisePicker(){
   exPickModal.style.display = "none";
   exPickSelected = "";
+  exPickSelectedSet = new Set();
+  exPickMulti = false;
   exPickOnConfirm = null;
 }
 
@@ -2790,23 +2842,53 @@ function renderExercisePickerList(){
   }
 
   filtered.forEach(name=>{
-    const div = document.createElement("div");
-    div.className = "exPickItem" + (name === exPickSelected ? " active" : "");
-    div.textContent = name;
+  const isActive = exPickMulti ? exPickSelectedSet.has(name) : (name === exPickSelected);
 
-    div.addEventListener("click", ()=>{
+  const div = document.createElement("div");
+  div.className = "exPickItem" + (isActive ? " active" : "");
+
+  // build row UI
+  div.innerHTML = `
+    <div class="exPickRow">
+      ${exPickMulti ? `<span class="exPickCheck">${isActive ? "✓" : ""}</span>` : ``}
+      <span>${name}</span>
+    </div>
+  `;
+
+  div.addEventListener("click", ()=>{
+    if(exPickMulti){
+      // toggle in set
+      if(exPickSelectedSet.has(name)) exPickSelectedSet.delete(name);
+      else exPickSelectedSet.add(name);
+      renderExercisePickerList();
+    } else {
       exPickSelected = name;
       [...exPickList.querySelectorAll(".exPickItem")].forEach(x=>x.classList.remove("active"));
       div.classList.add("active");
-    });
-
-    exPickList.appendChild(div);
+    }
   });
+
+  exPickList.appendChild(div);
+});
 }
 
 exPickSearch.addEventListener("input", renderExercisePickerList);
 
 exPickConfirmBtn.addEventListener("click", ()=>{
+  if(exPickMulti){
+    const picked = [...exPickSelectedSet];
+    if(picked.length === 0){
+      alert("Pick at least one exercise.");
+      return;
+    }
+    if(typeof exPickOnConfirm === "function"){
+      exPickOnConfirm(picked);
+    }
+    closeExercisePicker();
+    return;
+  }
+
+  // single mode
   if(!exPickSelected){
     alert("Pick an exercise first.");
     return;
@@ -2816,6 +2898,128 @@ exPickConfirmBtn.addEventListener("click", ()=>{
   }
   closeExercisePicker();
 });
+
+  /* ---------------------------
+   Batch Add Modal (Multi-add sets/reps)
+---------------------------- */
+const batchAddModal = document.getElementById("batchAddModal");
+const batchAddCloseBtn = document.getElementById("batchAddCloseBtn");
+const batchAddCancelBtn = document.getElementById("batchAddCancelBtn");
+const batchAddConfirmBtn = document.getElementById("batchAddConfirmBtn");
+const batchAddList = document.getElementById("batchAddList");
+
+let batchAddItems = []; // [{name, sets, reps}]
+
+function openBatchAddModal(names){
+  batchAddItems = (names || []).map(n=>({
+    name: canonicalExerciseName(n),
+    sets: "",
+    reps: ""
+  }));
+
+  renderBatchAddList();
+  batchAddModal.style.display = "block";
+}
+
+function closeBatchAddModal(){
+  batchAddModal.style.display = "none";
+  batchAddItems = [];
+}
+
+function renderBatchAddList(){
+  batchAddList.innerHTML = "";
+
+  batchAddItems.forEach((it, idx)=>{
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.background = "#0f0f10";
+    card.style.padding = "10px";
+
+    card.innerHTML = `
+      <div class="row" style="align-items:end;">
+        <div style="flex:2 1 220px;">
+          <div class="small muted">Exercise</div>
+          <div style="font-weight:700; margin-top:4px;">${it.name}</div>
+        </div>
+
+        <label style="flex:0 0 120px;">Sets
+          <input type="number" min="1" value="${it.sets}" data-bsets="${idx}" placeholder="3" />
+        </label>
+
+        <label style="flex:1 1 160px;">Reps
+          <input value="${it.reps}" data-breps="${idx}" placeholder="8–10" />
+        </label>
+
+        <button type="button" class="miniBtn danger" data-bremove="${idx}">Remove</button>
+      </div>
+    `;
+
+    batchAddList.appendChild(card);
+  });
+
+  // wire inputs
+  batchAddList.querySelectorAll("[data-bsets]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const i = Number(inp.getAttribute("data-bsets"));
+      batchAddItems[i].sets = inp.value;
+    });
+  });
+
+  batchAddList.querySelectorAll("[data-breps]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const i = Number(inp.getAttribute("data-breps"));
+      batchAddItems[i].reps = inp.value;
+    });
+  });
+
+  batchAddList.querySelectorAll("[data-bremove]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const i = Number(btn.getAttribute("data-bremove"));
+      batchAddItems.splice(i,1);
+      renderBatchAddList();
+    });
+  });
+}
+
+[batchAddCloseBtn, batchAddCancelBtn].forEach(btn=>{
+  btn?.addEventListener("click", closeBatchAddModal);
+});
+batchAddModal?.addEventListener("click", (e)=>{ if(e.target === batchAddModal) closeBatchAddModal(); });
+
+batchAddConfirmBtn?.addEventListener("click", ()=>{
+  // validate
+  for(const it of batchAddItems){
+    const sets = Number(it.sets);
+    const reps = String(it.reps || "").trim();
+    if(!sets || sets <= 0){
+      alert(`Enter sets for: ${it.name}`);
+      return;
+    }
+    if(!reps){
+      alert(`Enter reps for: ${it.name}`);
+      return;
+    }
+  }
+
+  // add to current draft day
+  const k = DAY_KEYS[editDayIndex];
+  const day = draftRoutine.days[k];
+
+  batchAddItems.forEach(it=>{
+    day.exercises.push({
+      name: canonicalExerciseName(it.name),
+      sets: Number(it.sets),
+      reps: String(it.reps).trim(),
+      notes: ""
+    });
+  });
+
+  closeBatchAddModal();
+  renderRtDayPanel();
+  buildRoutineExerciseSuggestions();
+  renderLiftSearchDropdown();
+});
+
 
 [exPickCloseBtn, exPickCancelBtn].forEach(btn=>btn.addEventListener("click", closeExercisePicker));
 exPickModal.addEventListener("click", (e)=>{ if(e.target === exPickModal) closeExercisePicker(); });
@@ -3337,6 +3541,7 @@ const rtAddExSets = document.getElementById("rtAddExSets");
 const rtAddExReps = document.getElementById("rtAddExReps");
 const rtAddExBtn = document.getElementById("rtAddExBtn");
 const rtExList = document.getElementById("rtExList");
+const rtAddMultiBtn = document.getElementById("rtAddMultiBtn");
 const rtExSuggestions = document.getElementById("rtExSuggestions");
 
   rtAddExName.addEventListener("focus", ()=>{
@@ -3553,6 +3758,19 @@ rtAddExBtn.addEventListener("click", ()=>{
   buildRoutineExerciseSuggestions();
   renderLiftSearchDropdown();
 });
+
+  rtAddMultiBtn?.addEventListener("click", ()=>{
+  openExercisePicker({
+    title: "Pick multiple exercises",
+    multi: true,
+    initialMulti: [],
+    onConfirm: (pickedNames)=>{
+      // pickedNames is an array when multi=true
+      openBatchAddModal(pickedNames);
+    }
+  });
+});
+
 
 rtSaveBtn.addEventListener("click", ()=>{
   if(!draftRoutine) return;
