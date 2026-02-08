@@ -25,7 +25,8 @@
 #logModal,
 #histModal,
 #rtModal,
-#exPickModal{
+#exPickModal,
+#batchAddModal{
   overflow: hidden;                 /* prevents overlay scroll fighting */
   -webkit-overflow-scrolling: touch;
 }
@@ -34,7 +35,8 @@
 #logModal > div,
 #histModal > div,
 #rtModal > div,
-#exPickModal > div{
+#exPickModal > div,
+#batchAddModal > div{
   max-height: calc(100dvh - 32px);  /* ✅ true mobile viewport height */
   overflow-y: auto;                 /* ✅ scroll the whole modal */
   -webkit-overflow-scrolling: touch;
@@ -1145,14 +1147,29 @@
   </div>
 
   <!-- EXERCISE PICKER MODAL -->
-  <div id="exPickModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
-    <div style="max-width:520px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
-      <div class="topRight">
-        <h2 style="margin:0;" id="exPickTitle">Pick Exercise</h2>
-        <button id="exPickCloseBtn">Close</button>
-      </div>
+<div id="exPickModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
+  <div style="max-width:520px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
+    <div class="topRight">
+      <h2 style="margin:0;" id="exPickTitle">Pick Exercise</h2>
+      <button id="exPickCloseBtn">Close</button>
+    </div>
 
-      <!-- BATCH ADD MODAL (Multi-add sets/reps screen) -->
+    <div class="row" style="margin-top:10px;">
+      <label style="min-width:220px; flex:1 1 220px;">Search
+        <input id="exPickSearch" placeholder="Type to filter..." />
+      </label>
+    </div>
+
+    <div id="exPickList" style="margin-top:10px; border:1px solid #202124; border-radius:12px;"></div>
+
+    <div class="btnRow">
+      <button id="exPickConfirmBtn">Confirm</button>
+      <button id="exPickCancelBtn" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+  <!-- BATCH ADD MODAL (Multi-add sets/reps screen) -->
 <div id="batchAddModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; padding:16px;">
   <div style="max-width:640px; margin:40px auto; background:#121214; border:1px solid #202124; border-radius:14px; padding:12px;">
     <div class="topRight">
@@ -1172,7 +1189,7 @@
     </div>
   </div>
 </div>
-
+  
       <div class="row" style="margin-top:10px;">
         <label style="min-width:220px; flex:1 1 220px;">Search
           <input id="exPickSearch" placeholder="Type to filter..." />
@@ -2911,11 +2928,21 @@ const batchAddList = document.getElementById("batchAddList");
 let batchAddItems = []; // [{name, sets, reps}]
 
 function openBatchAddModal(names){
-  batchAddItems = (names || []).map(n=>({
+  // ✅ normalize: accept array OR single string
+  const arr = Array.isArray(names)
+    ? names
+    : (typeof names === "string" && names.trim() ? [names.trim()] : []);
+
+  batchAddItems = arr.map(n=>({
     name: canonicalExerciseName(n),
     sets: "",
     reps: ""
   }));
+
+  renderBatchAddList();
+  batchAddModal.style.display = "block";
+}
+
 
   renderBatchAddList();
   batchAddModal.style.display = "block";
