@@ -3260,17 +3260,20 @@ logSaveBtn.addEventListener("click", ()=>{
   lifts.sort((a,b)=>b.date.localeCompare(a.date));
   LS.set(KEY_LIFTS, lifts);
 
+  const prevScroll = window.scrollY;
   closeLogModal();
 
   renderLiftSearchDropdown();
   renderLifts();      // Phase 4 respects applied filters
   renderPPL();
+  window.scrollTo(0, prevScroll);
   buildRoutineExerciseSuggestions();
 
-  showScreen("lifts");
-setTimeout(()=>{
-  document.getElementById("liftTableWrap")?.scrollIntoView({behavior:"smooth", block:"start"});
-}, 0);
+// ✅ Stay on Routine screen after saving
+// showScreen("lifts");
+// setTimeout(()=>{
+//   document.getElementById("liftTableWrap")?.scrollIntoView({behavior:"smooth", block:"start"});
+// }, 0);
 }); // ✅ closes logSaveBtn click handler
 
 /* ---------------------------
