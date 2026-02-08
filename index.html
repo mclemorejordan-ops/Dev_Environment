@@ -1336,7 +1336,8 @@ obRoutineCreateBtn?.addEventListener("click", ()=>{
   }
 
   base.name = name;
-
+  base.source = "onboarding";
+  
   routines.push(base);
   saveRoutines();
 
@@ -1796,6 +1797,7 @@ function defaultRoutine(){
   return {
     id: uid(),
     name: "PPL",
+    source: "default",
     days: {
       Mon: { label:"Push", rest:false, exercises:[
         {name:"Incline Dumbbell Press", sets:4, reps:"8–10", notes:""},
@@ -2049,6 +2051,7 @@ function loadRoutines(){
     });
     if(!r.id) r.id = uid();
     if(!r.name) r.name = "Routine";
+    if(!r.source) r.source = "user"; // fallback for legacy routines
   });
 
   LS.set(KEY_ROUTINES, routines);
@@ -2432,16 +2435,31 @@ function renderRoutineDropdown(forceId){
   const chosen = forceId || activeRoutineId || routines[0]?.id;
 
   routineSelect.innerHTML = "";
-  routines.forEach(r=>{
-    const opt = document.createElement("option");
-    opt.value = r.id;
-    opt.textContent = r.name;
-    routineSelect.appendChild(opt);
-  });
+
+  // Group definitions
+  const isDefaultGroup = (r) => ["default","template","onboarding"].includes(String(r.source||""));
+
+  const defaults = routines.filter(isDefaultGroup);
+  const created  = routines.filter(r => !isDefaultGroup(r));
+
+  const addGroup = (label, items) => {
+    if(!items.length) return;
+    const og = document.createElement("optgroup");
+    og.label = label;
+    items.forEach(r=>{
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.name;
+      og.appendChild(opt);
+    });
+    routineSelect.appendChild(og);
+  };
+
+  addGroup("Default / Templates", defaults);
+  addGroup("My Routines", created);
 
   const finalId = routines.some(r=>r.id===chosen) ? chosen : routines[0].id;
 
-  // source of truth
   setActiveRoutine(finalId);
   routineSelect.value = finalId;
 
@@ -2460,6 +2478,7 @@ routineSelect.addEventListener("change", ()=>{
 newRoutineBtn.addEventListener("click", ()=>{
   const base = defaultRoutine();
   base.name = `New Routine ${routines.length+1}`;
+  base.source = "user";
   DAY_KEYS.forEach(k=>{
     base.days[k].exercises = [];
     base.days[k].rest = (k==="Sun");
@@ -2475,6 +2494,7 @@ newRoutineBtn.addEventListener("click", ()=>{
 dupRoutineBtn.addEventListener("click", ()=>{
   const ar = getActiveRoutine();
   const copy = JSON.parse(JSON.stringify(ar));
+  copy.source = "user";
   copy.id = uid();
   copy.name = `${ar.name} (Copy)`;
   routines.push(copy);
