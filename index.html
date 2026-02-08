@@ -1177,6 +1177,7 @@ const KEY_ONBOARD_DONE = "gym_onboard_done_v1";
   /* ---------------------------
    SETTINGS bindings
 ---------------------------- */
+const setName = document.getElementById("setName");
 const setProteinGoal = document.getElementById("setProteinGoal");
 const setWeekStart = document.getElementById("setWeekStart");
 const setHideRest = document.getElementById("setHideRest");
@@ -1393,7 +1394,7 @@ function renderHeaderSub(){
   const sub = document.getElementById("headerSub");
   if(!sub) return;
   const restTxt = profile.hideRestDays ? "Rest days hidden" : "Rest days shown";
-  sub.textContent = `Minimal tracker • lbs • Protein goal ${profile.proteinGoal}g • ${restTxt}`;
+  sub.textContent = `Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}`;
 }
 
 
@@ -1610,6 +1611,16 @@ function dateForWeekdayIndex(dayIndex, baseDate=new Date()){
   const out = new Date(start);
   out.setDate(start.getDate() + dayIndex);
   return localISODate(out);
+}
+
+  function canonicalExerciseName(name){
+  const raw = String(name || "").trim();
+  if(!raw) return "";
+  const n = normExName(raw);
+
+  // return the exact library spelling if it exists
+  const match = EXERCISE_LIBRARY.find(x => normExName(x) === n);
+  return match || raw;
 }
 
 /* ---------------------------
@@ -1881,8 +1892,6 @@ function makeUpperLowerTemplate(){
   ]};
 
   return r;
-}
-
 }
 
 function makeFullBody3Template(){
@@ -3034,6 +3043,7 @@ let modalDayIndex = null;
 function openLogModal(exName, defaultSets=3, routineObj=null, dayKey="", dayIndex=0){
   modalExerciseName = canonicalExerciseName(exName);
   logModalExercise.textContent = modalExerciseName;
+  logRoutineLine.textContent = routineObj ? `${routineObj.name} • ${dayKey}` : "—";
   modalRoutine = routineObj;
   modalDayKey = dayKey;
   modalDayIndex = dayIndex;
