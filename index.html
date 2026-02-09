@@ -1705,8 +1705,9 @@ function renderHeaderSub(){
   const sub = document.getElementById("headerSub");
   if(!sub) return;
   const restTxt = profile.hideRestDays ? "Rest days hidden" : "Rest days shown";
-  sub.textContent = `Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}`;
-  sub.textContent = `v${APP_VERSION} • Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}`;
+sub.textContent =
+  `Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}` +
+  (CURRENT_APP_VERSION ? ` • v${CURRENT_APP_VERSION}` : "");
 }
 
 
@@ -4459,8 +4460,8 @@ function routeInitialScreen(){
    App Version + Update Banner
    - bump APP_VERSION on each deploy
 ---------------------------- */
-const APP_VERSION = "2026.02.09.5";   // ✅ change this every GitHub update
-const KEY_APP_VERSION = "gym_app_version_v1";
+let CURRENT_APP_VERSION = "";
+  const KEY_APP_VERSION = "gym_app_version_v1";
 
 function showUpdateBanner(){
   const b = document.getElementById("updateBanner");
@@ -4479,6 +4480,7 @@ async function checkForUpdate(){
 
     const latest = String(data.version || "").trim();
     if(!latest) return;
+    CURRENT_APP_VERSION = latest;
 
     const last = localStorage.getItem(KEY_APP_VERSION);
 
