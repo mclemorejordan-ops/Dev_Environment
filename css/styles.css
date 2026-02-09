@@ -1,1 +1,524 @@
+  <style>
+    :root{
+      --bg:#0b0b0c;
+      --card:#121214;
+      --muted:#9aa0a6;
+      --text:#f5f6f7;
+      --line:#202124;
+      --good:#7CFC00;
+      --bad:#ff6b6b;
+      --warn:#ffd166;
+    }
+/* ---------------------------
+   MODAL SCROLL FIX (mobile + desktop)
+   - make the MODAL CARD the scroller
+   - avoid nested scrolling on iOS
+---------------------------- */
 
+/* overlays */
+#logModal,
+#histModal,
+#rtModal,
+#exPickModal,
+#batchAddModal{
+  overflow: hidden;                 /* prevents overlay scroll fighting */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* modal cards scroll as a whole */
+#logModal > div,
+#histModal > div,
+#rtModal > div,
+#exPickModal > div,
+#batchAddModal > div{
+  max-height: calc(100dvh - 32px);  /* ✅ true mobile viewport height */
+  overflow-y: auto;                 /* ✅ scroll the whole modal */
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* only Log Sets list can scroll (optional) */
+#logModalSets{
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 50vh;
+}
+
+/* ✅ Routine Editor list should NOT be its own scrollbar */
+#rtExList{
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* keep action buttons visible in modals */
+#rtModal .btnRow,
+#logModal .btnRow{
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(18,18,20,0),
+    rgba(18,18,20,1) 35%
+  );
+  padding-top: 10px;
+}
+/* ✅ END MODAL SCROLL FIX */
+    
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    header{
+      padding:18px 16px 8px;
+      border-bottom:1px solid var(--line);
+      position:sticky;
+      top:0;
+      background:rgba(11,11,12,.92);
+      backdrop-filter: blur(10px);
+      z-index:10;
+    }
+    h1{
+      margin:0 0 6px 0;
+      font-size:18px;
+      letter-spacing:.5px;
+      font-weight:700;
+    }
+    .sub{
+      color:var(--muted);
+      font-size:12px;
+    }
+    main{
+      padding:14px 12px 80px;
+      display:grid;
+      gap:12px;
+      max-width:1100px;
+      margin:0 auto;
+    }
+    .grid2{
+      display:grid;
+      gap:12px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 980px){
+      .grid2{grid-template-columns: 1fr 1fr;}
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+    }
+    .card h2{
+      margin:0 0 10px 0;
+      font-size:14px;
+      letter-spacing:.4px;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:end;
+    }
+    label{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      font-size:11px;
+      color:var(--muted);
+      min-width: 120px;
+      flex:1 1 140px;
+    }
+    input, select, button, textarea{
+      background:#0f0f10;
+      color:var(--text);
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:10px 10px;
+      outline:none;
+      font-size:14px;
+    }
+    textarea{min-height:38px; resize:vertical;}
+    input::placeholder{color:#666}
+    button{
+      cursor:pointer;
+      background:#0f0f10;
+      font-weight:600;
+    }
+    button:hover{border-color:#2a2b2f}
+    .btnRow{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .pill strong{color:var(--text)}
+    table{
+      width:100%;
+      border-collapse:collapse;
+      overflow:hidden;
+      border-radius:12px;
+      border:1px solid var(--line);
+    }
+    th, td{
+      padding:10px 10px;
+      border-bottom:1px solid var(--line);
+      font-size:12px;
+      text-align:left;
+      vertical-align:top;
+    }
+    th{
+      color:var(--muted);
+      font-weight:700;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      background:#0f0f10;
+    }
+    tr:last-child td{border-bottom:none}
+    .mono{font-variant-numeric: tabular-nums;}
+    .good{color:var(--good); font-weight:700;}
+    .bad{color:var(--bad); font-weight:700;}
+    .warn{color:var(--warn); font-weight:700;}
+    .muted{color:var(--muted)}
+    .small{font-size:11px}
+    .splitTabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .tab{
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      font-size:12px;
+      cursor:pointer;
+      color:var(--muted);
+      background:#0f0f10;
+      user-select:none;
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+    }
+    .tab.active{
+      color:var(--text);
+      border-color:#2a2b2f;
+    }
+    .exerciseList{
+      display:grid;
+      gap:8px;
+    }
+    .exerciseItem{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px;
+      background:#0f0f10;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .exerciseItem .left{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .exerciseItem .title{
+      font-size:13px;
+      font-weight:700;
+    }
+    .exerciseItem .meta{
+      font-size:11px;
+      color:var(--muted);
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+    .exerciseItem .right{
+      text-align:right;
+      min-width:160px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .exerciseItem .right .line2{
+      font-size:11px;
+      color:var(--muted);
+    }
+    .badge{
+      display:inline-block;
+      padding:4px 8px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      font-size:11px;
+      color:var(--text);
+      background:#121214;
+    }
+    .calendar{
+      display:grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap:6px;
+      margin-top:10px;
+      user-select:none;
+    }
+    .calHead{
+      font-size:10px;
+      color:var(--muted);
+      text-align:center;
+      padding:4px 0;
+    }
+    .day{
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:10px 0;
+      text-align:center;
+      font-size:12px;
+      background:#0f0f10;
+      cursor:pointer;
+    }
+    .day.off{opacity:.35; cursor:default;}
+    .day.attended{
+      border-color:#2a2b2f;
+      outline:2px solid rgba(124,252,0,.25);
+    }
+    .day.attended .dot{
+      display:block;
+      margin:6px auto 0;
+      width:6px; height:6px;
+      border-radius:50%;
+      background:var(--good);
+    }
+    .topRight{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .ghost{
+      border-color:transparent;
+      color:var(--muted);
+    }
+    .ghost:hover{border-color:var(--line)}
+    .notice{
+      border:1px dashed #2a2b2f;
+      border-radius:12px;
+      padding:10px;
+      color:var(--muted);
+      font-size:12px;
+      background:#0f0f10;
+    }
+    .clickEx{cursor:pointer; text-decoration:underline; text-decoration-color:#2a2b2f;}
+    .clickEx:hover{opacity:.85;}
+    .divider{
+      height:1px;
+      background:var(--line);
+      margin:10px 0;
+    }
+    .miniBtn{
+      padding:8px 10px;
+      font-size:12px;
+    }
+    .danger{
+      border-color: rgba(255, 107, 107, .35);
+      color: var(--bad);
+    }
+    /* Exercise picker list items */
+.exPickItem{
+  padding:10px 12px;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+}
+.exPickItem:last-child{border-bottom:none;}
+.exPickItem:hover{opacity:.85;}
+.exPickItem.active{
+  outline:2px solid rgba(124,252,0,.25);
+  background:#0f0f10;
+}
+    .exPickRow{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.exPickCheck{
+  width:16px;
+  height:16px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+}
+.exPickItem.active .exPickCheck{
+  border-color: rgba(124,252,0,.35);
+}
+    /* ---------------------------
+   APP SCREENS (Option A)
+---------------------------- */
+.screen{ display:none; }
+.screen.active{ display:block; }
+
+.screenTop{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  position:sticky;
+  top:0;
+  padding:12px 0;
+  background:rgba(11,11,12,.92);
+  backdrop-filter: blur(10px);
+  z-index:20;
+}
+
+.homeGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+}
+
+/* 🔹 Protein Circle (Home → Focus This Week) */
+.proCircleWrap{
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+.proCircle{
+  width:74px;
+  height:74px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  display:grid;
+  place-items:center;
+  background: conic-gradient(var(--good) 0deg, #202124 0deg);
+}
+.proCircleInner{
+  width:58px;
+  height:58px;
+  border-radius:999px;
+  background:#0f0f10;
+  border:1px solid var(--line);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+}
+.proCircleInner .big{
+  font-weight:800;
+  font-size:14px;
+  line-height:1;
+}
+.proCircleInner .small{
+  font-size:10px;
+  color:var(--muted);
+  line-height:1;
+}
+
+.homeGrid button{
+  padding:18px 12px;
+  border-radius:14px;
+  text-align:left;
+}
+
+
+  .bullets{
+  margin:10px 0 0;
+  padding-left:18px;
+}
+.bullets li{
+  margin:6px 0;
+  font-size:13px;
+}
+
+.homeHeaderCard{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-end;
+}
+
+.homeTitle{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.bigTime{
+  font-size:18px;
+  font-weight:800;
+  letter-spacing:.4px;
+}
+
+.smallDate{
+  color:var(--muted);
+  font-size:12px;
+}
+
+.homeStack{
+  display:grid;
+  gap:12px;
+  margin-top:12px;
+}
+
+.weekRow{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  margin-top:10px;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.weekDots{
+  display:flex;
+  justify-content:center;
+  gap:18px;
+  margin-top:8px;
+  align-items:center;
+}
+
+.wdot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  border:1px solid var(--line);
+  background:transparent;
+  opacity:.9;
+}
+
+.wdot.on{
+  background:var(--good);
+  border-color: rgba(124,252,0,.35);
+}
+
+.wdot.off{
+  opacity:.35;
+}
+
+.kpiLine{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+  margin-top:10px;
+}
+
+.kpiLine .muted{font-size:12px;}
+
+  </style>
