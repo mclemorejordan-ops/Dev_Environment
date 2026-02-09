@@ -643,17 +643,19 @@ main{
   font-size: 11px;
   user-select:none;
 }
-    /* ---------------------------
-   Bottom Nav Active Indicator
+ /* ---------------------------
+   Bottom Nav Active Indicator (FIXED)
 ---------------------------- */
 .navBtn{
-  position: relative; /* REQUIRED for the indicator */
+  position: relative;
 }
 
 .navBtn.active::after{
   content:"";
   position:absolute;
   top:6px;
+  left:50%;
+  transform: translateX(-50%);
   width:22px;
   height:3px;
   border-radius:999px;
