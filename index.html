@@ -1669,6 +1669,7 @@ function renderHeaderSub(){
   if(!sub) return;
   const restTxt = profile.hideRestDays ? "Rest days hidden" : "Rest days shown";
   sub.textContent = `Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}`;
+  sub.textContent = `v${APP_VERSION} • Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}`;
 }
 
 
