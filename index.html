@@ -398,6 +398,44 @@
   gap:10px;
 }
 
+/* 🔹 Protein Circle (Home → Focus This Week) */
+.proCircleWrap{
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+.proCircle{
+  width:74px;
+  height:74px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  display:grid;
+  place-items:center;
+  background: conic-gradient(var(--good) 0deg, #202124 0deg);
+}
+.proCircleInner{
+  width:58px;
+  height:58px;
+  border-radius:999px;
+  background:#0f0f10;
+  border:1px solid var(--line);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+}
+.proCircleInner .big{
+  font-weight:800;
+  font-size:14px;
+  line-height:1;
+}
+.proCircleInner .small{
+  font-size:10px;
+  color:var(--muted);
+  line-height:1;
+}
+
 .homeGrid button{
   padding:18px 12px;
   border-radius:14px;
@@ -636,9 +674,19 @@
 
     <!-- Focus -->
     <section class="card">
-      <h2>Focus This Week</h2>
-      <div class="notice" id="homeFocus">—</div>
-    </section>
+  <h2>Focus This Week</h2>
+
+  <div class="proCircleWrap" style="margin-top:10px;">
+    <div class="proCircle" id="homeProteinCircle">
+      <div class="proCircleInner">
+        <div class="big" id="homeProteinLeft">—</div>
+        <div class="small">left</div>
+      </div>
+    </div>
+
+    <div class="notice" id="homeFocus" style="flex:1;">—</div>
+  </div>
+</section>
 
     <!-- Navigation tiles -->
     <section class="card">
@@ -666,10 +714,13 @@
     <!-- WEIGHT CARD (your original card restored) -->
     <section class="card">
       <div class="topRight">
-        <h2>Weekly Weight Tracker</h2>
-        <div class="row" style="gap:6px;">
-        </div>
-      </div>
+  <h2>Weekly Weight Tracker</h2>
+  <div class="row" style="gap:6px;">
+    <button id="bwViewTableBtn" class="miniBtn">Table</button>
+    <button id="bwViewGraphBtn" class="miniBtn ghost">Graph</button>
+  </div>
+</div>
+
 
       <div class="row">
         <label>Date
@@ -687,11 +738,11 @@
         <span class="pill"><span class="muted">7-day avg:</span> <strong class="mono" id="bwAvg">—</strong></span>
       </div>
 
-      <div style="margin-top:10px;">
-        <canvas id="bwChart" height="120"></canvas>
-      </div>
+      <div id="bwChartWrap" style="margin-top:10px;">
+  <canvas id="bwChart" height="120"></canvas>
+</div>
 
-      <div style="margin-top:10px; overflow:auto;">
+<div id="bwTableWrap" style="margin-top:10px; overflow:auto;">
         <table>
           <thead>
             <tr>
@@ -1436,8 +1487,10 @@ function saveProfile(next){
   };
   LS.set(KEY_PROFILE, profile);
   renderHeaderSub();
-  refreshHome(); // keep home synced
+  refreshHome();
+  hydrateSettingsUI(); // ✅ add this line
 }
+
 
 function renderHeaderSub(){
   const sub = document.getElementById("headerSub");
@@ -1464,6 +1517,9 @@ const homeRestNotice = document.getElementById("homeRestNotice");
 const homeWeekDots = document.getElementById("homeWeekDots");
 const homeWeekCount = document.getElementById("homeWeekCount");
 const homeFocus = document.getElementById("homeFocus");
+const homeProteinCircle = document.getElementById("homeProteinCircle");
+const homeProteinLeft = document.getElementById("homeProteinLeft");
+
 
 function fmtTimeNow(){
   const d = new Date();
@@ -1528,6 +1584,20 @@ function refreshHome(){
         });
       }
     }
+  }
+    // ✅ Protein-left circle (today)
+  const td = todayISO();
+  const obj = proteinMap?.[td] || {morning:0,lunch:0,pre:0,dinner:0,bed:0};
+  const total = (Number(obj.morning)||0)+(Number(obj.lunch)||0)+(Number(obj.pre)||0)+(Number(obj.dinner)||0)+(Number(obj.bed)||0);
+
+  const goal = getProteinGoal();
+  const left = Math.max(goal - total, 0);
+  const pct = Math.max(0, Math.min(1, goal ? (total/goal) : 0));
+  const deg = Math.round(pct * 360);
+
+  if(homeProteinLeft) homeProteinLeft.textContent = String(left);
+  if(homeProteinCircle){
+    homeProteinCircle.style.background = `conic-gradient(var(--good) ${deg}deg, #202124 0deg)`;
   }
     // ✅ Home "Check In" button state (add this BEFORE week dots section)
   if(homeCheckInBtn){
@@ -1631,6 +1701,12 @@ function showScreen(name){
     renderLiftSearchDropdown();
     renderLiftRoutineDropdown();
     renderLifts();
+
+    if(name === "settings"){
+    hydrateSettingsUI();
+    renderStorageInfo();
+    renderLastBackup();
+  }
   }
 }
 
@@ -2127,6 +2203,34 @@ const bwTable= document.getElementById("bwTable");
 const bwLatest= document.getElementById("bwLatest");
 const bwDelta= document.getElementById("bwDelta");
 const bwAvg= document.getElementById("bwAvg");
+
+  const bwViewTableBtn = document.getElementById("bwViewTableBtn");
+const bwViewGraphBtn = document.getElementById("bwViewGraphBtn");
+const bwChartWrap = document.getElementById("bwChartWrap");
+const bwTableWrap = document.getElementById("bwTableWrap");
+
+let bwView = "table"; // "table" | "graph"
+
+function setBWView(next){
+  bwView = next;
+
+  if(bwView === "table"){
+    bwTableWrap.style.display = "";
+    bwChartWrap.style.display = "none";
+    bwViewTableBtn.classList.remove("ghost");
+    bwViewGraphBtn.classList.add("ghost");
+  } else {
+    bwTableWrap.style.display = "none";
+    bwChartWrap.style.display = "";
+    bwViewTableBtn.classList.add("ghost");
+    bwViewGraphBtn.classList.remove("ghost");
+    renderBW(); // ensures chart draws correctly when shown
+  }
+}
+
+bwViewTableBtn?.addEventListener("click", ()=> setBWView("table"));
+bwViewGraphBtn?.addEventListener("click", ()=> setBWView("graph"));
+
 
 bwDate.value = todayISO();
 
@@ -2832,73 +2936,112 @@ function closeExercisePicker(){
 }
 
 function renderExercisePickerList(){
-  const q = normExName(exPickSearch.value || "");
+  const rawQ = String(exPickSearch.value || "").trim();
+  const q = normExName(rawQ);
+
   const all = collectAllExerciseNames();
   const filtered = q ? all.filter(n => normExName(n).includes(q)) : all;
 
   exPickList.innerHTML = "";
 
+  // ✅ "Create new" option when typing
+  if(rawQ){
+    const exists = all.some(n => normExName(n) === normExName(rawQ));
+    if(!exists){
+      const create = document.createElement("div");
+      create.className = "exPickItem";
+      create.innerHTML = `
+        <div class="exPickRow">
+          ${exPickMulti ? `<span class="exPickCheck">+</span>` : ``}
+          <span>➕ Create "<strong>${rawQ}</strong>"</span>
+        </div>
+      `;
+      create.addEventListener("click", ()=>{
+        const created = cleanExerciseName(rawQ);
+
+        if(exPickMulti){
+          exPickSelectedSet.add(created);
+          renderExercisePickerList();
+        } else {
+          exPickSelected = created;
+          [...exPickList.querySelectorAll(".exPickItem")].forEach(x=>x.classList.remove("active"));
+          create.classList.add("active");
+        }
+      });
+      exPickList.appendChild(create);
+    }
+  }
+
   if(filtered.length === 0){
-    exPickList.innerHTML = `<div class="notice">No matches.</div>`;
+    if(!rawQ){
+      exPickList.innerHTML = `<div class="notice">No matches.</div>`;
+    }
     return;
   }
 
   filtered.forEach(name=>{
-  const isActive = exPickMulti ? exPickSelectedSet.has(name) : (name === exPickSelected);
+    const isActive = exPickMulti ? exPickSelectedSet.has(name) : (name === exPickSelected);
 
-  const div = document.createElement("div");
-  div.className = "exPickItem" + (isActive ? " active" : "");
+    const div = document.createElement("div");
+    div.className = "exPickItem" + (isActive ? " active" : "");
 
-  // build row UI
-  div.innerHTML = `
-    <div class="exPickRow">
-      ${exPickMulti ? `<span class="exPickCheck">${isActive ? "✓" : ""}</span>` : ``}
-      <span>${name}</span>
-    </div>
-  `;
+    div.innerHTML = `
+      <div class="exPickRow">
+        ${exPickMulti ? `<span class="exPickCheck">${isActive ? "✓" : ""}</span>` : ``}
+        <span>${name}</span>
+      </div>
+    `;
 
-  div.addEventListener("click", ()=>{
-    if(exPickMulti){
-      // toggle in set
-      if(exPickSelectedSet.has(name)) exPickSelectedSet.delete(name);
-      else exPickSelectedSet.add(name);
-      renderExercisePickerList();
-    } else {
-      exPickSelected = name;
-      [...exPickList.querySelectorAll(".exPickItem")].forEach(x=>x.classList.remove("active"));
-      div.classList.add("active");
-    }
+    div.addEventListener("click", ()=>{
+      if(exPickMulti){
+        if(exPickSelectedSet.has(name)) exPickSelectedSet.delete(name);
+        else exPickSelectedSet.add(name);
+        renderExercisePickerList();
+      } else {
+        exPickSelected = name;
+        [...exPickList.querySelectorAll(".exPickItem")].forEach(x=>x.classList.remove("active"));
+        div.classList.add("active");
+      }
+    });
+
+    exPickList.appendChild(div);
   });
-
-  exPickList.appendChild(div);
-});
 }
+
 
 exPickSearch.addEventListener("input", renderExercisePickerList);
 
 exPickConfirmBtn.addEventListener("click", ()=>{
   if(exPickMulti){
     const picked = [...exPickSelectedSet];
+
     if(picked.length === 0){
-      alert("Pick at least one exercise.");
+      alert("Select at least one exercise.");
       return;
     }
+
     if(typeof exPickOnConfirm === "function"){
       exPickOnConfirm(picked);
     }
+
     closeExercisePicker();
     return;
   }
 
   // single mode
-  if(!exPickSelected){
+if(!exPickSelected){
+  const typed = cleanExerciseName(exPickSearch.value);
+  if(!typed){
     alert("Pick an exercise first.");
     return;
   }
-  if(typeof exPickOnConfirm === "function"){
-    exPickOnConfirm(exPickSelected);
-  }
-  closeExercisePicker();
+  exPickSelected = typed;
+}
+
+if(typeof exPickOnConfirm === "function"){
+  exPickOnConfirm(exPickSelected);
+}
+closeExercisePicker();
 });
 
   /* ---------------------------
@@ -2986,6 +3129,10 @@ function renderBatchAddList(){
       renderBatchAddList();
     });
   });
+  // auto-focus first sets input
+setTimeout(()=>{
+  batchAddList.querySelector("input[data-bsets]")?.focus();
+}, 0);
 }
 
 [batchAddCloseBtn, batchAddCancelBtn].forEach(btn=>{
@@ -4017,6 +4164,8 @@ bindNavigation();
 // ✅ new onboarding routing
 hydrateOnboardingInputs();
 routeInitialScreen();
+
+setBWView("table");
 
 </script>
 </body>
