@@ -1428,6 +1428,82 @@ header{
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
+// Respect reduced motion
+const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Easing (Apple-ish)
+function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+
+// Number animation (supports ints + decimals)
+function animateNumber(el, to, {duration=450, decimals=0, prefix="", suffix=""} = {}){
+  if(!el) return;
+
+  // If reduced motion, just set it.
+  if(REDUCED_MOTION){
+    el.textContent = `${prefix}${Number(to).toFixed(decimals)}${suffix}`;
+    return;
+  }
+
+  function animateRing(el, degTo, {duration=550} = {}){
+  if(!el) return;
+
+  if(REDUCED_MOTION){
+    el.style.background = `conic-gradient(var(--good) ${degTo}deg, #202124 0deg)`;
+    el.setAttribute("data-deg", String(degTo));
+    return;
+  }
+
+  const from = Number(el.getAttribute("data-deg") || 0);
+  const to = Number(degTo) || 0;
+
+  const start = performance.now();
+  const d = Math.max(200, duration);
+
+  function frame(now){
+    const t = Math.min(1, (now - start) / d);
+    const p = easeOutCubic(t);
+    const deg = from + (to - from) * p;
+
+    el.style.background = `conic-gradient(var(--good) ${deg}deg, #202124 0deg)`;
+    el.setAttribute("data-deg", String(deg));
+
+    if(t < 1) requestAnimationFrame(frame);
+    else el.setAttribute("data-deg", String(to));
+  }
+
+  requestAnimationFrame(frame);
+}
+
+
+  // Read current numeric value from element (fallback to 0)
+  const curRaw = String(el.getAttribute("data-num") ?? el.textContent ?? "0").replace(/[^\d.-]/g,"") || "0";
+  const from = Number(curRaw);
+  const end  = Number(to);
+
+  // If NaN, just set
+  if(!isFinite(from) || !isFinite(end)){
+    el.textContent = `${prefix}${to}${suffix}`;
+    el.setAttribute("data-num", String(to));
+    return;
+  }
+
+  const start = performance.now();
+  const d = Math.max(150, duration);
+
+  function frame(now){
+    const t = Math.min(1, (now - start) / d);
+    const p = easeOutCubic(t);
+    const val = from + (end - from) * p;
+
+    el.textContent = `${prefix}${val.toFixed(decimals)}${suffix}`;
+    el.setAttribute("data-num", String(Number(val.toFixed(decimals))));
+
+    if(t < 1) requestAnimationFrame(frame);
+    else el.setAttribute("data-num", String(end));
+  }
+
+  requestAnimationFrame(frame);
+} 
 /* ---------------------------
    Storage helpers
 ---------------------------- */
@@ -1815,9 +1891,9 @@ function refreshHome(){
   const pct = Math.max(0, Math.min(1, goal ? (total/goal) : 0));
   const deg = Math.round(pct * 360);
 
-  if(homeProteinLeft) homeProteinLeft.textContent = String(left);
+  if(homeProteinLeft) animateNumber(homeProteinLeft, left, {decimals:0});
   if(homeProteinCircle){
-    homeProteinCircle.style.background = `conic-gradient(var(--good) ${deg}deg, #202124 0deg)`;
+    animateRing(homeProteinCircle, deg, {duration:650});
   }
     // ✅ Home "Check In" button state (add this BEFORE week dots section)
   if(homeCheckInBtn){
@@ -2728,9 +2804,9 @@ function loadProteinDay(d){
 }
 function renderProteinTotals(){
   const total = (Number(pMorning.value)||0)+(Number(pLunch.value)||0)+(Number(pPre.value)||0)+(Number(pDinner.value)||0)+(Number(pBed.value)||0);
-  pTotal.textContent = String(total);
+  animateNumber(pTotal, total, {decimals:0});
   const rem = Math.max(getProteinGoal() - total, 0);
-pRemain.textContent = String(rem);
+  animateNumber(pRemain, rem, {decimals:0});
   if(total >= getProteinGoal()){
     pStatus.textContent = "Hit goal ✅";
     pStatus.className = "good";
