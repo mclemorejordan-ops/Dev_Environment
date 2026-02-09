@@ -344,9 +344,6 @@
       border-color: rgba(255, 107, 107, .35);
       color: var(--bad);
     }
-
-
-    
     /* Exercise picker list items */
 .exPickItem{
   padding:10px 12px;
@@ -1274,7 +1271,6 @@ const KEY_ACTIVE_ROUTINE = "gym_active_routine_id_v1";
 const KEY_PROFILE = "gym_profile_v1";
 const KEY_LAST_BACKUP = "gym_last_backup_v1";
 const KEY_ONBOARD_DONE = "gym_onboard_done_v1";
-const KEY_CUSTOM_EX = "gym_custom_ex_v1";
 
 
   /* ---------------------------
@@ -1774,34 +1770,7 @@ function dateForWeekdayIndex(dayIndex, baseDate=new Date()){
 /* ---------------------------
    Normalization
 ---------------------------- */
-function cleanExerciseName(s){
-  const raw = String(s || "").trim().replace(/\s+/g, " ");
-  if(!raw) return "";
-  return canonicalExerciseName(raw);
-}
-
-function loadCustomExercises(){
-  const arr = LS.get(KEY_CUSTOM_EX, []);
-  return Array.isArray(arr) ? arr : [];
-}
-function saveCustomExercises(arr){
-  LS.set(KEY_CUSTOM_EX, arr);
-}
-function addCustomExercise(name){
-  const cleaned = cleanExerciseName(name);
-  if(!cleaned) return "";
-
-  const cur = loadCustomExercises();
-  const exists = cur.some(x => normExName(x) === normExName(cleaned));
-  if(!exists){
-    cur.push(cleaned);
-    cur.sort((a,b)=>a.localeCompare(b));
-    saveCustomExercises(cur);
-  }
-  return cleaned;
-}
-  
-  function normExName(s){
+function normExName(s){
   return String(s||"")
     .toLowerCase()
     .replace(/\s+/g," ")
@@ -1836,19 +1805,6 @@ function canonicalExerciseName(name){
   if(!raw) return "";
   const key = normExName(raw);
   return CANONICAL_EXERCISE_MAP[key] || raw;
-}
-  function cleanExerciseName(s){
-  const raw = String(s || "").trim();
-  if(!raw) return "";
-
-  // collapse extra spaces
-  const collapsed = raw.replace(/\s+/g, " ");
-
-  // Title Case for nice display
-  const titled = collapsed.replace(/\b\w/g, c => c.toUpperCase());
-
-  // normalize via canonical map (handles plurals, variants, etc.)
-  return canonicalExerciseName(titled);
 }
 /* ---------------------------
    Canonical Exercise Library
@@ -2910,9 +2866,6 @@ function collectAllExerciseNames(){
   // 1️⃣ Canonical library first
   EXERCISE_LIBRARY.forEach(n => set.add(canonicalExerciseName(n)));
 
-  // 1.5️⃣ Custom exercises created by you
-loadCustomExercises().forEach(n => set.add(canonicalExerciseName(n)));
-
   // 2️⃣ Routine exercises
   routines.forEach(r=>{
     DAY_KEYS.forEach(k=>{
@@ -3003,25 +2956,18 @@ function renderExercisePickerList(){
           <span>➕ Create "<strong>${rawQ}</strong>"</span>
         </div>
       `;
-     create.addEventListener("click", ()=>{
-  const created = addCustomExercise(rawQ);
-  if(!created) return;
+      create.addEventListener("click", ()=>{
+        const created = cleanExerciseName(rawQ);
 
-  if(exPickMulti){
-    // multi mode: toggle selection
-    if(exPickSelectedSet.has(created)) exPickSelectedSet.delete(created);
-    else exPickSelectedSet.add(created);
-    renderExercisePickerList();
-  } else {
-    // ✅ single mode: instantly confirm + close
-    exPickSelected = created;
-
-    if(typeof exPickOnConfirm === "function"){
-      exPickOnConfirm(created);
-    }
-    closeExercisePicker();
-  }
-});
+        if(exPickMulti){
+          exPickSelectedSet.add(created);
+          renderExercisePickerList();
+        } else {
+          exPickSelected = created;
+          [...exPickList.querySelectorAll(".exPickItem")].forEach(x=>x.classList.remove("active"));
+          create.classList.add("active");
+        }
+      });
       exPickList.appendChild(create);
     }
   }
@@ -3990,31 +3936,24 @@ rtSaveBtn.addEventListener("click", ()=>{
   const idx = routines.findIndex(r=>r.id===editRoutineId);
   if(idx < 0) return;
 
-  // save
   routines[idx] = draftRoutine;
   saveRoutines();
 
-  // make active
   setActiveRoutine(draftRoutine.id);
 
-  // close modal first (so you can see screen changes)
   closeRoutineEditor();
-
-  // ✅ ONBOARDING: if this routine came from onboarding, ALWAYS finish + go home
-  if(draftRoutine.source === "onboarding"){
-    setOnboardingDone();
-    refreshHome();
-    showScreen("home");
-    return;
-  }
-
-  // normal flow
   renderRoutineDropdown();
   renderPPL();
   renderLiftRoutineDropdown();
   buildRoutineExerciseSuggestions();
-});
 
+  // If onboarding is not done yet, finish it and send to Home
+if(!isOnboardingDone()){
+  setOnboardingDone();
+  refreshHome();
+  showScreen("home");
+}
+});
 
   function renderLastBackup(){
   const el = document.getElementById("lastBackupText");
