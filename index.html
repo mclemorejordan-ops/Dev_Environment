@@ -109,7 +109,7 @@ body.hideMainHeader header{
     body{
   margin:0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
-  background:
+  background:var(--bg);
   color:var(--text);
 }
     header{
@@ -640,25 +640,6 @@ main{
   font-size: 11px;
   user-select:none;
 }
-/* ---------------------------
-   Bottom Nav Active Indicator (UNDER ICON)
----------------------------- */
-.navBtn{
-  position: relative;
-}
-
-.navBtn.active::after{
-  content:"";
-  position:absolute;
-  top:32px;                 /* 👈 moves it below the icon */
-  left:50%;
-  transform: translateX(-50%);
-  width:22px;
-  height:3px;
-  border-radius:999px;
-  background: rgba(124,252,0,.75);
-}
-
 
 .navBtn .icon{
   font-size: 18px;
