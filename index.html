@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Gym Dashboard</title>
   <style>
+    button.primary.tap:active{
+  transform: scale(0.96);
+}
     /* ---------------------------
    Hide main header on non-home screens
 ---------------------------- */
@@ -620,7 +623,25 @@ header{
 .navBtn:active{
   transform: translateY(1px);
 }
+  /* ---------------------------
+   Haptic-style tap feedback
+---------------------------- */
+.tap{
+  transition: transform .08s ease, opacity .08s ease;
+  will-change: transform, opacity;
+}
 
+.tap:active{
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+/* optional: reduce motion respect */
+@media (prefers-reduced-motion: reduce){
+  .tap{
+    transition: none;
+  }
+}
     
   </style>
 </head>
@@ -786,7 +807,7 @@ header{
     <!-- Navigation tiles -->
     <section class="card">
       <div class="homeGrid">
-        <button class="card" data-go="weight">📉 Weight</button>
+        <button class="card tap" data-go="weight">📉 Weight</button>
         <button class="card" data-go="attendance">📅 Attendance</button>
         <button class="card" data-go="protein">🍗 Protein</button>
         <button class="card" data-go="routine">🗓️ Routine</button>
@@ -824,7 +845,7 @@ header{
         <label>Bodyweight (lbs)
           <input type="number" id="bwVal" placeholder="e.g., 198.6" step="0.1" />
         </label>
-        <button id="bwAddBtn">Add Weight</button>
+      <button id="bwAddBtn" class="tap">Add</button>
       </div>
 
       <div class="btnRow">
@@ -912,7 +933,7 @@ header{
         <label>Bedtime (g)
           <input type="number" id="pBed" placeholder="0" />
         </label>
-        <button id="pSaveBtn">Save</button>
+<button id="pSaveBtn" class="primary tap" type="button">Save</button>
       </div>
 
       <div class="btnRow">
@@ -1162,7 +1183,6 @@ header{
           <h2 style="margin:0;">Log Sets</h2>
           <div class="small muted" id="logRoutineLine">—</div>
         </div>
-        <button id="logModalClose">Close</button>
       </div>
 
       <div class="notice" style="margin-top:10px;">
@@ -1187,10 +1207,11 @@ header{
 
       <div id="logModalSets" style="margin-top:10px; display:grid; gap:8px;"></div>
 
-      <div class="btnRow">
-        <button id="logAddSetBtn">Add Set</button>
-        <button id="logSaveBtn">Confirm & Save</button>
-      </div>
+     <div class="btnRow">
+  <button id="logAddSetBtn" class="tap">Add Set</button>
+  <button id="logSaveBtn" class="tap">Confirm & Save</button>
+  <button id="logModalClose" class="tap ghost" type="button">Close</button>
+</div>
     </div>
   </div>
 
@@ -2476,6 +2497,8 @@ function renderBW(){
       const cls = dlt===null ? "" : (dlt>0 ? "bad" : (dlt<0 ? "good" : ""));
 
       const tr = document.createElement("tr");
+      tr.classList.add("tap");
+
       tr.innerHTML = `
         <td class="mono">${cur.date}</td>
         <td class="mono">${cur.bw.toFixed(1)}</td>
@@ -4393,16 +4416,17 @@ init();
   <!-- Bottom Navigation -->
 <nav class="bottomNav">
   <div class="bottomNavInner">
-    <button class="navBtn" type="button" data-go="home" data-nav="home">
-      <div class="icon">🏠</div><div>Home</div>
-    </button>
-    <button class="navBtn" type="button" data-go="routine" data-nav="routine">
-      <div class="icon">🗓️</div><div>Routine</div>
-    </button>
-    <button class="navBtn" type="button" data-go="lifts" data-nav="lifts">
+    <button class="navBtn tap" data-go="home" data-nav="home">
+  <div class="icon">🏠</div><div>Home</div>
+</button>
+
+<button class="navBtn tap" data-go="routine" data-nav="routine">
+  <div class="icon">🗓️</div><div>Routine</div>
+</button>
+<button class="navBtn tap" type="button" data-go="lifts" data-nav="lifts">
       <div class="icon">📈</div><div>Progress</div>
     </button>
-    <button class="navBtn" type="button" data-go="settings" data-nav="settings">
+<button class="navBtn tap" type="button" data-go="settings" data-nav="settings">
       <div class="icon">⚙️</div><div>Settings</div>
     </button>
   </div>
