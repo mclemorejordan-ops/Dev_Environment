@@ -2644,15 +2644,15 @@ const calTitle = document.getElementById("calTitle");
 const calGrid = document.getElementById("calGrid");
 const calCount = document.getElementById("calCount");
 
-document.getElementById("prevMonthBtn").addEventListener("click", ()=>{
+document.getElementById("prevMonthBtn")?.addEventListener("click", ()=>{
   calM--; if(calM<0){calM=11; calY--;}
   renderCal();
 });
-document.getElementById("nextMonthBtn").addEventListener("click", ()=>{
+document.getElementById("nextMonthBtn")?.addEventListener("click", ()=>{
   calM++; if(calM>11){calM=0; calY++;}
   renderCal();
 });
-document.getElementById("clearMonthBtn").addEventListener("click", ()=>{
+document.getElementById("clearMonthBtn")?.addEventListener("click", ()=>{
   const keep = [...attendance].filter(s=>{
     const d=parseISO(s);
     return !sameMonth(d, calY, calM);
