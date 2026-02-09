@@ -1701,13 +1701,18 @@ function saveProfile(next){
 }
 
 
-function renderHeaderSub(){
+ffunction renderHeaderSub(){
   const sub = document.getElementById("headerSub");
   if(!sub) return;
+
   const restTxt = profile.hideRestDays ? "Rest days hidden" : "Rest days shown";
-sub.textContent =
-  `Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}` +
-  (CURRENT_APP_VERSION ? ` • v${CURRENT_APP_VERSION}` : "");
+
+  // ✅ version comes from localStorage (works even if fetch is async)
+  const v = localStorage.getItem(KEY_APP_VERSION) || "";
+
+  sub.textContent =
+    `Minimal tracker • Protein goal ${profile.proteinGoal}g • ${restTxt}` +
+    (v ? ` • v${v}` : "");
 }
 
 
@@ -4480,7 +4485,6 @@ async function checkForUpdate(){
 
     const latest = String(data.version || "").trim();
     if(!latest) return;
-    CURRENT_APP_VERSION = latest;
 
     const last = localStorage.getItem(KEY_APP_VERSION);
 
@@ -4489,8 +4493,12 @@ async function checkForUpdate(){
     }
 
     localStorage.setItem(KEY_APP_VERSION, latest);
+
+    // ✅ force header to update once we know the version
+    renderHeaderSub();
+
   }catch(e){
-    // fail silently (offline/cached/etc.)
+    // silent
   }
 }
 
