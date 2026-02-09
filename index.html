@@ -1681,9 +1681,6 @@ obRoutineCreateBtn?.addEventListener("click", ()=>{
   routines.push(base);
   saveRoutines();
   
-  routines.push(base);
-  saveRoutines();
-
   // ✅ make onboarding routine the default immediately
   setActiveRoutine(base.id);
   renderRoutineDropdown(base.id);
@@ -1921,11 +1918,12 @@ const onEnterScreen = {
   },
 
   protein: () => {
-    loadProteinDay(if(pDate) pDate.value = todayISO();
-    const pt = document.getElementById("proteinTitle");
-    if (pt) pt.textContent = `Protein Intake (Goal ${getProteinGoal()}g)`;
-  },
+  if(pDate) pDate.value = todayISO();
+  loadProteinDay(pDate?.value || todayISO());
 
+  const pt = document.getElementById("proteinTitle");
+  if (pt) pt.textContent = `Protein Intake (Goal ${getProteinGoal()}g)`;
+},
   routine: () => {
     renderRoutineDropdown();
     renderPPL();
