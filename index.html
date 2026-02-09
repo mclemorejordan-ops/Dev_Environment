@@ -6,6 +6,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Gym Dashboard</title>
   <style>
+    /* ---------------------------
+   Hide main header on non-home screens
+---------------------------- */
+body.hideMainHeader header{
+  display: none;
+}
     :root{
       --bg:#0b0b0c;
       --card:#121214;
@@ -524,6 +530,98 @@ body.modalOpen{
   height: 100%;
   touch-action: none;
 }
+
+/* ---------------------------
+   APP-LIKE UPGRADE (Bottom Nav + Transitions)
+---------------------------- */
+
+/* safe area + extra space for bottom nav */
+main{
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
+
+/* screen transitions */
+.screen{
+  display:none;
+  opacity:0;
+  transform: translateY(10px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.screen.active{
+  display:block;
+  opacity:1;
+  transform: translateY(0);
+}
+
+/* make top bars feel like app headers */
+.screenTop{
+  position: sticky;
+  top: 0;
+  padding: 12px 0;
+  background: rgba(11,11,12,.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  z-index: 30;
+}
+
+/* Bottom navigation */
+.bottomNav{
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(11,11,12,.94);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  z-index: 60;
+}
+
+.bottomNavInner{
+  max-width: 1100px;
+  margin: 0 auto;
+  display:flex;
+  gap:10px;
+}
+
+.navBtn{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  padding: 10px 10px;
+  border-radius: 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 11px;
+  user-select:none;
+}
+
+.navBtn .icon{
+  font-size: 18px;
+  line-height: 1;
+}
+
+.navBtn.active{
+  color: var(--text);
+  background: rgba(124,252,0,.06);
+  border-color: rgba(124,252,0,.22);
+}
+
+/* optional: reduce header prominence when bottom nav exists */
+header{
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+/* little “tap” feel */
+.navBtn:active{
+  transform: translateY(1px);
+}
+
+    
   </style>
 </head>
 
@@ -1741,8 +1839,18 @@ function showScreen(name){
   window.scrollTo(0, 0);
 
   onEnterScreen[name]?.();
+  setActiveNav(name);
+
+  document.body.classList.toggle("hideMainHeader", name !== "home");
+
 }
 
+  function setActiveNav(name){
+  document.querySelectorAll(".navBtn").forEach(b=>{
+    b.classList.toggle("active", b.getAttribute("data-nav") === name);
+  });
+}
+  
 let navBound = false;
 
 function bindNavigation(){
@@ -4282,5 +4390,22 @@ init();
 
 
 </script>
+  <!-- Bottom Navigation -->
+<nav class="bottomNav">
+  <div class="bottomNavInner">
+    <button class="navBtn" type="button" data-go="home" data-nav="home">
+      <div class="icon">🏠</div><div>Home</div>
+    </button>
+    <button class="navBtn" type="button" data-go="routine" data-nav="routine">
+      <div class="icon">🗓️</div><div>Routine</div>
+    </button>
+    <button class="navBtn" type="button" data-go="lifts" data-nav="lifts">
+      <div class="icon">📈</div><div>Progress</div>
+    </button>
+    <button class="navBtn" type="button" data-go="settings" data-nav="settings">
+      <div class="icon">⚙️</div><div>Settings</div>
+    </button>
+  </div>
+</nav>
 </body>
 </html>
