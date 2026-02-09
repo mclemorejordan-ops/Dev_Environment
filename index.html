@@ -36,11 +36,10 @@
   flex-direction:column;
 }
 
-/* only Log Sets list can scroll (optional) */
+/* ✅ Log Sets list should NOT be its own scrollbar (prevents nested scroll on iOS) */
 #logModalSets{
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  max-height: 50vh;
+  overflow: visible;
+  max-height: none;
 }
 
 /* ✅ Routine Editor list should NOT be its own scrollbar */
@@ -519,6 +518,12 @@
 
 .kpiLine .muted{font-size:12px;}
 
+/* ✅ Prevent background scroll while a modal is open (iOS + desktop) */
+body.modalOpen{
+  overflow: hidden;
+  height: 100%;
+  touch-action: none;
+}
   </style>
 </head>
 
@@ -1270,6 +1275,10 @@ const KEY_PROFILE = "gym_profile_v1";
 const KEY_LAST_BACKUP = "gym_last_backup_v1";
 const KEY_ONBOARD_DONE = "gym_onboard_done_v1";
 const KEY_CUSTOM_EX = "gym_custom_ex_v1";
+
+function lockBodyScroll(){ document.body.classList.add("modalOpen"); }
+function unlockBodyScroll(){ document.body.classList.remove("modalOpen"); }
+
 
   /* ---------------------------
    Global State (safe defaults)
@@ -2994,6 +3003,7 @@ function openExercisePicker({ title="Pick Exercise", initial="", onConfirm, mult
 
   exPickSearch.value = "";
   renderExercisePickerList();
+  lockBodyScroll();                 // ✅ ADD
   exPickModal.style.display = "block";
 }
 
@@ -3140,11 +3150,14 @@ function openBatchAddModal(names){
   }));
 
   renderBatchAddList();
+  lockBodyScroll();                 // ✅ ADD
   batchAddModal.style.display = "block";
 }
 
+
 function closeBatchAddModal(){
   batchAddModal.style.display = "none";
+  unlockBodyScroll();               // ✅ ADD
   batchAddItems = [];
 }
 
@@ -3582,11 +3595,14 @@ function openLogModal(exName, defaultSets=3, routineObj=null, dayKey="", dayInde
   logModalSets.innerHTML = "";
   for(let i=0;i<defaultSets;i++) addSetRow();
 
+  lockBodyScroll();
   logModal.style.display = "block";
 }
 
-function closeLogModal(){
+  function closeLogModal(){
   logModal.style.display = "none";
+  unlockBodyScroll();               // ✅ ADD
+  activeLogExercise = null;
   modalExerciseName = null;
   modalLastLift = null;
   modalRoutine = null;
@@ -3714,13 +3730,18 @@ const histCloseBtn = document.getElementById("histCloseBtn");
 const histExercise = document.getElementById("histExercise");
 const histTable = document.getElementById("histTable");
 
-function closeHistoryModal(){ histModal.style.display = "none"; }
+function closeHistoryModal(){
+  histModal.style.display = "none";
+  unlockBodyScroll();               // ✅ ADD
+}
 histCloseBtn.addEventListener("click", closeHistoryModal);
 histModal.addEventListener("click", (e)=>{ if(e.target === histModal) closeHistoryModal(); });
 
 function openHistoryModal(exName){
-  histExercise.textContent = exName;
-  const n = normExName(exName);
+  const exCanonical = canonicalExerciseName(exName);
+  const n = normExName(exCanonical);
+
+  histExercise.textContent = exCanonical;
 
   const exLifts = lifts
     .filter(x=> (x.exNorm || normExName(x.ex)) === n)
@@ -3745,6 +3766,7 @@ function openHistoryModal(exName){
     histTable.appendChild(tr);
   });
 
+  lockBodyScroll();                 // ✅ required
   histModal.style.display = "block";
 }
 
@@ -3798,6 +3820,8 @@ function openRoutineEditor(routineId){
   const r = routines.find(x=>x.id===routineId);
   if(!r) return;
 
+  activeRoutineId = routineId;
+
   editRoutineId = routineId;
   editDayIndex = activeDayIndex;
   draftRoutine = JSON.parse(JSON.stringify(r));
@@ -3808,11 +3832,13 @@ function openRoutineEditor(routineId){
   renderRtDayTabs();
   renderRtDayPanel();
 
+  lockBodyScroll();                 // ✅ ADD
   rtModal.style.display = "block";
 }
 
 function closeRoutineEditor(){
   rtModal.style.display = "none";
+  unlockBodyScroll();               // ✅ ADD
   editRoutineId = null;
   editDayIndex = 0;
   draftRoutine = null;
