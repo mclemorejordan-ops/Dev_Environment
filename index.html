@@ -1703,9 +1703,12 @@ function saveProfile(next){
 
 function renderHeaderSub(){
   const sub = document.getElementById("headerSub");
-  if(!sub) return;
+  if(!sub || !window.profile) return;
 
-  const restTxt = profile.hideRestDays ? "Rest days hidden" : "Rest days shown";
+  const restTxt = profile.hideRestDays
+    ? "Rest days hidden"
+    : "Rest days shown";
+
   const v = localStorage.getItem(KEY_APP_VERSION) || "";
 
   sub.textContent =
