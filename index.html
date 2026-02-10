@@ -34,6 +34,67 @@
   --shadow: 0 14px 40px rgba(0,0,0,.45);
 }
 
+    /* ===========================
+   ROUTINE WEEK STRIP (2-row grid)
+   Mon..Sun on top, labels below
+=========================== */
+
+.weekStripWrap{
+  margin-bottom: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.weekStrip{
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 560px; /* forces nice spacing on tiny screens */
+  user-select: none;
+}
+
+.weekStrip .wkHead{
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .4px;
+  padding: 6px 0;
+}
+
+.weekStrip .wkBtn{
+  border: 1px solid var(--line);
+  background: #0f0f10;
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  line-height: 1.1;
+}
+
+.weekStrip .wkBtn .wkLabel{
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.weekStrip .wkBtn .wkSub{
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* Active day */
+.weekStrip .wkBtn.active{
+  border-color: rgba(124,252,0,.45);
+  box-shadow: 0 0 0 2px rgba(124,252,0,.18);
+}
+
+/* Rest day look */
+.weekStrip .wkBtn.rest{
+  opacity: .55;
+}
+
+
 /* ===========================
    GLOBAL iOS INPUT ZOOM KILL
 =========================== */
@@ -1397,7 +1458,10 @@ header{
         </div>
       </div>
 
-      <div class="splitTabs" id="pplTabs"></div>
+<div class="weekStripWrap">
+  <div class="weekStrip" id="pplTabs"></div>
+</div>
+
       <div class="exerciseList" id="pplList"></div>
 
       <div class="notice" style="margin-top:10px;">
@@ -3430,26 +3494,41 @@ function renderDayTabs(){
   pplTabs.innerHTML = "";
   const ar = getActiveRoutine();
 
+  // Row 1: Mon Tue Wed...
+  DAY_KEYS.forEach((k)=>{
+    const h = document.createElement("div");
+    h.className = "wkHead";
+    h.textContent = k;
+    pplTabs.appendChild(h);
+  });
+
+  // Row 2: Push Pull Legs...
   DAY_KEYS.forEach((k, idx)=>{
-    const day = ar.days[k];
-    const label = (day.label || "").trim();
+    const day = ar.days[k] || { label:"", rest:false };
+    const label = (day.label || "").trim() || "—";
     const rest = !!day.rest;
 
-    const b = document.createElement("div");
-    b.className = "tab" + (idx===activeDayIndex ? " active" : "");
-    b.innerHTML = `
-      <span>${k}</span>
-      ${label ? `<span class="badge">${label}</span>` : ""}
-      ${rest ? `<span class="badge">Rest</span>` : ""}
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "wkBtn" +
+      (idx === activeDayIndex ? " active" : "") +
+      (rest ? " rest" : "");
+
+    btn.innerHTML = `
+      <div class="wkLabel">${label}</div>
+      <div class="wkSub">${rest ? "Rest day" : "Workout day"}</div>
     `;
-    b.addEventListener("click", ()=>{
+
+    btn.addEventListener("click", ()=>{
       activeDayIndex = idx;
       renderPPL();
     });
-    pplTabs.appendChild(b);
+
+    pplTabs.appendChild(btn);
   });
 }
-
+  
 function renderPPL(){
   renderDayTabs();
 
