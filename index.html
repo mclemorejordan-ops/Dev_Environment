@@ -495,7 +495,7 @@ button:hover{
       font-size:12px;
       cursor:pointer;
       color:var(--muted);
-      background:#0f0f10;
+      background: var(--card);
       user-select:none;
       display:inline-flex;
       gap:8px;
@@ -521,7 +521,6 @@ button:hover{
   justify-content:space-between;
   gap:10px;
   align-items:flex-start;
-}
     }
     .exerciseItem .left{
       display:flex;
@@ -561,7 +560,6 @@ button:hover{
 
   /* ✅ Theme-based surface */
   background: color-mix(in srgb, var(--card) 88%, rgba(var(--accent-rgb), 0.06));
-}
     }
     .calendar{
       display:grid;
@@ -781,7 +779,7 @@ button:hover{
 
 /* make each Home button feel like a real app tile */
 .homeGrid button{
-  ackground: var(--card) !important;
+  background: var(--card) !important;
   border: 1px solid var(--line) !important;
   box-shadow: 0 10px 26px rgba(0,0,0,.35) !important;
   backdrop-filter: blur(14px);
