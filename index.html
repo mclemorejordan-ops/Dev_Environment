@@ -129,7 +129,7 @@ html{
   overflow: hidden;
 }
 
-##exPickList{
+#exPickList{
   margin-top: 10px;
 
   /* ✅ Theme-based border */
@@ -247,10 +247,88 @@ body{
   color: var(--text);
 
   background:
-    radial-gradient(1200px 800px at 50% 140px, rgba(124,252,0,.08), transparent 72%),
-    radial-gradient(1200px 900px at 50% 65%, rgba(124,252,0,.03), transparent 70%),
+    radial-gradient(1200px 800px at 50% 140px, rgba(var(--accent-rgb), .08), transparent 72%),
+    radial-gradient(1200px 900px at 50% 65%, rgba(var(--accent-rgb), .03), transparent 70%),
     linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 55%, var(--bg0) 120%);
-  background-attachment: fixed; /* ✅ makes it feel like one continuous “canvas” */
+  background-attachment: fixed;
+}
+
+    /* ===========================
+   OPTION A — 6 iOS-like themes
+   (driven by data-theme)
+=========================== */
+
+/* defaults (fallback) */
+:root{
+  --radius: 18px;
+  --shadow: 0 10px 26px rgba(0,0,0,.35);
+  --text: #f5f6f7;
+  --muted: #9aa0a6;
+  --line: rgba(255,255,255,.10);
+  --card: rgba(18,18,20,.86);
+  --bg0: #0b0b0c;
+  --bg1: #0a0d0b;
+
+  --good:#7CFC00;
+  --bad:#ff6b6b;
+  --warn:#ffd166;
+
+  --accent: #7CFC00;
+  --accent-rgb: 124,252,0;
+}
+
+/* GREEN */
+html[data-theme="ios-green"]{
+  --bg0:#0b0b0c; --bg1:#0a120b;
+  --card: rgba(18,18,20,.86);
+  --line: rgba(255,255,255,.10);
+  --text:#f5f6f7; --muted:#9aa0a6;
+  --accent:#7CFC00; --accent-rgb:124,252,0;
+}
+
+/* BLUE */
+html[data-theme="ios-blue"]{
+  --bg0:#0b0b0c; --bg1:#081022;
+  --card: rgba(18,18,20,.86);
+  --line: rgba(255,255,255,.10);
+  --text:#f5f6f7; --muted:#9aa0a6;
+  --accent:#0A84FF; --accent-rgb:10,132,255;
+}
+
+/* PURPLE */
+html[data-theme="ios-purple"]{
+  --bg0:#0b0b0c; --bg1:#140a22;
+  --card: rgba(18,18,20,.86);
+  --line: rgba(255,255,255,.10);
+  --text:#f5f6f7; --muted:#9aa0a6;
+  --accent:#AF52DE; --accent-rgb:175,82,222;
+}
+
+/* ORANGE */
+html[data-theme="ios-orange"]{
+  --bg0:#0b0b0c; --bg1:#201106;
+  --card: rgba(18,18,20,.86);
+  --line: rgba(255,255,255,.10);
+  --text:#f5f6f7; --muted:#9aa0a6;
+  --accent:#FF9F0A; --accent-rgb:255,159,10;
+}
+
+/* PINK */
+html[data-theme="ios-pink"]{
+  --bg0:#0b0b0c; --bg1:#220a14;
+  --card: rgba(18,18,20,.86);
+  --line: rgba(255,255,255,.10);
+  --text:#f5f6f7; --muted:#9aa0a6;
+  --accent:#FF2D55; --accent-rgb:255,45,85;
+}
+
+/* MONO */
+html[data-theme="ios-mono"]{
+  --bg0:#0b0b0c; --bg1:#0b0b0c;
+  --card: rgba(20,20,22,.86);
+  --line: rgba(255,255,255,.08);
+  --text:#f5f6f7; --muted:#a7aab0;
+  --accent:#8E8E93; --accent-rgb:142,142,147;
 }
 
 
@@ -307,7 +385,7 @@ main > *{
       .grid2{grid-template-columns: 1fr 1fr;}
     }
    .card{
-  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.06));
+  background: var(--card);
   border: 1px solid color-mix(in srgb, var(--line) 88%, rgba(var(--accent-rgb), 0.10));
   border-radius: var(--radius);
   padding: 14px;
@@ -335,7 +413,7 @@ main > *{
       min-width: 120px;
       flex:1 1 140px;
     }
-    iinput, select, textarea{
+    input, select, textarea{
   background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.06));
   color: var(--text);
   border: 1px solid color-mix(in srgb, var(--line) 88%, rgba(var(--accent-rgb), 0.10));
@@ -473,7 +551,7 @@ button:hover{
       font-size:11px;
       color:var(--muted);
     }
-    ..badge{
+    .badge{
   display:inline-block;
   padding:4px 8px;
   border:1px solid var(--line);
@@ -703,8 +781,8 @@ button:hover{
 
 /* make each Home button feel like a real app tile */
 .homeGrid button{
-  background: rgba(18,18,20,.86) !important;
-  border: 1px solid rgba(255,255,255,.10) !important;
+  ackground: var(--card) !important;
+  border: 1px solid var(--line) !important;
   box-shadow: 0 10px 26px rgba(0,0,0,.35) !important;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
