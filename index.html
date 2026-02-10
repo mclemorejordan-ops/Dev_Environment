@@ -619,6 +619,56 @@ main > *{
 .primary:hover{
   border-color: rgba(124,252,0,.45);
 }
+/* ===========================
+   HOME APP TILES (visual only)
+=========================== */
+
+.homeGrid{
+  gap:12px; /* slightly more breathing room */
+}
+
+/* make each Home button feel like a real app tile */
+.homeGrid button{
+  background: rgba(18,18,20,.86) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  box-shadow: 0 10px 26px rgba(0,0,0,.35) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
+  padding: 16px 14px !important;
+  border-radius: 18px !important;
+
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+
+  min-height: 92px; /* makes them feel like tiles */
+  position: relative;
+  overflow: hidden;
+}
+
+/* subtle internal highlight (iOS-style glass) */
+.homeGrid button::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background: radial-gradient(
+    420px 220px at 18% 0%,
+    rgba(124,252,0,.12),
+    transparent 55%
+  );
+  opacity: .7;
+  pointer-events:none;
+}
+
+/* tap / hover feedback */
+.homeGrid button:hover{
+  border-color: rgba(255,255,255,.16) !important;
+  transform: translateY(-1px);
+}
+.homeGrid button:active{
+  transform: scale(.985);
+}
 
 
   .bullets{
