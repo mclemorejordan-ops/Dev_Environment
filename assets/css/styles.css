@@ -1075,31 +1075,3 @@ button:not(.navBtn):active,
 #rtModal #rtSaveBtn:hover{
   border-color: rgba(124,252,0,.45);
 }
-/* ===========================
-   DEV MODE BANNER
-=========================== */
-#devBanner{
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 99999;
-  padding: 8px 12px;
-  background: repeating-linear-gradient(
-    45deg,
-    #ffb703,
-    #ffb703 10px,
-    #fb8500 10px,
-    #fb8500 20px
-  );
-  color: #000;
-  font-weight: 700;
-  font-size: 13px;
-  text-align: center;
-  border-bottom: 2px solid rgba(0,0,0,.25);
-}
-
-/* push app content down so banner doesn't cover header */
-body{
-  padding-top: 44px;
-}
