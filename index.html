@@ -2760,8 +2760,46 @@ pRemain.textContent = String(rem);
     pStatus.className = "muted";
   }
 }
-[pMorning,pLunch,pPre,pDinner,pBed].forEach(inp=>inp.addEventListener("input", renderProteinTotals));
-pDate?.addEventListener("change", ()=>loadProteinDay(pDate.value));
+  function updateHomeProteinCirclePreview(){
+  // only preview for TODAY (so it feels real-time)
+  const td = todayISO();
+
+  // read from the protein inputs (what user is typing)
+  const total =
+    (Number(pMorning?.value)||0) +
+    (Number(pLunch?.value)||0) +
+    (Number(pPre?.value)||0) +
+    (Number(pDinner?.value)||0) +
+    (Number(pBed?.value)||0);
+
+  const goal = getProteinGoal();
+  const left = Math.max(goal - total, 0);
+  const pct = Math.max(0, Math.min(1, goal ? (total / goal) : 0));
+  const deg = Math.round(pct * 360);
+
+  // update HOME ring + number (even if Home isn't visible, it's still fine)
+  if(homeProteinLeft) homeProteinLeft.textContent = String(left);
+  if(homeProteinCircle){
+    homeProteinCircle.style.background =
+      `conic-gradient(var(--good) ${deg}deg, #202124 0deg)`;
+  }
+}
+[pMorning,pLunch,pPre,pDinner,pBed].forEach(inp=>{
+  inp.addEventListener("input", ()=>{
+    renderProteinTotals();
+    // live-fill the Home ring while typing (only makes sense for today)
+    if((pDate?.value || todayISO()) === todayISO()){
+      updateHomeProteinCirclePreview();
+    }
+  });
+});
+  
+pDate?.addEventListener("change", ()=>{
+  loadProteinDay(pDate.value);
+  if((pDate.value || todayISO()) === todayISO()){
+    updateHomeProteinCirclePreview();
+  }
+});
 
 document.getElementById("pSaveBtn").addEventListener("click", ()=>{
   const d = pDate.value || todayISO();
