@@ -35,23 +35,8 @@ html{
   -webkit-text-size-adjust: 100%;
 }
 
-/* Visual-only: prevent nested scrolling in Exercise Picker */
-#exPickModal > div{
-  overflow: hidden !important;   /* card does not scroll */
-  display:flex;
-  flex-direction:column;
-}
-
-#exPickList{
-  flex:1;                        /* list fills remaining space */
-  overflow-y:auto;               /* list scrolls */
-  -webkit-overflow-scrolling: touch;
-}
-
-
 /* ---------------------------
    MODAL SCROLL FIX (mobile + desktop)
-   - make the MODAL CARD the scroller
    - avoid nested scrolling on iOS
 ---------------------------- */
 
@@ -61,26 +46,25 @@ html{
   -webkit-overflow-scrolling:touch;
 }
 
-    /* ===========================
-   EXERCISE PICKER SIZE FIX
-   - keeps modal small
-   - list scrolls instead
-=========================== */
-
+/* Exercise Picker (consolidated) */
 #exPickModal > div{
+  display:flex;
+  flex-direction:column;
   max-height: calc(100dvh - 32px);
-  overflow: hidden;
+  overflow: hidden !important;     /* card does not scroll */
 }
 
 #exPickList{
+  flex:1;
   margin-top: 10px;
   border: 1px solid #202124;
   border-radius: 12px;
 
-  max-height: 320px;      /* adjust if needed */
+  max-height: 320px;               /* keeps modal small; list scrolls */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+
 
     /* ===========================
    iOS PWA INPUT ZOOM FIX
@@ -915,32 +899,22 @@ button:not(.navBtn):active,
 .updateTitle{font-weight:800; font-size:13px;}
 .updateSub{font-size:11px; color:var(--muted);}
 
-    /* ===========================
-   ROUTINE EDITOR (BIGGEST VISUAL WIN)
-   - header + day tabs + add CTA + exercise cards + sticky footer
+/* ===========================
+   ROUTINE EDITOR (consolidated)
 =========================== */
 
 #rtModal > div{
   padding: 0 !important;              /* remove inline padding look */
-  overflow: hidden;                    /* lets sticky footer look clean */
-}
-
- /* ===========================
-   ROUTINE EDITOR – RESTORE SCROLL
-   (visual-only, keeps JS intact)
-=========================== */
-
-#rtModal > div{
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - 32px);
-  overflow: hidden !important; /* header + footer stay fixed */
+  overflow: hidden !important;        /* header + footer stay fixed */
 }
 
 /* 👇 THIS is the scrollable area */
 #rtModal .rtBody{
   flex: 1 1 auto;
-  min-height: 0;               /* REQUIRED for flex scroll */
+  min-height: 0;                      /* REQUIRED for flex scroll */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
