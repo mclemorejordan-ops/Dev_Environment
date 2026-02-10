@@ -54,7 +54,7 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
-  min-width: 560px; /* forces nice spacing on tiny screens */
+  width: max-content; /* forces nice spacing on tiny screens */
   user-select: none;
 }
 
@@ -856,8 +856,8 @@ main > *{
 body.modalOpen{
   overflow: hidden;
   height: 100%;
-  touch-action: none;
 }
+
 
 /* ---------------------------
    APP-LIKE UPGRADE (Bottom Nav + Transitions)
