@@ -555,14 +555,6 @@ main > *{
   background: transparent;     /* IMPORTANT: remove gradient from here */
 }
 
-/* the gradient ring layer */
-.proCircle::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius:inherit;
-  background: conic-gradient(var(--good) var(--deg, 0deg), #202124 0deg);
-}
 /* ===========================
    ANIMATED RING SWEEP (Home protein ring)
    - animates smoothly when --deg updates
@@ -612,13 +604,6 @@ main > *{
 /* reduced motion */
 @media (prefers-reduced-motion: reduce){
   #homeProteinCircle{ transition: none !important; }
-}
-
-
-/* if you want the gray portion to be “fixed” and only sweep the green:
-   keep the gradient static and rotate the whole ring layer (above) */
-.proCircle::before{
-  background: conic-gradient(var(--good) 0deg var(--deg, 0deg), #202124 0deg);
 }
 
 /* reduced motion support */
@@ -2231,59 +2216,8 @@ function refreshHome(){
       }
     }
   }
-    /* ===========================
-   Animate Home Protein Ring
-   (runs when Home opens)
-=========================== */
-function animateHomeProteinRing(){
-  const td = todayISO();
-  const obj = proteinMap?.[td] || {
-    morning:0, lunch:0, pre:0, dinner:0, bed:0
-  };
 
-  const total =
-    (Number(obj.morning)||0) +
-    (Number(obj.lunch)||0) +
-    (Number(obj.pre)||0) +
-    (Number(obj.dinner)||0) +
-    (Number(obj.bed)||0);
-
-  const goal = getProteinGoal();
-  const left = Math.max(goal - total, 0);
-  const pct = Math.max(0, Math.min(1, goal ? (total / goal) : 0));
-  const deg = Math.round(pct * 360);
-
-  if(homeProteinLeft){
-    homeProteinLeft.textContent = String(left);
-  }
-
-  if(!homeProteinCircle) return;
-
-  /* reset then animate */
-  homeProteinCircle.style.setProperty("--deg", "0deg");
-  requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
-      homeProteinCircle.style.setProperty("--deg", `${deg}deg`);
-    });
-  });
-}
-
-  }
-    // ✅ Protein-left circle (today)
-  const td = todayISO();
-  const obj = proteinMap?.[td] || {morning:0,lunch:0,pre:0,dinner:0,bed:0};
-  const total = (Number(obj.morning)||0)+(Number(obj.lunch)||0)+(Number(obj.pre)||0)+(Number(obj.dinner)||0)+(Number(obj.bed)||0);
-
-  const goal = getProteinGoal();
-  const left = Math.max(goal - total, 0);
-  const pct = Math.max(0, Math.min(1, goal ? (total/goal) : 0));
-  const deg = Math.round(pct * 360);
-
-  if(homeProteinLeft) homeProteinLeft.textContent = String(left);
-  if(homeProteinCircle){
-    homeProteinCircle.style.setProperty("--deg", `${deg}deg`);
-  }
-    // ✅ Home "Check In" button state (add this BEFORE week dots section)
+  // ✅ Home "Check In" button state
   if(homeCheckInBtn){
     const today = todayISO();
     const checked = attendance.has(today);
@@ -2291,6 +2225,9 @@ function animateHomeProteinRing(){
     homeCheckInBtn.textContent = checked ? "✅ Checked In" : "✅ Check In";
     homeCheckInBtn.classList.toggle("ghost", checked);
   }
+
+  // ✅ Protein ring (today)
+  animateHomeProteinRing();
 
   // week dots + count
   const weekStart = weekStartDate(new Date());
@@ -2315,7 +2252,7 @@ function animateHomeProteinRing(){
     homeWeekCount.textContent = `Workouts this week: ${attendedCount} / 7`;
   }
 
-  // focus text (simple logic: pick label of today, or PR suggestion)
+  // focus text
   if(homeFocus){
     if(day.rest){
       homeFocus.textContent = "Recovery + mobility. Light walk if you feel good.";
@@ -2326,6 +2263,36 @@ function animateHomeProteinRing(){
     }
   }
 }
+
+  function animateHomeProteinRing(){
+  const td = todayISO();
+  const obj = proteinMap?.[td] || { morning:0, lunch:0, pre:0, dinner:0, bed:0 };
+
+  const total =
+    (Number(obj.morning)||0) +
+    (Number(obj.lunch)||0) +
+    (Number(obj.pre)||0) +
+    (Number(obj.dinner)||0) +
+    (Number(obj.bed)||0);
+
+  const goal = getProteinGoal();
+  const left = Math.max(goal - total, 0);
+  const pct = Math.max(0, Math.min(1, goal ? (total / goal) : 0));
+  const deg = Math.round(pct * 360);
+
+  if(homeProteinLeft) homeProteinLeft.textContent = String(left);
+  if(!homeProteinCircle) return;
+
+  // reset then animate
+  homeProteinCircle.style.setProperty("--deg", "0deg");
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      homeProteinCircle.style.setProperty("--deg", `${deg}deg`);
+    });
+  });
+}
+
+  
   const homeCheckInBtn = document.getElementById("homeCheckInBtn");
 
 function toggleTodayAttendance(){
