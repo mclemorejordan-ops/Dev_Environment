@@ -1792,8 +1792,59 @@ header{
 
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
+<script>
+/* ---------------------------
+   Chart.js Lazy Loader
+---------------------------- */
+let chartLibLoaded = false;
+let chartLibLoading = false;
+
+async function ensureChartJS(){
+  // Already loaded
+  if(chartLibLoaded) return Promise.resolve();
+  
+  // Currently loading (avoid duplicate requests)
+  if(chartLibLoading) {
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if(chartLibLoaded) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+    });
+  }
+  
+  // Start loading
+  chartLibLoading = true;
+  
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+    
+    script.onload = () => {
+      chartLibLoaded = true;
+      chartLibLoading = false;
+      console.log('Chart.js loaded successfully');
+      resolve();
+    };
+    
+    script.onerror = () => {
+      chartLibLoading = false;
+      console.error('Chart.js failed to load');
+      reject(new Error('Chart.js failed to load'));
+    };
+    
+    document.head.appendChild(script);
+  });
+}
+
+/* ---------------------------
+   Storage helpers
+---------------------------- */
+const LS = {
+  
 /* ---------------------------
    Storage helpers
 ---------------------------- */
@@ -2870,10 +2921,18 @@ function setBWView(next){
     bwViewGraphBtn?.classList.add("ghost");
   } else {
     if(bwTableWrap) bwTableWrap.style.display = "none";
-    if(bwChartWrap) bwChartWrap.style.display = "";
+    
+    // Show loading state
+    if(bwChartWrap) {
+      bwChartWrap.innerHTML = '<div class="notice">Loading chart...</div>';
+      bwChartWrap.style.display = "";
+    }
+    
     bwViewTableBtn?.classList.add("ghost");
     bwViewGraphBtn?.classList.remove("ghost");
-    renderBW(); // ensures chart draws correctly when shown
+    
+    // Defer render to show loading state first
+    setTimeout(() => renderBW(), 50);
   }
 }
 
@@ -2977,27 +3036,35 @@ function renderBW(){
   const labels = bwLogs.map(x=>x.date);
   const data = bwLogs.map(x=>x.bw);
 
-  try {
-    if(bwChart) bwChart.destroy();
+  // Lazy-load Chart.js before rendering
+  ensureChartJS().then(() => {
+    try {
+      if(bwChart) bwChart.destroy();
 
-    bwChart = new Chart(canvas, {
-    type:"line",
-    data:{ labels, datasets:[{ label:"Bodyweight (lbs)", data, tension:.25, pointRadius:3 }] },
-    options:{
-      responsive:true,
-      plugins:{ legend:{display:false}, tooltip:{mode:"index", intersect:false} },
-      scales:{
-        x:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}},
-        y:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}}
-}
+      bwChart = new Chart(canvas, {
+        type:"line",
+        data:{ labels, datasets:[{ label:"Bodyweight (lbs)", data, tension:.25, pointRadius:3 }] },
+        options:{
+          responsive:true,
+          plugins:{ legend:{display:false}, tooltip:{mode:"index", intersect:false} },
+          scales:{
+            x:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}},
+            y:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}}
+          }
+        }
+      });
+    } catch(e) {
+      console.error('Bodyweight chart render failed:', e);
+      if(bwChartWrap) {
+        bwChartWrap.innerHTML = '<div class="notice">Chart unavailable. Please use table view or refresh the page.</div>';
+      }
+    }
+  }).catch((e) => {
+    console.error('Failed to load Chart.js library:', e);
+    if(bwChartWrap) {
+      bwChartWrap.innerHTML = '<div class="notice">Unable to load charting library. Please check your connection and refresh.</div>';
     }
   });
-  } catch(e) {
-    console.error('Bodyweight chart render failed:', e);
-    if(bwChartWrap) {
-      bwChartWrap.innerHTML = '<div class="notice">Chart unavailable. Please use table view or refresh the page.</div>';
-    }
-  }
 }
 /* ---------------------------
    Attendance Calendar
@@ -4115,49 +4182,57 @@ function renderLiftsGraph(){
     metric === "vol" ? "Volume" :
     "Top Weight (lbs)";
 
-  const ctx = document.getElementById("liftChart");
+const ctx = document.getElementById("liftChart");
   
-  try {
-    if(liftChart) liftChart.destroy();
+  // Lazy-load Chart.js before rendering
+  ensureChartJS().then(() => {
+    try {
+      if(liftChart) liftChart.destroy();
 
-    liftChart = new Chart(ctx, {
-    type:"line",
-    data:{
-      labels,
-      datasets:[{
-        label: yLabel,
-        data,
-        tension:.25,
-        pointRadius:3,
-      }]
-    },
-    options:{
-      responsive:true,
-      plugins:{
-        legend:{display:false},
-        tooltip:{mode:"index", intersect:false},
-        weekSeparators:{enabled:true}
-      },
-      scales:{
-        x:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}},
-        y:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}}
+      liftChart = new Chart(ctx, {
+        type:"line",
+        data:{
+          labels,
+          datasets:[{
+            label: yLabel,
+            data,
+            tension:.25,
+            pointRadius:3,
+          }]
+        },
+        options:{
+          responsive:true,
+          plugins:{
+            legend:{display:false},
+            tooltip:{mode:"index", intersect:false},
+            weekSeparators:{enabled:true}
+          },
+          scales:{
+            x:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}},
+            y:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}}
+          }
+        },
+        plugins:[weekSeparatorsPlugin]
+      });
+
+      // If no data, show a friendly message
+      if(labels.length === 0){
+        if(liftGraphWrap) {
+          liftGraphWrap.innerHTML = '<div class="notice">No data to display. Add some lifts or adjust your filters.</div>';
+        }
       }
-    },
-    plugins:[weekSeparatorsPlugin]
-  });
-
-  // If no data, show a friendly message
-    if(labels.length === 0){
+    } catch(e) {
+      console.error('Lift chart render failed:', e);
       if(liftGraphWrap) {
-        liftGraphWrap.innerHTML = '<div class="notice">No data to display. Add some lifts or adjust your filters.</div>';
+        liftGraphWrap.innerHTML = '<div class="notice">Chart unavailable. Please use table view or refresh the page.</div>';
       }
     }
-  } catch(e) {
-    console.error('Lift chart render failed:', e);
+  }).catch((e) => {
+    console.error('Failed to load Chart.js library:', e);
     if(liftGraphWrap) {
-      liftGraphWrap.innerHTML = '<div class="notice">Chart unavailable. Please use table view or refresh the page.</div>';
+      liftGraphWrap.innerHTML = '<div class="notice">Unable to load charting library. Please check your connection and refresh.</div>';
     }
-  }
+  });
 }
 
 function setLiftView(next){
@@ -4172,11 +4247,17 @@ function setLiftView(next){
     renderLiftsTable();
   } else {
     liftTableWrap.style.display = "none";
+    
+    // Show loading state
+    liftGraphWrap.innerHTML = '<div class="notice">Loading chart...</div>';
     liftGraphWrap.style.display = "";
+    
     liftViewTableBtn.classList.add("ghost");
     liftViewGraphBtn.classList.remove("ghost");
     liftDownloadBtn.classList.remove("ghost");
-    renderLiftsGraph();
+    
+    // Defer render to show loading state first
+    setTimeout(() => renderLiftsGraph(), 50);
   }
 }
 
