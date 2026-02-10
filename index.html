@@ -470,12 +470,6 @@ main > *{
   gap:10px;
 }
 
-/* 🔹 Protein Circle (Home → Focus This Week) */
-.proCircleWrap{
-  display:flex;
-  gap:12px;
-  align-items:center;
-}
 .proCircle{
   width:74px;
   height:74px;
@@ -484,12 +478,24 @@ main > *{
   display:grid;
   place-items:center;
 
-  overflow:hidden;            /* ✅ clips the gradient inside the circle */
-  background-clip: padding-box;
-  background: conic-gradient(var(--good) 0deg, #202124 0deg);
+  position:relative;
+  overflow:hidden;            /* keeps everything inside the circle */
+  background: transparent;     /* IMPORTANT: remove gradient from here */
 }
 
+/* the gradient ring layer */
+.proCircle::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  background: conic-gradient(var(--good) var(--deg, 0deg), #202124 0deg);
+}
+
+/* ensure inner content is above the gradient */
 .proCircleInner{
+  position:relative;
+  z-index:1;
   width:58px;
   height:58px;
   border-radius:999px;
@@ -500,16 +506,6 @@ main > *{
   align-items:center;
   justify-content:center;
   gap:2px;
-}
-.proCircleInner .big{
-  font-weight:800;
-  font-size:14px;
-  line-height:1;
-}
-.proCircleInner .small{
-  font-size:10px;
-  color:var(--muted);
-  line-height:1;
 }
 
 .homeGrid button{
@@ -1839,7 +1835,7 @@ function refreshHome(){
 
   if(homeProteinLeft) homeProteinLeft.textContent = String(left);
   if(homeProteinCircle){
-    homeProteinCircle.style.background = `conic-gradient(var(--good) ${deg}deg, #202124 0deg)`;
+    homeProteinCircle.style.setProperty("--deg", `${deg}deg`);
   }
     // ✅ Home "Check In" button state (add this BEFORE week dots section)
   if(homeCheckInBtn){
@@ -2784,8 +2780,7 @@ pRemain.textContent = String(rem);
   // update HOME ring + number (even if Home isn't visible, it's still fine)
   if(homeProteinLeft) homeProteinLeft.textContent = String(left);
   if(homeProteinCircle){
-    homeProteinCircle.style.background =
-      `conic-gradient(var(--good) ${deg}deg, #202124 0deg)`;
+    homeProteinCircle.style.setProperty("--deg", `${deg}deg`);
   }
 }
 [pMorning,pLunch,pPre,pDinner,pBed].forEach(inp=>{
