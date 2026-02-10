@@ -14,6 +14,20 @@ window.addEventListener("error", (e)=>{
   `;
 });
 
+/* ---------------------------
+   PWA: Service Worker registration
+   - Runs after initial load
+   - Safe (does not block app boot)
+---------------------------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("./sw.js", { scope: "./" })
+      .catch((e) => console.warn("SW register failed:", e));
+  });
+}
+
+
 (function(){
   const required = [
     "LS",
