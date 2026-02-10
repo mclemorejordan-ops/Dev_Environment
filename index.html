@@ -1607,7 +1607,7 @@ runRefreshBtn?.addEventListener("click", ()=>{
   alert("Refreshed ✅");
 });
 
-  const obName = document.getElementById("obName");
+const obName = document.getElementById("obName");
 const obUnits = document.getElementById("obUnits");
 const obProteinGoal = document.getElementById("obProteinGoal");
 const obWeekStart = document.getElementById("obWeekStart");
@@ -1680,6 +1680,9 @@ obRoutineCreateBtn?.addEventListener("click", ()=>{
 
   routines.push(base);
   saveRoutines();
+
+  // ✅ mark onboarding complete as soon as a routine exists
+  if(!isOnboardingDone()) setOnboardingDone();
   
   // ✅ make onboarding routine the default immediately
   setActiveRoutine(base.id);
@@ -2990,6 +2993,7 @@ newRoutineBtn.addEventListener("click", ()=>{
   });
   routines.push(base);
   saveRoutines();
+  
   setActiveRoutine(base.id);
   renderRoutineDropdown();
   openRoutineEditor(base.id);
