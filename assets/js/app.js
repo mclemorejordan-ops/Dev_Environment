@@ -585,7 +585,14 @@ function showScreen(name){
   // ✅ fallback if invalid screen name stored
   if(!el){
     name = "home";
-    el = document.getElementById("screen-home");
+    el = document.getElementById("screen-home")
+      || document.getElementById("screen-profile");
+  }
+
+  // ✅ absolute safety: if still nothing, stop gracefully
+  if(!el){
+    console.warn("showScreen: no valid screens found");
+    return;
   }
 
   el.classList.add("active");
@@ -597,9 +604,7 @@ function showScreen(name){
 
   onEnterScreen[name]?.();
   setActiveNav(name);
-
 }
-
   function setActiveNav(name){
   document.querySelectorAll(".navBtn").forEach(b=>{
     b.classList.toggle("active", b.getAttribute("data-nav") === name);
