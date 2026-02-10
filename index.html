@@ -2378,6 +2378,15 @@ function dateForWeekdayIndex(dayIndex, baseDate=new Date()){
   return localISODate(out);
 }
 
+  /* ---------------------------
+   Exercise Name Cache
+---------------------------- */
+let exerciseNamesCache = null;
+
+function invalidateExerciseCache(){
+  exerciseNamesCache = null;
+}
+
 /* ---------------------------
    Normalization
 ---------------------------- */
@@ -2411,6 +2420,7 @@ function addCustomExercise(name){
     cur.push(cleaned);
     cur.sort((a,b)=>a.localeCompare(b));
     saveCustomExercises(cur);
+    invalidateExerciseCache();
   }
   return cleaned;
 }
@@ -3381,6 +3391,7 @@ newRoutineBtn.addEventListener("click", ()=>{
   });
   routines.push(base);
   saveRoutines();
+  invalidateExerciseCache();
   
   setActiveRoutine(base.id);
   renderRoutineDropdown();
@@ -3395,6 +3406,7 @@ dupRoutineBtn.addEventListener("click", ()=>{
   copy.name = `${ar.name} (Copy)`;
   routines.push(copy);
   saveRoutines();
+  invalidateExerciseCache();
   setActiveRoutine(copy.id);
   renderRoutineDropdown();
   renderPPL();
@@ -3411,6 +3423,7 @@ delRoutineBtn.addEventListener("click", ()=>{
   if(!ok) return;
   routines = routines.filter(r=>r.id!==ar.id);
   saveRoutines();
+  invalidateExerciseCache();
   setActiveRoutine(routines[0].id);
   renderRoutineDropdown();
   renderPPL();
@@ -3572,19 +3585,22 @@ let appliedLiftFilters = {
 };
 
 function collectAllExerciseNames(){
+  // Return cached version if available
+  if(exerciseNamesCache) return exerciseNamesCache;
+
   const set = new Set();
 
   // 1️⃣ Canonical library first
   EXERCISE_LIBRARY.forEach(n => set.add(canonicalExerciseName(n)));
 
   // 1.5️⃣ Custom exercises created by you
-loadCustomExercises().forEach(n => set.add(canonicalExerciseName(n)));
+  loadCustomExercises().forEach(n => set.add(canonicalExerciseName(n)));
 
   // 2️⃣ Routine exercises
   routines.forEach(r=>{
     DAY_KEYS.forEach(k=>{
       (r.days?.[k]?.exercises || []).forEach(e=>{
-    if(e?.name) set.add(canonicalExerciseName(e.name));
+        if(e?.name) set.add(canonicalExerciseName(e.name));
       });
     });
   });
@@ -3594,7 +3610,9 @@ loadCustomExercises().forEach(n => set.add(canonicalExerciseName(n)));
     if(x.ex) set.add(canonicalExerciseName(x.ex));
   });
 
-  return [...set].sort((a,b)=>a.localeCompare(b));
+  // Cache the result
+  exerciseNamesCache = [...set].sort((a,b)=>a.localeCompare(b));
+  return exerciseNamesCache;
 }
 
 function renderLiftSearchDropdown(){
@@ -3997,6 +4015,7 @@ function renderLiftsTable(){
       const id = btn.getAttribute("data-dellift");
       lifts = lifts.filter(x=>x.id!==id);
       LS.set(KEY_LIFTS, lifts);
+      invalidateExerciseCache();
       renderLiftSearchDropdown();
       renderLifts();   // rerun with applied filters
       renderPPL();
@@ -4350,6 +4369,7 @@ logSaveBtn.addEventListener("click", ()=>{
 
   lifts.sort((a,b)=>b.date.localeCompare(a.date));
   LS.set(KEY_LIFTS, lifts);
+  invalidateExerciseCache();
 
   const prevScroll = window.scrollY;
   closeLogModal();
@@ -4717,6 +4737,7 @@ rtSaveBtn.addEventListener("click", ()=>{
 
   routines[idx] = draftRoutine;
   saveRoutines();
+  invalidateExerciseCache();
 
   setActiveRoutine(draftRoutine.id);
 
@@ -4831,6 +4852,7 @@ importFile.addEventListener("change", async ()=>{
     ensureLiftCompatibility();
 
     ({routines, activeId: activeRoutineId} = loadRoutines());
+    invalidateExerciseCache();
 
     // ✅ init data + state first
 renderCal();
