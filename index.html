@@ -42,6 +42,28 @@
   -webkit-overflow-scrolling:touch;
 }
 
+    /* ===========================
+   EXERCISE PICKER SIZE FIX
+   - keeps modal small
+   - list scrolls instead
+=========================== */
+
+#exPickModal > div{
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+
+#exPickList{
+  margin-top: 10px;
+  border: 1px solid #202124;
+  border-radius: 12px;
+
+  max-height: 320px;      /* adjust if needed */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+
 :is(#logModal,#histModal,#rtModal,#exPickModal,#batchAddModal) > div{
   max-height: calc(100dvh - 32px); /* true mobile viewport height */
   overflow-y:auto;                 /* scroll the whole modal */
@@ -1450,7 +1472,7 @@ header{
       </label>
     </div>
 
-    <div id="exPickList" style="margin-top:10px; border:1px solid #202124; border-radius:12px;"></div>
+    <div id="exPickList"></div>
 
     <div class="btnRow">
       <button id="exPickConfirmBtn">Confirm</button>
