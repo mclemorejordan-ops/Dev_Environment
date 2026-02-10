@@ -1839,12 +1839,18 @@ async function ensureChartJS(){
     document.head.appendChild(script);
   });
 }
-
-/* ---------------------------
-   Storage helpers
----------------------------- */
-const LS = {
   
+/* ---------------------------
+   Debounce Utility
+---------------------------- */
+function debounce(fn, ms = 300){
+  let timer;
+  return function(...args){
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
 /* ---------------------------
    Storage helpers
 ---------------------------- */
@@ -1859,7 +1865,6 @@ const LS = {
     localStorage.setItem(key, JSON.stringify(value));
   }
 };
-
   /* ---------------------------
    DOM helpers
 ---------------------------- */
@@ -3812,8 +3817,8 @@ function renderExercisePickerList(){
 }
 
 
-exPickSearch.addEventListener("input", renderExercisePickerList);
-
+exPickSearch.addEventListener("input", debounce(renderExercisePickerList, 200));
+  
 exPickConfirmBtn.addEventListener("click", ()=>{
   if(exPickMulti){
     const picked = [...exPickSelectedSet];
