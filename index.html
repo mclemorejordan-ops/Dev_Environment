@@ -483,8 +483,12 @@ main > *{
   border:1px solid var(--line);
   display:grid;
   place-items:center;
+
+  overflow:hidden;            /* ✅ clips the gradient inside the circle */
+  background-clip: padding-box;
   background: conic-gradient(var(--good) 0deg, #202124 0deg);
 }
+
 .proCircleInner{
   width:58px;
   height:58px;
