@@ -1,3 +1,19 @@
+window.addEventListener("error", (e)=>{
+  const msg = e?.message || String(e);
+  const file = e?.filename || "";
+  const line = e?.lineno || "";
+  const col  = e?.colno || "";
+
+  document.body.innerHTML = `
+    <div style="font-family:system-ui;padding:16px;color:#fff;background:#111;min-height:100vh">
+      <h2 style="margin:0 0 10px">App crashed ❌</h2>
+      <div style="opacity:.8;margin-bottom:10px">Here’s the first error:</div>
+      <pre style="white-space:pre-wrap;background:#000;padding:12px;border-radius:12px;border:1px solid #333">${msg}</pre>
+      <div style="opacity:.8;margin-top:10px">File: ${file}<br/>Line: ${line} Col: ${col}</div>
+    </div>
+  `;
+});
+
 let modalDepth = 0;
 
 function lockBodyScroll(){
