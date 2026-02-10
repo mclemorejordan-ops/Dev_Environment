@@ -585,10 +585,15 @@ main > *{
   background: conic-gradient(var(--good) 0deg var(--deg), #202124 0deg);
 }
 
-/* ✅ animate the CUSTOM PROPERTY itself */
+/* default: no animation */
 #homeProteinCircle{
-  transition: --deg 520ms cubic-bezier(.2,.9,.2,1);
+  transition: none;
   will-change: --deg;
+}
+
+/* animate ONLY when Home screen is active */
+#screen-home.active #homeProteinCircle{
+  transition: --deg 1200ms cubic-bezier(.2,.9,.2,1);
 }
 
 /* optional: subtle ring sheen (iOS-ish) */
