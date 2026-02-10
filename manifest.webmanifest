@@ -1,0 +1,24 @@
+{
+  "name": "Gym Dashboard",
+  "short_name": "Gym",
+  "description": "Offline gym tracking dashboard (weight, protein, attendance, routines, progress).",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#070708",
+  "theme_color": "#070708",
+  "icons": [
+    {
+      "src": "assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
