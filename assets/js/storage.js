@@ -27,6 +27,48 @@
   window.KEY_LAST_BACKUP  = "gym_last_backup_v1";
   window.KEY_ONBOARD_DONE = "gym_onboard_done_v1";
 
+    /* ---------------------------
+     Lock KEY_* constants (SAFE MODE)
+     - Prevent accidental reassignment later
+     - Avoid Safari/window issues by NOT setting configurable:false
+  ---------------------------- */
+  (function lockKeys(){
+    const keysToLock = [
+      "KEY_PROFILE",
+      "KEY_ROUTINES",
+      "KEY_ACTIVE_ROUTINE",
+      "KEY_ACTIVE_SCREEN",
+      "KEY_BW",
+      "KEY_ATT",
+      "KEY_PRO",
+      "KEY_LIFTS",
+      "KEY_TARGETS",
+      "KEY_CUSTOM_EX",
+      "KEY_APP_VERSION",
+      "KEY_LAST_BACKUP",
+      "KEY_ONBOARD_DONE"
+    ];
+
+    keysToLock.forEach((k)=>{
+      try{
+        if (!(k in window)) return;
+
+        // Only lock if it's currently writable (avoid redefine issues)
+        const d = Object.getOwnPropertyDescriptor(window, k);
+        if (d && d.writable === false) return;
+
+        Object.defineProperty(window, k, {
+          value: window[k],
+          writable: false,
+          enumerable: true
+          // NOTE: we intentionally do NOT set configurable:false
+        });
+      }catch(e){
+        console.warn("Could not lock key:", k, e);
+      }
+    });
+  })();
+
   // LocalStorage helper
   window.LS = window.LS || {
     get(key, fallback) {
