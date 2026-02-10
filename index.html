@@ -563,18 +563,32 @@ main > *{
   border-radius:inherit;
   background: conic-gradient(var(--good) var(--deg, 0deg), #202124 0deg);
 }
-    /* ===========================
+/* ===========================
    ANIMATED RING SWEEP (Home protein ring)
    - animates smoothly when --deg updates
-   - adds subtle “shine” + anti-jitter
+   - uses @property so the angle interpolates
 =========================== */
 
-/* smooth rotation of the conic-gradient layer */
-#homeProteinCircle::before{
-  /* important: animate the LAYER, not the custom property */
-  transition: transform 520ms cubic-bezier(.2,.9,.2,1);
-  will-change: transform;
-  #homeProteinCircle::before{ transform: rotate(calc(var(--deg, 0deg) - 90deg)); }
+/* ✅ allow CSS to animate an angle custom property */
+@property --deg{
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+/* the ring */
+.proCircle::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  background: conic-gradient(var(--good) 0deg var(--deg), #202124 0deg);
+}
+
+/* ✅ animate the CUSTOM PROPERTY itself */
+#homeProteinCircle{
+  transition: --deg 520ms cubic-bezier(.2,.9,.2,1);
+  will-change: --deg;
 }
 
 /* optional: subtle ring sheen (iOS-ish) */
@@ -589,6 +603,12 @@ main > *{
     transparent 55%);
   opacity:.55;
 }
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce){
+  #homeProteinCircle{ transition: none !important; }
+}
+
 
 /* if you want the gray portion to be “fixed” and only sweep the green:
    keep the gradient static and rotate the whole ring layer (above) */
