@@ -251,6 +251,10 @@ main > *{
     @media (min-width: 980px){
       .grid2{grid-template-columns: 1fr 1fr;}
     }
+    
+    #homeFocus{
+  white-space: pre-line;
+}
    .card{
   background: rgba(18,18,20,.72);   /* ✅ translucent so the body gradient shows through */
   border: 1px solid rgba(255,255,255,.08);
@@ -2106,6 +2110,58 @@ function getProteinGoal(){
 }
 
   /* ---------------------------
+   Focus helpers (Recovery / Stalled / Weekly countdown)
+---------------------------- */
+function addDaysISO(iso, delta){
+  const d = parseISO(iso);
+  d.setDate(d.getDate() + delta);
+  return localISODate(d);
+}
+
+function getProteinTotalForDate(iso){
+  const obj = proteinMap?.[iso] || {morning:0,lunch:0,pre:0,dinner:0,bed:0};
+  return (Number(obj.morning)||0)+(Number(obj.lunch)||0)+(Number(obj.pre)||0)+(Number(obj.dinner)||0)+(Number(obj.bed)||0);
+}
+
+function routineWeeklyTargetDays(routineObj){
+  // counts how many days in the routine are NOT rest days
+  let n = 0;
+  DAY_KEYS.forEach(k=>{
+    const day = routineObj?.days?.[k];
+    if(day && !day.rest) n++;
+  });
+  // fallback so it never becomes 0
+  return Math.max(1, n);
+}
+
+function isStalledExercise(exName, lookback=3){
+  const n = normExName(exName);
+  const exLifts = lifts
+    .filter(x => (x.exNorm || normExName(x.ex)) === n)
+    .sort((a,b)=> b.date.localeCompare(a.date))
+    .slice(0, lookback);
+
+  // need at least 3 sessions to call it "stalled"
+  if(exLifts.length < lookback) return false;
+
+  const weights = exLifts.map(x=>Number(x.weight)||0);
+  const maxW = Math.max(...weights);
+  const newest = weights[0];
+
+  // stalled = newest is not the best of the last 3
+  return newest < maxW || newest === maxW; // (still stalled if it’s flat)
+}
+
+function pickStalledExerciseFromToday(todayExercises){
+  for(const ex of (todayExercises || [])){
+    if(ex?.name && isStalledExercise(ex.name, 3)){
+      return ex.name;
+    }
+  }
+  return "";
+}
+  
+  /* ---------------------------
    HOME screen logic
 ---------------------------- */
 const homeTime = document.getElementById("homeTime");
@@ -2216,16 +2272,50 @@ function refreshHome(){
     homeWeekCount.textContent = `Workouts this week: ${attendedCount} / 7`;
   }
 
-  // focus text (simple logic: pick label of today, or PR suggestion)
+  // ✅ Focus engine (Recovery warning > Stalled lift > Weekly countdown > Default)
   if(homeFocus){
-    if(day.rest){
-      homeFocus.textContent = "Recovery + mobility. Light walk if you feel good.";
-    } else if(label){
-      homeFocus.textContent = `Focus: ${label}`;
-    } else {
-      homeFocus.textContent = "Focus: execute clean sets + progressive overload.";
+    // basics
+    const todayIso = todayISO();
+    const yesterdayIso = addDaysISO(todayIso, -1);
+
+    const todayIsRest = !!day.rest;
+
+    // (1) Recovery warning: trained yesterday + low protein yesterday + today not rest
+    const trainedYesterday = attendance.has(yesterdayIso);
+    const yProtein = getProteinTotalForDate(yesterdayIso);
+    const yLowProtein = yProtein < (getProteinGoal() * 0.75);
+
+    // (5) Weekly goal countdown (target = number of non-rest days in routine)
+    const weeklyTarget = routineWeeklyTargetDays(ar);
+    const workoutsLeft = Math.max(weeklyTarget - attendedCount, 0);
+
+    // (3) Stalled lift detection (check today's exercises)
+    const todayExercises = Array.isArray(day.exercises) ? day.exercises : [];
+    const stalledName = pickStalledExerciseFromToday(todayExercises);
+
+    // priority messaging
+    if(todayIsRest){
+      homeFocus.textContent = "Recovery day: mobility + walk. Keep it easy and show up tomorrow.";
+    }
+    else if(trainedYesterday && yLowProtein){
+      homeFocus.textContent =
+        "Focus: go lighter today — recovery may be limiting performance (trained yesterday + low protein).";
+    }
+    else if(stalledName){
+      homeFocus.textContent =
+        `Focus: ${stalledName} looks stalled — change stimulus (add reps, slower tempo, or switch variation).`;
+    }
+    else if(workoutsLeft > 0){
+      homeFocus.textContent =
+        `Focus: ${workoutsLeft} session${workoutsLeft===1?"":"s"} left to hit your weekly routine goal (${weeklyTarget}).`;
+    }
+    else {
+      // keep your original vibe
+      if(label) homeFocus.textContent = `Focus: ${label}`;
+      else homeFocus.textContent = "Focus: execute clean sets + progressive overload.";
     }
   }
+
 }
   const homeCheckInBtn = document.getElementById("homeCheckInBtn");
 
