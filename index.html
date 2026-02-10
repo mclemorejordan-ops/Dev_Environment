@@ -12,29 +12,24 @@
   <style>
     
   :root{
-  --bg0:#070708;
-  --bg1:#0b0b0c;
-  
-    --accentRGB: 124, 252, 0; /* must match --accent (same color) */
+  --accent:#34C759;
+  --accent-rgb:52,199,89;
 
-    
-  --card:#121214;
-  --card-soft: rgba(18,18,20,.88);
+  --bg0:#0B0C0F;
+  --bg1:#15171C;
 
-  --text:#f5f6f7;
-  --muted:#9aa0a6;
+  --card:#12141A;
+  --line:#232634;
 
-  --line: rgba(255,255,255,.08);
+  --text:#F5F6F7;
+  --muted:#A7ACB3;
 
-  --accent:#7CFC00;   /* Apple Fitness–style green */
-  --danger:#ff6b6b;
+  --radius: 18px;
+  --shadow: 0 10px 26px rgba(0,0,0,.35);
+
+  --good:#7CFC00;
+  --bad:#ff6b6b;
   --warn:#ffd166;
-
-  --good: var(--accent);
-  --bad:  var(--danger);
-
-  --radius:16px;
-  --shadow: 0 14px 40px rgba(0,0,0,.45);
 }
 
 /* ===========================
@@ -88,15 +83,19 @@ html{
   overflow: hidden;
 }
 
-#exPickList{
+##exPickList{
   margin-top: 10px;
-  border: 1px solid #202124;
+
+  /* ✅ Theme-based border */
+  border: 1px solid var(--line);
+
   border-radius: 12px;
 
   max-height: 320px;      /* adjust if needed */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+
 
     /* ===========================
    iOS PWA INPUT ZOOM FIX
@@ -142,7 +141,7 @@ html{
 #logModal .btnRow{
   position: sticky;
   bottom: 0;
-   linear-gradient(
+  background: linear-gradient(
     to bottom,
     rgba(18,18,20,0),
     rgba(18,18,20,1) 35%
@@ -163,12 +162,19 @@ html{
 /* the modal card */
 :is(#logModal,#histModal,#rtModal,#exPickModal,#batchAddModal) > div{
   animation: modalPopIn .14s ease;
-   rgba(18,18,20,.92) !important;
+
+  /* ✅ Theme-based modal glass */
+  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.08)) !important;
+
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+
   box-shadow: 0 16px 50px rgba(0,0,0,.55);
-  border: 1px solid rgba(255,255,255,.10) !important;
+
+  /* ✅ Theme-based border */
+  border: 1px solid color-mix(in srgb, var(--line) 86%, rgba(var(--accent-rgb), 0.12)) !important;
 }
+
 
 /* keyframes */
 @keyframes modalFadeIn{
@@ -194,11 +200,10 @@ body{
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
   color: var(--text);
 
-  
-   background:
-  radial-gradient(1200px 800px at 50% 140px, rgba(var(--accentRGB), .08), transparent 72%),
-  radial-gradient(1200px 900px at 50% 65%, rgba(var(--accentRGB), .03), transparent 70%),
-  linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 55%, var(--bg0) 120%);
+  background:
+    radial-gradient(1200px 800px at 50% 140px, rgba(124,252,0,.08), transparent 72%),
+    radial-gradient(1200px 900px at 50% 65%, rgba(124,252,0,.03), transparent 70%),
+    linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 55%, var(--bg0) 120%);
   background-attachment: fixed; /* ✅ makes it feel like one continuous “canvas” */
 }
 
@@ -210,7 +215,7 @@ header{
   z-index: 60;
   padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
 
-   linear-gradient(
+  background: linear-gradient(
     to bottom,
     rgba(7,7,8,.92),
     rgba(7,7,8,.55),
@@ -256,10 +261,10 @@ main > *{
       .grid2{grid-template-columns: 1fr 1fr;}
     }
    .card{
-   rgba(18,18,20,.72);   /* ✅ translucent so the body gradient shows through */
-  border: 1px solid rgba(255,255,255,.08);
+  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.06));
+  border: 1px solid color-mix(in srgb, var(--line) 88%, rgba(var(--accent-rgb), 0.10));
   border-radius: var(--radius);
-  padding:14px;
+  padding: 14px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -284,22 +289,28 @@ main > *{
       min-width: 120px;
       flex:1 1 140px;
     }
-    input, select, button, textarea{
-      #0f0f10;
-      color:var(--text);
-      border:1px solid var(--line);
-      border-radius:10px;
-      padding:10px 10px;
-      outline:none;
-      font-size:14px;
-    }
-    textarea{min-height:38px; resize:vertical;}
-    input::placeholder{color:#666}
-    button{
-      cursor:pointer;
-      #0f0f10;
-      font-weight:600;
-    }
+    iinput, select, textarea{
+  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.06));
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--line) 88%, rgba(var(--accent-rgb), 0.10));
+  border-radius: 10px;
+  padding: 10px 10px;
+  outline: none;
+  font-size: 14px;
+}
+
+button{
+  cursor: pointer;
+  background: color-mix(in srgb, var(--card) 90%, rgba(var(--accent-rgb), 0.10));
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--line) 88%, rgba(var(--accent-rgb), 0.12));
+  border-radius: 10px;
+  padding: 10px 10px;
+  font-weight: 600;
+}
+button:hover{
+  border-color: color-mix(in srgb, var(--line) 70%, rgba(var(--accent-rgb), 0.25));
+}
     button:hover{border-color:#2a2b2f}
     .btnRow{
       display:flex;
@@ -338,7 +349,7 @@ main > *{
       font-size:11px;
       text-transform:uppercase;
       letter-spacing:.6px;
-      background:#0f0f10;
+      background: color-mix(in srgb, var(--card) 88%, rgba(var(--accent-rgb), 0.06));
     }
     tr:last-child td{border-bottom:none}
     .mono{font-variant-numeric: tabular-nums;}
@@ -375,14 +386,18 @@ main > *{
       gap:8px;
     }
     .exerciseItem{
-      border:1px solid var(--line);
-      border-radius:12px;
-      padding:10px;
-      background:#0f0f10;
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      align-items:flex-start;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px;
+
+  /* ✅ Theme-based surface instead of hard-coded #0f0f10 */
+  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.05));
+
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+}
     }
     .exerciseItem .left{
       display:flex;
@@ -412,14 +427,17 @@ main > *{
       font-size:11px;
       color:var(--muted);
     }
-    .badge{
-      display:inline-block;
-      padding:4px 8px;
-      border:1px solid var(--line);
-      border-radius:999px;
-      font-size:11px;
-      color:var(--text);
-      background:#121214;
+    ..badge{
+  display:inline-block;
+  padding:4px 8px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  font-size:11px;
+  color:var(--text);
+
+  /* ✅ Theme-based surface */
+  background: color-mix(in srgb, var(--card) 88%, rgba(var(--accent-rgb), 0.06));
+}
     }
     .calendar{
       display:grid;
@@ -434,20 +452,23 @@ main > *{
       text-align:center;
       padding:4px 0;
     }
-    .day{
-      border:1px solid var(--line);
-      border-radius:10px;
-      padding:10px 0;
-      text-align:center;
-      font-size:12px;
-      background:#0f0f10;
-      cursor:pointer;
-    }
+   .day{
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 0;
+  text-align:center;
+  font-size:12px;
+
+  /* ✅ Theme-based surface */
+  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.05));
+
+  cursor:pointer;
+}
     .day.off{opacity:.35; cursor:default;}
-    .day.attended{
-      border-color:#2a2b2f;
-      outline:2px solid rgba(124,252,0,.25);
-    }
+   .day.attended{
+  border-color:#2a2b2f;
+  outline:2px solid rgba(var(--accent-rgb), .25);
+}
     .day.attended .dot{
       display:block;
       margin:6px auto 0;
@@ -468,13 +489,15 @@ main > *{
     }
     .ghost:hover{border-color:var(--line)}
     .notice{
-      border:1px dashed #2a2b2f;
-      border-radius:12px;
-      padding:10px;
-      color:var(--muted);
-      font-size:12px;
-      background:#0f0f10;
-    }
+  border:1px dashed color-mix(in srgb, var(--line) 75%, rgba(var(--accent-rgb), 0.10));
+  border-radius:12px;
+  padding:10px;
+  color:var(--muted);
+  font-size:12px;
+
+  /* ✅ Theme-based surface */
+  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.05));
+}
     .clickEx{cursor:pointer; text-decoration:underline; text-decoration-color:#2a2b2f;}
     .clickEx:hover{opacity:.85;}
     .divider{
@@ -499,8 +522,8 @@ main > *{
 .exPickItem:last-child{border-bottom:none;}
 .exPickItem:hover{opacity:.85;}
 .exPickItem.active{
-  outline:2px solid rgba(124,252,0,.25);
-  background:#0f0f10;
+  outline:2px solid rgba(var(--accent-rgb), .25);
+  background: color-mix(in srgb, var(--card) 92%, rgba(var(--accent-rgb), 0.05));
 }
     .exPickRow{
   display:flex;
@@ -518,7 +541,7 @@ main > *{
   font-size:12px;
 }
 .exPickItem.active .exPickCheck{
-  border-color: rgba(124,252,0,.35);
+  border-color: rgba(var(--accent-rgb), .35);
 }
     /* ---------------------------
    APP SCREENS (Option A)
@@ -617,12 +640,12 @@ main > *{
   text-align:left;
 }
 .primary{
-  background: rgba(124,252,0,.10);
-  border-color: rgba(124,252,0,.28);
+  background: rgba(var(--accent-rgb), .10);
+  border-color: rgba(var(--accent-rgb), .28);
   color: var(--text);
 }
 .primary:hover{
-  border-color: rgba(124,252,0,.45);
+  border-color: rgba(var(--accent-rgb), .45);
 }
 /* ===========================
    HOME APP TILES (visual only)
@@ -659,12 +682,13 @@ main > *{
   inset:-2px;
   background: radial-gradient(
     420px 220px at 18% 0%,
-    rgba(124,252,0,.12),
+    rgba(var(--accent-rgb), .12),
     transparent 55%
   );
   opacity: .7;
   pointer-events:none;
 }
+
 
 /* tap / hover feedback */
 .homeGrid button:hover{
@@ -830,8 +854,8 @@ main{
 
 .navBtn.active{
   color: var(--text);
-  background: rgba(124,252,0,.06);
-  border-color: rgba(124,252,0,.22);
+  background: rgba(var(--accent-rgb), .06);
+  border-color: rgba(var(--accent-rgb), .22);
 }
 
 /* optional: reduce header prominence when bottom nav exists */
@@ -969,16 +993,15 @@ header{
   background: rgba(15,15,16,.9);
 }
 #rtModal #rtDayTabs .tab.active{
-  background: rgba(124,252,0,.08);
-  border-color: rgba(124,252,0,.25);
+  background: rgba(var(--accent-rgb), .08);
+  border-color: rgba(var(--accent-rgb), .25);
 }
-
 /* Add Exercise CTA – looks like a button tile */
 #rtModal .rtAddWrap{
-  border: 1px dashed rgba(124,252,0,.25);
+  border: 1px dashed rgba(var(--accent-rgb), .25);
   border-radius: 14px;
   padding: 12px;
-  background: rgba(124,252,0,.04);
+  background: rgba(var(--accent-rgb), .04);
   display:flex;
   gap:10px;
   align-items:flex-end;
@@ -1062,11 +1085,11 @@ header{
 }
 
 #rtModal #rtSaveBtn{
-  background: rgba(124,252,0,.12);
-  border-color: rgba(124,252,0,.30);
+  background: rgba(var(--accent-rgb), .12);
+  border-color: rgba(var(--accent-rgb), .30);
 }
 #rtModal #rtSaveBtn:hover{
-  border-color: rgba(124,252,0,.45);
+  border-color: rgba(var(--accent-rgb), .45);
 }
 
 
@@ -1539,32 +1562,6 @@ header{
     </div>
   </section>
 
-    <!-- Theme -->
-  <section class="card">
-    <h2>Theme</h2>
-
-    <div class="row">
-      <label>Accent Color (buttons / highlights)
-        <input id="setAccent" type="color" />
-      </label>
-
-      <label>Background Top (bg0)
-        <input id="setBg0" type="color" />
-      </label>
-
-      <label>Background Middle (bg1)
-        <input id="setBg1" type="color" />
-      </label>
-
-      <button id="saveThemeBtn">Save Theme</button>
-      <button id="resetThemeBtn" class="ghost">Reset Theme</button>
-    </div>
-
-    <div class="notice" style="margin-top:10px;">
-      Accent changes the glow + highlights. Background colors change the gradient.
-    </div>
-  </section>
-
   <!-- Import / Backup -->
   <section class="card">
     <h2>Import / Backup</h2>
@@ -1858,8 +1855,6 @@ const KEY_LAST_BACKUP = "gym_last_backup_v1";
 const KEY_ONBOARD_DONE = "gym_onboard_done_v1";
 const KEY_CUSTOM_EX = "gym_custom_ex_v1";
 const KEY_APP_VERSION = "gym_app_version_v1"; // ✅ ADD THIS
-const KEY_THEME = "gym_theme_v1";
-
 
 
 let modalDepth = 0;
@@ -1946,38 +1941,6 @@ saveProfileBtn?.addEventListener("click", ()=>{
   hydrateSettingsUI();
   renderStorageInfo();
   alert("Profile saved ✅");
-});
-
-  // Theme bindings
-const setAccent = document.getElementById("setAccent");
-const setBg0 = document.getElementById("setBg0");
-const setBg1 = document.getElementById("setBg1");
-const saveThemeBtn = document.getElementById("saveThemeBtn");
-const resetThemeBtn = document.getElementById("resetThemeBtn");
-
-function hydrateThemeUI(){
-  const t = loadTheme();
-  if(setAccent) setAccent.value = t.accent;
-  if(setBg0) setBg0.value = t.bg0;
-  if(setBg1) setBg1.value = t.bg1;
-}
-
-saveThemeBtn?.addEventListener("click", ()=>{
-  saveTheme({
-    accent: String(setAccent?.value || "#7CFC00"),
-    bg0: String(setBg0?.value || "#070708"),
-    bg1: String(setBg1?.value || "#0b0b0c")
-  });
-  hydrateThemeUI();
-  alert("Theme saved ✅");
-});
-
-resetThemeBtn?.addEventListener("click", ()=>{
-  const d = defaultTheme();
-  LS.set(KEY_THEME, d);
-  applyTheme(d);
-  hydrateThemeUI();
-  alert("Theme reset ✅");
 });
 
 runRefreshBtn?.addEventListener("click", ()=>{
@@ -2167,63 +2130,6 @@ function getProteinGoal(){
 }
 
   /* ---------------------------
-   Theme (Accent + Background Gradient)
----------------------------- */
-function defaultTheme(){
-  return {
-    accent: "#7CFC00",  // matches your current accent
-    bg0: "#070708",
-    bg1: "#0b0b0c"
-  };
-}
-
-function loadTheme(){
-  const t = LS.get(KEY_THEME, null);
-  const d = defaultTheme();
-  if(!t || typeof t !== "object") return d;
-
-  return {
-    accent: String(t.accent || d.accent),
-    bg0: String(t.bg0 || d.bg0),
-    bg1: String(t.bg1 || d.bg1),
-  };
-}
-
-function saveTheme(next){
-  const cur = loadTheme();
-  const merged = { ...cur, ...next };
-  LS.set(KEY_THEME, merged);
-  applyTheme(merged);
-  return merged;
-}
-
-function hexToRgbTriplet(hex){
-  const h = String(hex || "").replace("#","").trim();
-  if(h.length !== 6) return "124, 252, 0"; // fallback
-  const r = parseInt(h.slice(0,2), 16);
-  const g = parseInt(h.slice(2,4), 16);
-  const b = parseInt(h.slice(4,6), 16);
-  if(!isFinite(r) || !isFinite(g) || !isFinite(b)) return "124, 252, 0";
-  return `${r}, ${g}, ${b}`;
-}
-
-function applyTheme(t){
-  const root = document.documentElement;
-
-  const accent = t?.accent || "#7CFC00";
-  const bg0 = t?.bg0 || "#070708";
-  const bg1 = t?.bg1 || "#0b0b0c";
-
-  root.style.setProperty("--accent", accent);
-  root.style.setProperty("--good", accent); // keep your good=accent behavior
-  root.style.setProperty("--bg0", bg0);
-  root.style.setProperty("--bg1", bg1);
-
-  // for the glow rgba()
-  root.style.setProperty("--accentRGB", hexToRgbTriplet(accent));
-}
-  
-  /* ---------------------------
    HOME screen logic
 ---------------------------- */
 const homeTime = document.getElementById("homeTime");
@@ -2405,12 +2311,10 @@ const onEnterScreen = {
   },
 
   settings: () => {
-  hydrateSettingsUI();
-  hydrateThemeUI();
-  renderStorageInfo();
-  renderLastBackup();
-}
-
+    hydrateSettingsUI();
+    renderStorageInfo();
+    renderLastBackup();
+  }
 };
 
 function showScreen(name){
@@ -5111,8 +5015,6 @@ function init(){
   hydrateSettingsUI();
   hydrateOnboardingInputs();
   renderHeaderSub();
-  applyTheme(loadTheme());
-  hydrateThemeUI();
   renderStorageInfo();
   renderLastBackup();
 
