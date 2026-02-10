@@ -1065,100 +1065,6 @@ header{
   border-color: rgba(124,252,0,.45);
 }
 
-/* ===========================
-   ROUTINE DAY STRIP (2-row + scroll WITHOUT widening page)
-=========================== */
-.dayStripWrap{
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;                 /* ✅ sideways scroll */
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 6px;
-  margin-bottom: 10px;
-
-  /* ✅ prevents scroll area from “pushing” the page width */
-  overscroll-behavior-x: contain;
-}
-
-/* ✅ fixed-size columns so it shows a few days at once, then scroll */
-.dayStrip{
-  display: grid;
-  grid-auto-flow: column;           /* fill columns left->right */
-  grid-template-rows: auto auto;    /* exactly 2 rows */
-  grid-auto-columns: 84px;          /* ✅ controls how many fit on screen */
-  gap: 6px;
-  width: max-content;               /* content can be wider, wrapper scrolls */
-}
-
-.dayCell{
-  padding: 10px 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #0f0f10;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-  user-select: none;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.labelCell{
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(15,15,16,.9);
-  color: var(--muted);
-  font-size: 11px;
-  text-align: center;
-  user-select: none;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dayCell.active,
-.labelCell.active{
-  border-color: rgba(124,252,0,.30);
-  outline: 2px solid rgba(124,252,0,.18);
-  color: var(--text);
-}
-
-/* ✅ HARD STOP: never allow horizontal page overflow */
-html, body{
-  overflow-x: hidden;
-}
-    /* ✅ ROUTINE: force the control row to wrap instead of widening the page */
-#screen-routine .topRight{
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
-
-#screen-routine .topRight > *{
-  min-width: 0; /* ✅ allows flex items to shrink instead of overflow */
-}
-
-/* the row holding the dropdown + buttons */
-#screen-routine .topRight .row{
-  min-width: 0;
-  flex: 1 1 340px;   /* ✅ can shrink + wrap */
-  flex-wrap: wrap;
-}
-
-/* allow the select block to shrink on mobile */
-#screen-routine .topRight label{
-  min-width: 0 !important;
-  flex: 1 1 220px !important;
-}
-
-/* make sure the actual <select> doesn’t exceed screen */
-#screen-routine #routineSelect{
-  width: 100%;
-  max-width: 100%;
-}
 
     
   </style>
@@ -1491,9 +1397,7 @@ html, body{
         </div>
       </div>
 
-<div class="dayStripWrap">
-  <div class="dayStrip" id="pplTabs"></div>
-</div>
+      <div class="splitTabs" id="pplTabs"></div>
       <div class="exerciseList" id="pplList"></div>
 
       <div class="notice" style="margin-top:10px;">
@@ -3527,36 +3431,22 @@ function renderDayTabs(){
   const ar = getActiveRoutine();
 
   DAY_KEYS.forEach((k, idx)=>{
-    const day = ar.days[k] || { label:"", rest:false };
-    const label = String(day.label || "").trim();
+    const day = ar.days[k];
+    const label = (day.label || "").trim();
     const rest = !!day.rest;
 
-    // top row cell (day of week)
-    const dayCell = document.createElement("div");
-    dayCell.className = "dayCell" + (idx===activeDayIndex ? " active" : "");
-    dayCell.textContent = k;
-
-    // bottom row cell (day label)
-    const labelCell = document.createElement("div");
-    labelCell.className = "labelCell" + (idx===activeDayIndex ? " active" : "");
-
-    // What to show in the label row
-    // - if rest, show "Rest" (even if label is blank)
-    // - else show label, or "—" if empty
-    const labelText = rest ? (label || "Rest") : (label || "—");
-    labelCell.textContent = labelText;
-
-    // clicking either cell selects the day
-    const onPick = ()=>{
+    const b = document.createElement("div");
+    b.className = "tab" + (idx===activeDayIndex ? " active" : "");
+    b.innerHTML = `
+      <span>${k}</span>
+      ${label ? `<span class="badge">${label}</span>` : ""}
+      ${rest ? `<span class="badge">Rest</span>` : ""}
+    `;
+    b.addEventListener("click", ()=>{
       activeDayIndex = idx;
       renderPPL();
-    };
-    dayCell.addEventListener("click", onPick);
-    labelCell.addEventListener("click", onPick);
-
-    // append in pairs so grid makes 2 rows per day column
-    pplTabs.appendChild(dayCell);
-    pplTabs.appendChild(labelCell);
+    });
+    pplTabs.appendChild(b);
   });
 }
 
