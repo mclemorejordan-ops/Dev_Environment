@@ -2967,9 +2967,10 @@ function renderBW(){
   const labels = bwLogs.map(x=>x.date);
   const data = bwLogs.map(x=>x.bw);
 
-  if(bwChart) bwChart.destroy();
+  try {
+    if(bwChart) bwChart.destroy();
 
-  bwChart = new Chart(canvas, {
+    bwChart = new Chart(canvas, {
     type:"line",
     data:{ labels, datasets:[{ label:"Bodyweight (lbs)", data, tension:.25, pointRadius:3 }] },
     options:{
@@ -2978,9 +2979,15 @@ function renderBW(){
       scales:{
         x:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}},
         y:{ticks:{color:"#9aa0a6"}, grid:{color:"#202124"}}
-      }
+}
     }
   });
+  } catch(e) {
+    console.error('Bodyweight chart render failed:', e);
+    if(bwChartWrap) {
+      bwChartWrap.innerHTML = '<div class="notice">Chart unavailable. Please use table view or refresh the page.</div>';
+    }
+  }
 }
 /* ---------------------------
    Attendance Calendar
@@ -4090,9 +4097,11 @@ function renderLiftsGraph(){
     "Top Weight (lbs)";
 
   const ctx = document.getElementById("liftChart");
-  if(liftChart) liftChart.destroy();
+  
+  try {
+    if(liftChart) liftChart.destroy();
 
-  liftChart = new Chart(ctx, {
+    liftChart = new Chart(ctx, {
     type:"line",
     data:{
       labels,
@@ -4119,8 +4128,16 @@ function renderLiftsGraph(){
   });
 
   // If no data, show a friendly message
-  if(labels.length === 0){
-    // chart will just be empty; that's fine
+    if(labels.length === 0){
+      if(liftGraphWrap) {
+        liftGraphWrap.innerHTML = '<div class="notice">No data to display. Add some lifts or adjust your filters.</div>';
+      }
+    }
+  } catch(e) {
+    console.error('Lift chart render failed:', e);
+    if(liftGraphWrap) {
+      liftGraphWrap.innerHTML = '<div class="notice">Chart unavailable. Please use table view or refresh the page.</div>';
+    }
   }
 }
 
