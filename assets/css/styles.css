@@ -1075,3 +1075,76 @@ button:not(.navBtn):active,
 #rtModal #rtSaveBtn:hover{
   border-color: rgba(124,252,0,.45);
 }
+
+/* ===========================
+   Offline Indicator + Toast
+=========================== */
+
+.statusRow{
+  margin-top: 8px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.netBadge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.2px;
+
+  border:1px solid rgba(255, 209, 102, .35);
+  background: rgba(255, 209, 102, .10);
+  color: var(--warn);
+}
+
+/* Toasts sit above bottom nav */
+.toastHost{
+  position: fixed;
+  left: 0; right: 0;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 90;
+  pointer-events: none;
+  padding: 0 12px;
+}
+
+.toast{
+  max-width: 520px;
+  margin: 0 auto;
+  border-radius: 14px;
+  padding: 10px 12px;
+
+  background: rgba(18,18,20,.96);
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 14px 40px rgba(0,0,0,.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.toast.show{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce){
+  .toast{ transition:none; }
+
+/* push app content down so banner doesn't cover header */
+body{
+  padding-top: 44px;
+}
