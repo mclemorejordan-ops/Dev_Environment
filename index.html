@@ -4,12 +4,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="
+  width=device-width,
+  initial-scale=1,
+  maximum-scale=1
 ">
   <title>Gym Dashboard</title>
   <style>
     
-:root{
+  :root{
   --bg0:#070708;
   --bg1:#0b0b0c;
 
@@ -28,65 +31,10 @@
   --good: var(--accent);
   --bad:  var(--danger);
 
-  /* ===========================
-     SIZE SYSTEM (Desktop defaults)
-  =========================== */
   --radius:16px;
   --shadow: 0 14px 40px rgba(0,0,0,.45);
-
-  --pagePadX: 12px;
-  --pagePadY: 14px;
-
-  --headerPadX: 16px;
-  --headerTopExtra: 14px;
-  --headerBottom: 14px;
-
-  --h1Size: 26px;
-  --subSize: 13px;
-
-  --navPadX: 12px;
-  --navPadY: 10px;
-
-  --navBtnPadY: 10px;
-  --navBtnPadX: 10px;
-  --navBtnFont: 11px;
-  --navIcon: 18px;
-
-  /* modal spacing */
-  --modalPad: 12px;
-  --modalRadius: 14px;
 }
 
-/* ===========================
-   iPhone / small screens
-   (tighten density + header scale)
-=========================== */
-@media (max-width: 500px){
-  :root{
-    --radius: 14px;
-
-    --pagePadX: 10px;
-    --pagePadY: 12px;
-
-    --headerPadX: 12px;
-    --headerTopExtra: 10px;
-    --headerBottom: 10px;
-
-    --h1Size: 20px;
-    --subSize: 12px;
-
-    --navPadX: 10px;
-    --navPadY: 8px;
-
-    --navBtnPadY: 8px;
-    --navBtnPadX: 8px;
-    --navBtnFont: 11px;
-    --navIcon: 18px;
-
-    --modalPad: 10px;
-    --modalRadius: 14px;
-  }
-}
 /* ===========================
    GLOBAL iOS INPUT ZOOM KILL
 =========================== */
@@ -219,14 +167,7 @@ html{
   box-shadow: 0 16px 50px rgba(0,0,0,.55);
   border: 1px solid rgba(255,255,255,.10) !important;
 }
-/* ===========================
-   Modal card sizing overrides
-   (lets iPhone scale modal density via variables)
-=========================== */
-:is(#logModal,#histModal,#rtModal,#exPickModal,#batchAddModal) > div{
-  border-radius: var(--modalRadius) !important;
-  padding: var(--modalPad) !important;
-}
+
 /* keyframes */
 @keyframes modalFadeIn{
   from{ opacity:0; }
@@ -259,12 +200,12 @@ body{
 }
 
 
+    /* ✅ Unified app header (matches mockup) */
 header{
   position: sticky;
   top: 0;
   z-index: 60;
-
-  padding: calc(env(safe-area-inset-top) + var(--headerTopExtra)) var(--headerPadX) var(--headerBottom);
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
 
   background: linear-gradient(
     to bottom,
@@ -279,24 +220,26 @@ header{
 }
 header h1{
   margin:0;
-  font-size: var(--h1Size);
+  font-size:26px;
   font-weight:800;
   letter-spacing:.2px;
   color: var(--text);
 }
+
 header .sub{
   margin-top:6px;
-  font-size: var(--subSize);
+  font-size:13px;
   color: var(--muted);
 }
-main{
-  padding: var(--pagePadY) var(--pagePadX) 80px;
-  display:grid;
-  gap:12px;
-  max-width:1100px;
-  margin:0 auto;
-  position: relative;
-}
+    main{
+      padding:14px 12px 80px;
+      display:grid;
+      gap:12px;
+      max-width:1100px;
+      margin:0 auto;
+      position: relative; /* ✅ ADD */
+    }
+
 main > *{
   position: relative;
   z-index: 1;
@@ -854,12 +797,13 @@ main{
 .bottomNav{
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  padding: var(--navPadY) var(--navPadX) calc(var(--navPadY) + env(safe-area-inset-bottom));
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   background: rgba(11,11,12,.94);
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--line);
   z-index: 60;
 }
+
 .bottomNavInner{
   max-width: 1100px;
   margin: 0 auto;
@@ -874,25 +818,31 @@ main{
   align-items:center;
   justify-content:center;
   gap:4px;
-
-  padding: var(--navBtnPadY) var(--navBtnPadX);
+  padding: 10px 10px;
   border-radius: 14px;
-
   background: transparent;
   border: 1px solid transparent;
   color: var(--muted);
-
-  font-size: var(--navBtnFont);
+  font-size: 11px;
   user-select:none;
 }
+
 .navBtn .icon{
-  font-size: var(--navIcon);
+  font-size: 18px;
   line-height: 1;
 }
+
 .navBtn.active{
   color: var(--text);
   background: rgba(124,252,0,.06);
   border-color: rgba(124,252,0,.22);
+}
+
+/* optional: reduce header prominence when bottom nav exists */
+header{
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 
 /* little “tap” feel */
