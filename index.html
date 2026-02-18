@@ -1462,6 +1462,7 @@ body.modalOpen{
 .c3dCard{
   position:absolute;
   width: min(58vw, 190px);       /* ✅ smaller cards */
+  min-height: 180px;
   aspect-ratio: 1 / 1;
   border-radius: 18px;
 
@@ -1610,7 +1611,10 @@ body.modalOpen{
   );
   pointer-events:none;
 }
-
+/* Expand height when flipped */
+.c3d.flipMode .c3dCard.sel{
+  min-height: 260px;
+}
 .c3dCard.sel::before{
   /* Slightly stronger sheen on active card */
   background: linear-gradient(135deg,
