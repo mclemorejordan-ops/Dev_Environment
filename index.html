@@ -65,8 +65,24 @@
     }
 
     *{ box-sizing:border-box; }
-    html,body{ height:100%; }
+
+/* ─────────────────────────────────────────────
+   Global scaling control (Safari mobile fix)
+   Makes default size match “A down twice”
+───────────────────────────────────────────── */
+html{
+  height:100%;
+
+  /* Prevent Safari auto text inflation */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+
+  /* ✅ Smaller default UI scale */
+  font-size: 14px;   /* If still slightly large, change to 13px */
+}
+
 body{
+
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       background:
