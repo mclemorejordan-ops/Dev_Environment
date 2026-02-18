@@ -2008,6 +2008,25 @@ button.mini.added{
   label{ gap: 6px; font-size: 11.5px; }                              /*  */
   input, select, textarea{ padding: 10px 10px; font-size: 16px; border-radius: 12px; }
 
+/* ───────────────────────────────
+   GLOBAL UI SCALE (Safari “A” Equivalent)
+   ─────────────────────────────── */
+
+:root{
+  --ui-font-size: 16px; /* default */
+}
+
+html{
+  font-size: var(--ui-font-size);
+}
+
+/* Size presets */
+html[data-ui="sm"]{ --ui-font-size: 15px; }
+html[data-ui="md"]{ --ui-font-size: 16px; }
+html[data-ui="lg"]{ --ui-font-size: 17px; }
+html[data-ui="xl"]{ --ui-font-size: 18px; }
+
+  
   /* Prevent iOS input zoom (GLOBAL — not just modals) */
 @media (hover: none) and (pointer: coarse){
   input,
@@ -2874,6 +2893,32 @@ const Dates = {
       else state.attendance.push(dateISO);
       Storage.save(state);
     }
+
+    /********************
+ * UI Scale (Safari A button equivalent)
+ ********************/
+const UI_SCALE_KEY = "gymdash:uiScale"; // sm | md | lg | xl
+
+function getUIScale(){
+  try{
+    const v = localStorage.getItem(UI_SCALE_KEY);
+    return (v === "sm" || v === "md" || v === "lg" || v === "xl") ? v : "md";
+  }catch(_){
+    return "md";
+  }
+}
+
+function applyUIScale(scale){
+  const s = (scale === "sm" || scale === "md" || scale === "lg" || scale === "xl") ? scale : "md";
+  document.documentElement.setAttribute("data-ui", s);
+}
+
+function setUIScale(scale){
+  const s = (scale === "sm" || scale === "md" || scale === "lg" || scale === "xl") ? scale : "md";
+  try{ localStorage.setItem(UI_SCALE_KEY, s); }catch(_){}
+  applyUIScale(s);
+}
+    
     /********************
      * Attendance Helpers (Step 9)
      ********************/
@@ -5300,8 +5345,8 @@ function bindHeaderPills(){
 
     }
 
-
     function renderView(){
+applyUIScale(getUIScale());
 setChip();
 setHeaderPills();
       const root = $("#viewRoot");
@@ -8179,53 +8224,71 @@ state.profile.hideRestDays = !!hideRestDays;
 
         // --- Section bodies ---
         const profileBody = el("div", {}, [
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Name" }),
-              el("div", { class:"meta", text:"Shown on Home" })
-            ]),
-            nameInput
-          ]),
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
-              el("div", { class:"meta", text:"grams/day" })
-            ]),
-            proteinInput
-          ]),
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Week starts on" }),
-              el("div", { class:"meta", text:"Affects Home week view" })
-            ]),
-            weekSelect
-          ]),
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Hide rest days" }),
-              el("div", { class:"meta", text:"Keep Home focused on training days" })
-            ]),
-            hideRestSwitch
-          ]),
-          el("div", { style:"height:12px" }),
-          el("div", { class:"btnrow" }, [
-            el("button", { class:"btn primary", onClick: () => {
-              try{ saveProfile(); }
-              catch(e){
-                Modal.open({
-                  title:"Save failed",
-                  bodyNode: el("div", {}, [
-                    el("div", { class:"note", text: e?.message || "Could not save settings." }),
-                    el("div", { style:"height:12px" }),
-                    el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-                  ])
-                });
-              }
-            }}, ["Save changes"])
-          ])
-        ]);
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Name" }),
+      el("div", { class:"meta", text:"Shown on Home" })
+    ]),
+    nameInput
+  ]),
 
-                // ────────────────────────────
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
+      el("div", { class:"meta", text:"grams/day" })
+    ]),
+    proteinInput
+  ]),
+
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Week starts on" }),
+      el("div", { class:"meta", text:"Affects Home week view" })
+    ]),
+    weekSelect
+  ]),
+
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Hide rest days" }),
+      el("div", { class:"meta", text:"Keep Home focused on training days" })
+    ]),
+    hideRestSwitch
+  ]),
+
+  // ─── Text Size (Safari A equivalent) ───
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Text size" }),
+      el("div", { class:"meta", text:"Adjust app size like Safari’s A button" })
+    ]),
+    el("div", { class:"btnrow" }, [
+      el("button", { class:"btn mini", onClick: () => setUIScale("sm") }, ["A−"]),
+      el("button", { class:"btn mini", onClick: () => setUIScale("md") }, ["A"]),
+      el("button", { class:"btn mini", onClick: () => setUIScale("lg") }, ["A+"]),
+      el("button", { class:"btn mini", onClick: () => setUIScale("xl") }, ["A++"])
+    ])
+  ]),
+
+  el("div", { style:"height:12px" }),
+  el("div", { class:"btnrow" }, [
+    el("button", { class:"btn primary", onClick: () => {
+      try{ saveProfile(); }
+      catch(e){
+        Modal.open({
+          title:"Save failed",
+          bodyNode: el("div", {}, [
+            el("div", { class:"note", text: e?.message || "Could not save settings." }),
+            el("div", { style:"height:12px" }),
+            el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
+          ])
+        });
+      }
+    }}, ["Save changes"])
+  ])
+]);
+
+        // ────────────────────────────
         // Routines section (Recovery + Management)
         // ────────────────────────────
         function openCreateRoutineModal(afterCreateRoute=null){
