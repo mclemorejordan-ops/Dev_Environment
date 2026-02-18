@@ -6820,14 +6820,16 @@ fixedHost.appendChild(el("div", { class:"card" }, [
       return;
     }
 
-    // ────────────────────────────
+// ────────────────────────────
 // Routine header visual: 3D carousel OR simple day strip (based on Settings)
 // ────────────────────────────
 const wants3D = (state.profile?.show3DCards === undefined) ? true : !!state.profile.show3DCards;
 
 if(wants3D){
-  // ✅ Existing 3D Card Carousel (unchanged)
+  // ✅ 3D Card Carousel
   fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
+
+    // 3D stage
     (() => {
       let down = false;
       let startX = 0;
@@ -6844,7 +6846,7 @@ if(wants3D){
         if(!down) return;
         dx = e.clientX - startX;
       }
-      function onEnd(e){
+      function onEnd(){
         if(!down) return;
         down = false;
 
@@ -6896,21 +6898,155 @@ if(wants3D){
       offsets.forEach(off => {
         const idx = (selectedIndex + off + 7) % 7;
         const d = getDay(idx) || { label:"Day", isRest:false, exercises:[] };
+
+        const abs = Math.abs(off);
+
+        let scale = (off === 0) ? 1 : (1 - abs * 0.10);
+        let x = off * 92;              // tighter spacing
+        let z = -(abs * 95);           // depth
+        let y = abs * 6;
+        let rot = off * -22;
+        let op = (off === 0) ? 1 : (abs === 1 ? .65 : .30);
+
         const isSel = (idx === selectedIndex);
+        const isFlipped = isSel && !!UIState.routine.flipOpen;
 
-        // IMPORTANT: your existing card builder logic continues below (unchanged in your file)
-        // (We’re not altering your card flip logic or content.)
-        // ↓↓↓ KEEP EVERYTHING YOU ALREADY HAVE that builds `card` and appends it to `c3d`
-        // In your file this includes buildBackFace/frontFace and the click handler.
-        // --------------------------------------------------
+        /* ✅ Flip+Expand: make the selected flipped card feel “out there” */
+        if(isFlipped){
+          scale = 1.22;     // bigger, readable
+          z = 140;          // push forward
+          y = -10;          // lift up slightly
+          rot = 0;          // keep facing forward while in detail mode
+          op = 1;
+        }
 
-        // NOTE: Do not remove your existing code here.
-        // This wrapper only gates whether the whole carousel renders.
+        const chips = [];
+        chips.push(el("div", { class:"c3dChip", text: d.isRest ? "Rest Day" : "Training Day" }));
+        if(idx === selectedIndex) chips.push(el("div", { class:"c3dChip active", text:"Active" }));
 
+        function buildBackFace(){
+          // Must have at least 2 sessions for this routine day template to show real data
+          const sessionDates = __sessionDatesForRoutineDayTemplate(routine.id, d.id);
+
+          if(sessionDates.length < 2){
+            return el("div", { class:"c3dFace back" }, [
+              el("div", {}, [
+                el("div", { class:"c3dSnapTitle", text:"PERFORMANCE SNAPSHOT" }),
+                el("div", { class:"c3dSnapSub", text:"Unlocks after 2 completed sessions on this day." }),
+                el("div", { class:"c3dSnapLock", text:"Not enough history yet. Complete this exact day (logged sets + attendance) at least two times." })
+              ]),
+              el("div", { class:"c3dSnapSub", text:"Tap again to close" })
+            ]);
+          }
+
+          const latestDate = sessionDates[0];
+          const prevDate   = sessionDates[1];
+
+          const gains = __strengthGains(routine.id, d.id, latestDate, prevDate);
+          const { vols } = __lastVolumes(routine.id, d.id, sessionDates);
+
+          let trend = "—";
+          if(vols.length >= 2){
+            const oldest = vols[vols.length - 1];
+            const newest = vols[0];
+            trend = newest > oldest ? "↑ Improving" : (newest < oldest ? "↓ Declining" : "→ Flat");
+          }
+
+          const top = (gains || []).slice(0, 2); // keep the card back compact
+
+          return el("div", { class:"c3dFace back" }, [
+            el("div", {}, [
+              el("div", { class:"c3dSnapTitle", text:"PERFORMANCE SNAPSHOT" }),
+              el("div", { class:"c3dSnapSub", text:`Last session: ${Dates.formatShort(prevDate)}` }),
+
+              el("div", { class:"c3dSnapList" }, [
+                ...(top.length ? top.map(g => {
+                  const deltaTxt =
+                    (g.deltaW !== 0)
+                      ? `${g.deltaW > 0 ? "+" : ""}${Math.round(g.deltaW)} lb`
+                      : `${g.deltaR > 0 ? "+" : ""}${g.deltaR} reps`;
+
+                  return el("div", { class:"c3dSnapRow" }, [
+                    el("div", { text: g.name }),
+                    el("div", { class:"muted", text: deltaTxt })
+                  ]);
+                }) : [
+                  el("div", { class:"c3dSnapLock", text:"No measurable changes between the last two sessions yet." })
+                ]),
+
+                el("div", { style:"height:6px" }),
+                el("div", { class:"c3dSnapRow" }, [
+                  el("div", { text:"Consistency" }),
+                  el("div", { class:"muted", text: trend })
+                ])
+              ])
+            ]),
+            el("div", { class:"c3dSnapSub", text:"Tap again to close" })
+          ]);
+        }
+
+        const frontFace = el("div", { class:"c3dFace front" }, [
+          el("div", {}, [
+            el("div", { class:"c3dDay", text: names[idx].toUpperCase() }),
+            el("div", { class:"c3dLabel", text: d.label || "Day" }),
+            el("div", { class:"c3dMeta", text: d.isRest ? "Rest" : `${(d.exercises||[]).length} exercises` })
+          ]),
+          el("div", { class:"c3dChips" }, chips)
+        ]);
+
+        const card = el("div", {
+          class: "c3dCard" + (isSel ? " sel" : "") + (isFlipped ? " flipped" : ""),
+          style: `--x:${x}px; --y:${y}px; --z:${z}px; --rot:${rot}deg; --scale:${scale}; --op:${op};`
+        }, [
+          el("div", { class:"c3dInner" }, [
+            frontFace,
+            buildBackFace()
+          ])
+        ]);
+
+        // Tap cards:
+        // - Tap DIFFERENT day → switch day (repaint needed)
+        // - Tap SAME selected day → toggle flip IN-PLACE (no repaint → smooth animation)
+        card.addEventListener("click", () => {
+          if(idx === selectedIndex){
+            UIState.routine.flipOpen = !UIState.routine.flipOpen;
+
+            // ✅ Toggle flip classes without rebuilding DOM (enables transitions)
+            card.classList.toggle("flipped", UIState.routine.flipOpen);
+            c3d.classList.toggle("flipMode", UIState.routine.flipOpen);
+
+            return; // IMPORTANT: no repaint
+          }
+
+          selectedIndex = idx;
+          UIState.routine.flipOpen = false;
+          repaint();
+        });
+
+        c3d.appendChild(card);
       });
 
       return c3d;
     })(),
+
+    // Fixed day strip under carousel (tap to jump)
+    el("div", { class:"routineDayStrip" }, [
+      ...(weekStartsOn === "sun" ? [0,1,2,3,4,5,6] : [1,2,3,4,5,6,0]).map(i => {
+        const label = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i].toUpperCase();
+        return el("button", {
+          class: "routineDayBtn" + (i === selectedIndex ? " sel" : ""),
+          onClick: () => {
+            selectedIndex = i;
+            UIState.routine.flipOpen = false;
+            repaint();
+          }
+        }, [
+          el("div", { text: label }),
+          el("div", { class:"dot" })
+        ]);
+      })
+    ])
+
   ]));
 } else {
   // ✅ Simple Day Strip fallback (still lets users switch days)
@@ -6932,173 +7068,6 @@ if(wants3D){
     ])
   ]));
 }
-
-
-    // Show selected ±2
-    const offsets = [-2,-1,0,1,2];
-    offsets.forEach(off => {
-      const idx = (selectedIndex + off + 7) % 7;
-      const d = getDay(idx) || { label:"Day", isRest:false, exercises:[] };
-
-      const abs = Math.abs(off);
-
-let scale = (off === 0) ? 1 : (1 - abs * 0.10);
-let x = off * 92;              // tighter spacing
-let z = -(abs * 95);           // depth
-let y = abs * 6;
-let rot = off * -22;
-let op = (off === 0) ? 1 : (abs === 1 ? .65 : .30);
-
-const isSel = (idx === selectedIndex);
-const isFlipped = isSel && !!UIState.routine.flipOpen;
-
-/* ✅ Flip+Expand: make the selected flipped card feel “out there” */
-if(isFlipped){
-  scale = 1.22;     // bigger, readable
-  z = 140;          // push forward
-  y = -10;          // lift up slightly
-  rot = 0;          // keep facing forward while in detail mode
-  op = 1;
-}
-      const chips = [];
-      chips.push(el("div", { class:"c3dChip", text: d.isRest ? "Rest Day" : "Training Day" }));
-      if(idx === selectedIndex) chips.push(el("div", { class:"c3dChip active", text:"Active" }));
-
-      
-function buildBackFace(){
-  // Must have at least 2 sessions for this routine day template to show real data
-  const sessionDates = __sessionDatesForRoutineDayTemplate(routine.id, d.id);
-
-  if(sessionDates.length < 2){
-    return el("div", { class:"c3dFace back" }, [
-      el("div", {}, [
-        el("div", { class:"c3dSnapTitle", text:"PERFORMANCE SNAPSHOT" }),
-        el("div", { class:"c3dSnapSub", text:"Unlocks after 2 completed sessions on this day." }),
-        el("div", { class:"c3dSnapLock", text:"Not enough history yet. Complete this exact day (logged sets + attendance) at least two times." })
-      ]),
-      el("div", { class:"c3dSnapSub", text:"Tap again to close" })
-    ]);
-  }
-
-  const latestDate = sessionDates[0];
-  const prevDate   = sessionDates[1];
-
-  const gains = __strengthGains(routine.id, d.id, latestDate, prevDate);
-  const { vols } = __lastVolumes(routine.id, d.id, sessionDates);
-
-  let trend = "—";
-  if(vols.length >= 2){
-    const oldest = vols[vols.length - 1];
-    const newest = vols[0];
-    trend = newest > oldest ? "↑ Improving" : (newest < oldest ? "↓ Declining" : "→ Flat");
-  }
-
-  const top = (gains || []).slice(0, 2); // keep the card back compact
-
-  return el("div", { class:"c3dFace back" }, [
-    el("div", {}, [
-      el("div", { class:"c3dSnapTitle", text:"PERFORMANCE SNAPSHOT" }),
-      el("div", { class:"c3dSnapSub", text:`Last session: ${Dates.formatShort(prevDate)}` }),
-
-      el("div", { class:"c3dSnapList" }, [
-        ...(top.length ? top.map(g => {
-          const deltaTxt =
-            (g.deltaW !== 0)
-              ? `${g.deltaW > 0 ? "+" : ""}${Math.round(g.deltaW)} lb`
-              : `${g.deltaR > 0 ? "+" : ""}${g.deltaR} reps`;
-
-          return el("div", { class:"c3dSnapRow" }, [
-            el("div", { text: g.name }),
-            el("div", { class:"muted", text: deltaTxt })
-          ]);
-        }) : [
-          el("div", { class:"c3dSnapLock", text:"No measurable changes between the last two sessions yet." })
-        ]),
-
-        el("div", { style:"height:6px" }),
-        el("div", { class:"c3dSnapRow" }, [
-          el("div", { text:"Consistency" }),
-          el("div", { class:"muted", text: trend })
-        ])
-      ])
-    ]),
-    el("div", { class:"c3dSnapSub", text:"Tap again to close" })
-  ]);
-}
-
-const frontFace = el("div", { class:"c3dFace front" }, [
-  el("div", {}, [
-    el("div", { class:"c3dDay", text: names[idx].toUpperCase() }),
-    el("div", { class:"c3dLabel", text: d.label || "Day" }),
-    el("div", { class:"c3dMeta", text: d.isRest ? "Rest" : `${(d.exercises||[]).length} exercises` })
-  ]),
-  el("div", { class:"c3dChips" }, chips)
-]);
-
-const card = el("div", {
-  class: "c3dCard" + (isSel ? " sel" : "") + (isFlipped ? " flipped" : ""),
-  style: `--x:${x}px; --y:${y}px; --z:${z}px; --rot:${rot}deg; --scale:${scale}; --op:${op};`
-}, [
-  el("div", { class:"c3dInner" }, [
-    frontFace,
-    buildBackFace()
-  ])
-]);
-
-      // Tap cards:
-// - If you tap a DIFFERENT day → switch day + close snapshot
-// - If you tap the SAME selected day again → toggle snapshot
-card.addEventListener("click", () => {
-  // Tap cards:
-  // - Tap DIFFERENT day → switch day (repaint needed)
-  // - Tap SAME selected day → toggle flip IN-PLACE (no repaint → smooth animation)
-  if(idx === selectedIndex){
-    UIState.routine.flipOpen = !UIState.routine.flipOpen;
-
-    // ✅ Toggle flip classes without rebuilding DOM (enables transitions)
-    card.classList.toggle("flipped", UIState.routine.flipOpen);
-    c3d.classList.toggle("flipMode", UIState.routine.flipOpen);
-
-    return; // IMPORTANT: no repaint
-  }
-
-  // Switching days still requires repaint (different content + positions)
-  selectedIndex = idx;
-  UIState.routine.flipOpen = false;
-  repaint();
-});
-
-
-
-
-
-      c3d.appendChild(card);
-    });
-
-    return c3d;
-  })(),
-
-  // Fixed day strip under carousel (tap to jump)
-  el("div", { class:"routineDayStrip" }, [
-    ...(weekStartsOn === "sun" ? [0,1,2,3,4,5,6] : [1,2,3,4,5,6,0]).map(i => {
-      const label = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i].toUpperCase();
-      return el("button", {
-        class: "routineDayBtn" + (i === selectedIndex ? " sel" : ""),
-onClick: () => {
-  selectedIndex = i;
-  UIState.routine.showSnapshot = false;
-  repaint();
-}
-
-      }, [
-        el("div", { text: label }),
-        el("div", { class:"dot" })
-      ]);
-    })
-  ])
-]));
-
-
     // Rest Day
     if(day.isRest){
 scrollHost.appendChild(el("div", { class:"card restCard" }, [
