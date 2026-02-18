@@ -1720,6 +1720,38 @@ body.modalOpen{
 .routineMiniCard{
   padding: 16px 16px 14px;
 }
+  /* A3 — Compact combined Routine header (3D OFF) */
+.routineCompactCard{
+  padding: 14px 14px 12px;
+}
+.routineCompactTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 10px;
+}
+.routineCompactTop .note{
+  margin-top: 4px;
+}
+.routineCompactRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.manageLink.compact{
+  margin-top: 0;
+  font-weight: 850;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+}
+.manageLink.compact:active{ transform: translateY(1px); }
+.routineMiniTitle.compact{
+  font-size: 26px;
+  margin-top: 2px;
+}
 .routineMiniLabel{
   font-size: 12px;
   letter-spacing: .9px;
@@ -6839,43 +6871,50 @@ function openExerciseHistoryModal(type, exerciseId, exNameOverride=null){
   }
 }
 
+       // ────────────────────────────
+    // Routine header visual: 3D carousel OR compact header (based on Settings)
     // ────────────────────────────
-    // Header Card (locked layout)
+    const wants3D = (state.profile?.show3DCards === undefined) ? true : !!state.profile.show3DCards;
+
     // ────────────────────────────
-fixedHost.appendChild(el("div", { class:"card" }, [
-      el("h2", { text:"Routine" }),
-      el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
+    // Header Card (locked layout) — only when 3D is ON
+    // ────────────────────────────
+    if(wants3D){
+      fixedHost.appendChild(el("div", { class:"card" }, [
+        el("h2", { text:"Routine" }),
+        el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
 
-      el("div", { style:"height:10px" }),
+        el("div", { style:"height:10px" }),
 
-      el("div", { class:"rHdrRow" }, [
-        el("button", {
-          class:"btn ghost",
-          onClick: (e) => openRoutinePicker(e.currentTarget)
-        }, [`${routine.name} ▼`]),
+        el("div", { class:"rHdrRow" }, [
+          el("button", {
+            class:"btn ghost",
+            onClick: (e) => openRoutinePicker(e.currentTarget)
+          }, [`${routine.name} ▼`]),
 
-        el("button", {
-          class:"btn primary",
-          onClick: () => {
-            selectedIndex = todayIndex;
-            repaint();
-            setTimeout(()=>{
-              const first = scrollHost.querySelector("[data-unlogged='true']");
-              if(first){
-                first.scrollIntoView({ behavior:"smooth", block:"center" });
-                first.classList.add("pulse");
-                setTimeout(()=>first.classList.remove("pulse"),1200);
-              }
-            },0);
-          }
-        }, ["▶ Start Today"])
-      ]),
+          el("button", {
+            class:"btn primary",
+            onClick: () => {
+              selectedIndex = todayIndex;
+              repaint();
+              setTimeout(()=>{
+                const first = scrollHost.querySelector("[data-unlogged='true']");
+                if(first){
+                  first.scrollIntoView({ behavior:"smooth", block:"center" });
+                  first.classList.add("pulse");
+                  setTimeout(()=>first.classList.remove("pulse"),1200);
+                }
+              },0);
+            }
+          }, ["▶ Start Today"])
+        ]),
 
-      el("div", {
-        class:"manageLink",
-        onClick: () => navigate("routine_editor")
-      }, ["Manage Routine ▾"])
-    ]));
+        el("div", {
+          class:"manageLink",
+          onClick: () => navigate("routine_editor")
+        }, ["Manage Routine ▾"])
+      ]));
+    }
 
     if(!day){
       scrollHost.appendChild(el("div", { class:"card note" }, ["No day found."]));
@@ -7111,39 +7150,33 @@ if(wants3D){
 
   ]));
 } else {
-  // ✅ Minimal (3D OFF) header: Apple-style
+    // ✅ Compact combined header (3D OFF): merges Routine controls + Day tabs
   const dayNamesFull = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const dayNamesShort = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
   const dSel = getDay(selectedIndex) || { label:"Day", isRest:false, exercises:[] };
 
   function muscleSummaryForDay(day){
-  try{
-    // Preferred display order (consistent + minimal)
-    const order = ["Chest","Back","Shoulders","Arms","Legs","Full Body","Cardio","Core"];
-    const found = new Set();
+    try{
+      // Preferred display order (consistent + minimal)
+      const order = ["Chest","Back","Shoulders","Arms","Legs","Full Body","Cardio","Core"];
+      const found = new Set();
 
-    (day.exercises || []).forEach(ex => {
-      const type = ex?.type || "weightlifting";
+      (day.exercises || []).forEach(ex => {
+        const type = ex?.type || "weightlifting";
+        const nm = ex?.nameSnap || ex?.name || "";
+        const hit = findLibItem(type, nm);
+        const pm = hit?.primaryMuscle;
+        if(pm) found.add(pm);
+      });
 
-      // Your routine day items may have name or nameSnap
-      const nm = ex?.nameSnap || ex?.name || "";
-
-      // ✅ Use your app’s canonical library resolver
-      const hit = findLibItem(type, nm);
-      const pm = hit?.primaryMuscle;
-
-      if(pm) found.add(pm);
-    });
-
-    const arr = Array.from(found);
-    arr.sort((a,b) => order.indexOf(a) - order.indexOf(b));
-    return arr.slice(0,3).join(" / "); // ✅ minimal
-  }catch(_){
-    return "";
+      const arr = Array.from(found);
+      arr.sort((a,b) => order.indexOf(a) - order.indexOf(b));
+      return arr.slice(0,3).join(" / "); // ✅ minimal
+    }catch(_){
+      return "";
+    }
   }
-}
-
 
   const exCount = (dSel.exercises || []).length;
   const muscles = muscleSummaryForDay(dSel);
@@ -7152,14 +7185,53 @@ if(wants3D){
     ? "Rest Day • Recovery Focus"
     : `${exCount} Exercise${exCount===1?"":"s"}${muscles ? " • " + muscles : ""}`;
 
-  fixedHost.appendChild(el("div", { class:"card routineMiniCard" }, [
-    el("div", { class:"routineMiniTop" }, [
-      el("div", { class:"routineMiniLabel", text: (routine?.name || "Routine").toUpperCase() }),
-      el("div", { class:"routineMiniTitle", text: dayNamesFull[selectedIndex] }),
-      el("div", { class:"routineMiniMeta", text: metaLine })
+  fixedHost.appendChild(el("div", { class:"card routineCompactCard" }, [
+    // Top: routine picker + start today
+    el("div", { class:"routineCompactTop" }, [
+      el("div", {}, [
+        el("div", { class:"routineMiniLabel", text:"ROUTINE" }),
+        el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` })
+      ]),
+
+      el("button", {
+        class:"btn primary",
+        onClick: () => {
+          selectedIndex = todayIndex;
+          repaint();
+          setTimeout(()=>{
+            const first = scrollHost.querySelector("[data-unlogged='true']");
+            if(first){
+              first.scrollIntoView({ behavior:"smooth", block:"center" });
+              first.classList.add("pulse");
+              setTimeout(()=>first.classList.remove("pulse"),1200);
+            }
+          },0);
+        }
+      }, ["▶ Today"])
     ]),
 
-    el("div", { style:"height:12px" }),
+    el("div", { style:"height:10px" }),
+
+    // Routine selector + manage
+    el("div", { class:"routineCompactRow" }, [
+      el("button", {
+        class:"btn ghost",
+        onClick: (e) => openRoutinePicker(e.currentTarget)
+      }, [`${routine.name} ▼`]),
+
+      el("div", {
+        class:"manageLink compact",
+        onClick: () => navigate("routine_editor")
+      }, ["Manage ▾"])
+    ]),
+
+    el("div", { style:"height:10px" }),
+
+    // Day title + meta
+    el("div", { class:"routineMiniTitle compact", text: dayNamesFull[selectedIndex] }),
+    el("div", { class:"routineMiniMeta", text: metaLine }),
+
+    el("div", { style:"height:10px" }),
 
     // Day tabs with underline animation
     el("div", { class:"routineTabs", style:`--i:${selectedIndex};` }, [
@@ -7176,7 +7248,6 @@ if(wants3D){
       el("div", { class:"routineTabUnderline", "aria-hidden":"true" })
     ])
   ]));
-}
 
     // Rest Day
     if(day.isRest){
