@@ -7118,31 +7118,32 @@ if(wants3D){
   const dSel = getDay(selectedIndex) || { label:"Day", isRest:false, exercises:[] };
 
   function muscleSummaryForDay(day){
-    try{
-      const pool = []
-        .concat(lib.weightlifting || [], lib.cardio || [], lib.core || [])
-        .concat(state.exerciseLibrary?.weightlifting || [], state.exerciseLibrary?.cardio || [], state.exerciseLibrary?.core || []);
+  try{
+    // Preferred display order (consistent + minimal)
+    const order = ["Chest","Back","Shoulders","Arms","Legs","Full Body","Cardio","Core"];
+    const found = new Set();
 
-      const byName = new Map(pool.map(x => [normName(x.name), x]));
+    (day.exercises || []).forEach(ex => {
+      const type = ex?.type || "weightlifting";
 
-      // Preferred display order (keeps the summary consistent)
-      const order = ["Chest","Back","Shoulders","Arms","Legs","Full Body","Cardio","Core"];
-      const found = new Set();
+      // Your routine day items may have name or nameSnap
+      const nm = ex?.nameSnap || ex?.name || "";
 
-      (day.exercises || []).forEach(ex => {
-        const nm = normName(ex?.name || "");
-        const hit = byName.get(nm);
-        const pm = hit?.primaryMuscle;
-        if(pm) found.add(pm);
-      });
+      // ✅ Use your app’s canonical library resolver
+      const hit = findLibItem(type, nm);
+      const pm = hit?.primaryMuscle;
 
-      const arr = Array.from(found);
-      arr.sort((a,b) => order.indexOf(a) - order.indexOf(b));
-      return arr.slice(0,3).join(" / "); // ✅ minimal
-    }catch(_){
-      return "";
-    }
+      if(pm) found.add(pm);
+    });
+
+    const arr = Array.from(found);
+    arr.sort((a,b) => order.indexOf(a) - order.indexOf(b));
+    return arr.slice(0,3).join(" / "); // ✅ minimal
+  }catch(_){
+    return "";
   }
+}
+
 
   const exCount = (dSel.exercises || []).length;
   const muscles = muscleSummaryForDay(dSel);
