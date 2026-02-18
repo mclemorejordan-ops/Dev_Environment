@@ -1443,6 +1443,16 @@ body.modalOpen{
   will-change: transform, opacity, filter;
   overflow: hidden; /* important for overlay */
 }
+    /* Transform wrapper for carousel positioning */
+.c3dWrap{
+  position:absolute;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
     /* ─────────────────────────────
    3D Card Flip (Front/Back)
    ───────────────────────────── */
@@ -1462,6 +1472,57 @@ body.modalOpen{
 
 .c3dCard.flipped .c3dInner{
   transform: rotateY(180deg);
+}
+    /* ─────────────────────────────
+   Flip + Enlarge (Focus Mode)
+   ───────────────────────────── */
+
+/* When a card is flipped, make it readable */
+.c3dCard.flipped{
+  z-index: 50; /* above other cards */
+}
+
+/* Extra focus: enlarge + bring forward */
+.c3dCard.flipped.focus{
+  /* NOTE: we do NOT set width here because your carousel uses transform positioning.
+     We enlarge visually via scale() + translateZ() and rely on stage height increase. */
+  filter: none;
+}
+
+/* Make the card itself larger when flipped (applies on top of your carousel transform) */
+.c3dCard.flipped.focus{
+  /* This stacks with your inline transform visually because the inline transform still applies;
+     but scale here affects the element in its final positioned state. */
+  transform: scale(1.18) translateZ(140px);
+}
+
+/* Give the back face a bit more legible typography */
+.c3dCard.flipped .c3dSnapTitle{ font-size: 14px; }
+.c3dCard.flipped .c3dSnapSub{ font-size: 13px; }
+.c3dCard.flipped .c3dSnapRow{ font-size: 13px; }
+
+/* When flipped, allow the stage to grow so it doesn't clip */
+.c3d.flippedStage{
+  height: 260px; /* was 160px */
+  transition: height 260ms cubic-bezier(.2,.9,.2,1);
+}
+
+/* Smooth default stage height */
+.c3d{
+  transition: height 260ms cubic-bezier(.2,.9,.2,1);
+}
+
+/* Optional: dim everything else harder while focused */
+.c3d.flippedStage .c3dCard:not(.sel){
+  filter: blur(.2px) saturate(.55) brightness(.48);
+  opacity: .70;
+}
+    // Expand the stage when flipped so the focused card isn't clipped
+c3d.classList.toggle("flippedStage", !!UIState.routine.flipOpen);
+
+
+@media (prefers-reduced-motion: reduce){
+  .c3d, .c3d.flippedStage{ transition:none; }
 }
 
 .c3dFace{
@@ -6907,15 +6968,24 @@ const frontFace = el("div", { class:"c3dFace front" }, [
   el("div", { class:"c3dChips" }, chips)
 ]);
 
-const card = el("div", {
-  class: "c3dCard" + (isSel ? " sel" : "") + (isFlipped ? " flipped" : ""),
+// Wrapper owns the carousel transform positioning
+const wrap = el("div", {
+  class: "c3dWrap",
   style: `transform: translateX(${x}px) translateY(${y}px) translateZ(${z}px) rotateY(${rot}deg) scale(${scale}); opacity:${op};`
+}, []);
+
+const card = el("div", {
+  class: "c3dCard" + (isSel ? " sel" : "") + (isFlipped ? " flipped focus" : "")
 }, [
   el("div", { class:"c3dInner" }, [
     frontFace,
     buildBackFace()
   ])
 ]);
+
+wrap.appendChild(card);
+c3d.appendChild(wrap);
+
 
       // Tap cards:
 // - If you tap a DIFFERENT day → switch day + close snapshot
