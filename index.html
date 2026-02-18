@@ -70,6 +70,15 @@
    Global scaling control (Safari mobile fix)
    Makes default size match “A down twice”
 ───────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   Global scaling control (Safari mobile fix)
+   + User-selectable UI scale (Settings)
+───────────────────────────────────────────── */
+:root{
+  --baseFont: 14px;  /* “A down twice” baseline */
+  --uiScale: 1;      /* user multiplier (0.85–1.10 etc) */
+}
+
 html{
   height:100%;
 
@@ -77,9 +86,10 @@ html{
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 
-  /* ✅ Smaller default UI scale */
-  font-size: 14px;   /* If still slightly large, change to 13px */
+  /* ✅ Baseline * user scale */
+  font-size: calc(var(--baseFont) * var(--uiScale));
 }
+
 
 body{
 
@@ -2729,6 +2739,26 @@ const Storage = {
 
 // ✅ Load state AFTER Storage exists
 let state = Storage.load();
+
+    // ─────────────────────────────
+// UI Scale (user-controlled)
+// ─────────────────────────────
+function applyUIScaleFromProfile(){
+  try{
+    const raw = Number(state?.profile?.uiScale);
+    // Default 1.0 if unset/invalid
+    const scale = (Number.isFinite(raw) && raw > 0) ? raw : 1;
+
+    // Clamp to safe bounds (prevents tiny/huge UI)
+    const clamped = Math.max(0.80, Math.min(1.15, scale));
+
+    document.documentElement.style.setProperty("--uiScale", String(clamped));
+  }catch(_){}
+}
+
+// Apply immediately on boot (Safari + PWA)
+applyUIScaleFromProfile();
+
 
 /********************
  * Backup / Import (Step 10)
@@ -8242,6 +8272,31 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           (ws === 1 || ws === "1" || ws === "mon") ? "mon" :
           "mon";
         weekSelect.value = normalized;
+// ───────────────
+// UI Scale selector (saved in profile)
+// ───────────────
+const uiScaleSelect = el("select", {});
+
+[
+  { v: "0.85", t: "Smaller (85%)" },
+  { v: "0.92", t: "Slightly smaller (92%)" },
+  { v: "1.00", t: "Standard (100%)" },
+  { v: "1.08", t: "Slightly larger (108%)" },
+  { v: "1.15", t: "Larger (115%)" }
+].forEach(o => uiScaleSelect.appendChild(el("option", { value:o.v, text:o.t })));
+
+// Default from profile (or 1.0)
+const currentScale = Number(state.profile?.uiScale);
+uiScaleSelect.value = (Number.isFinite(currentScale) ? String(currentScale.toFixed(2)) : "1.00");
+
+// Live preview (does NOT save until “Save changes”)
+uiScaleSelect.addEventListener("change", () => {
+  const v = Number(uiScaleSelect.value);
+  if(Number.isFinite(v) && v > 0){
+    document.documentElement.style.setProperty("--uiScale", String(v));
+    showToast("Preview size applied");
+  }
+});
 
 
         let hideRestDays = !!state.profile?.hideRestDays;
@@ -8276,10 +8331,20 @@ function saveProfile(){
   // ✅ Persist the preference
   state.profile.show3DCards = !!show3DCards;
 
+  // ✅ NEW: persist UI scale (clamped)
+  const raw = Number(uiScaleSelect.value);
+  const scale = (Number.isFinite(raw) && raw > 0) ? raw : 1;
+  state.profile.uiScale = Math.max(0.80, Math.min(1.15, scale));
+
   Storage.save(state);
+
+  // Apply immediately everywhere (Safari + PWA)
+  applyUIScaleFromProfile();
+
   showToast("Saved");
   renderView();
 }
+
 
 
         // --- Existing import/export helpers (reuse your current functions) ---
@@ -8386,6 +8451,13 @@ function saveProfile(){
     ]),
     hideRestSwitch
   ]),
+          el("div", { class:"setRow" }, [
+  el("div", {}, [
+    el("div", { style:"font-weight:820;", text:"UI scale" }),
+    el("div", { class:"meta", text:"Adjust overall app size (Safari + Home Screen)" })
+  ]),
+  uiScaleSelect
+]),
 
   // ✅ NEW: 3D card toggle
   el("div", { class:"setRow" }, [
