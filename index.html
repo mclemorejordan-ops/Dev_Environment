@@ -3330,48 +3330,143 @@ lib.core = [
       const found = (state.exerciseLibrary?.[type] || []).find(x => x.id === exerciseId);
       return found?.name || fallback || "Unknown exercise";
     }
-    /********************
-     * 4c) Protein (Today) Helpers (Step 5)
-     ********************/
-    function getProteinForDate(dateISO){
-      state.logs = state.logs || { workouts: [], weight: [], protein: [] };
-      state.logs.protein = state.logs.protein || [];
-      let entry = state.logs.protein.find(x => x.dateISO === dateISO);
-      if(!entry){
-        entry = { dateISO, meals: [] }; // meals: [{ id, label, grams }]
-        state.logs.protein.push(entry);
-        Storage.save(state);
-      }
-      return entry;
-    }
+   /********************
+ * 4c) Protein (Today) Helpers (Step 5)
+ * OPTION B: A date only exists if user logs >0g and saves
+ ********************/
 
-    function upsertMeal(dateISO, mealId, label, grams){
-      const p = getProteinForDate(dateISO);
-      p.meals = p.meals || [];
-      const idx = p.meals.findIndex(m => m.id === mealId);
-      const clean = {
-        id: mealId || uid("meal"),
-        label: (label || "").trim() || "Meal",
-        grams: Math.max(0, Math.round(Number(grams) || 0))
-      };
-      if(idx >= 0) p.meals[idx] = clean;
-      else p.meals.push(clean);
-      Storage.save(state);
-      return clean.id;
-    }
+// ✅ Read-only lookup (never creates/saves)
+function findProteinEntry(dateISO){
+  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
+  state.logs.protein = state.logs.protein || [];
+  return state.logs.protein.find(x => x.dateISO === dateISO) || null;
+}
 
-    function deleteMeal(dateISO, mealId){
-      const p = getProteinForDate(dateISO);
-      p.meals = p.meals || [];
-      const idx = p.meals.findIndex(m => m.id === mealId);
-      if(idx >= 0) p.meals.splice(idx, 1);
-      Storage.save(state);
-    }
+// ✅ Write-path helper (creates ONLY when we truly need to save something)
+function ensureProteinEntry(dateISO){
+  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
+  state.logs.protein = state.logs.protein || [];
+  let entry = state.logs.protein.find(x => x.dateISO === dateISO);
+  if(!entry){
+    entry = { dateISO, meals: [] }; // meals: [{ id, label, grams }]
+    state.logs.protein.push(entry);
+    Storage.save(state);
+  }
+  return entry;
+}
 
-    function totalProtein(dateISO){
-      const p = getProteinForDate(dateISO);
-      return (p.meals || []).reduce((sum,m) => sum + (Number(m.grams)||0), 0);
-    }
+// ✅ If an entry has no meals, remove the entire day so it doesn't appear in history
+function cleanupProteinEntryIfEmpty(dateISO){
+  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
+  state.logs.protein = state.logs.protein || [];
+
+  const idx = state.logs.protein.findIndex(x => x.dateISO === dateISO);
+  if(idx < 0) return;
+
+  const entry = state.logs.protein[idx];
+  const meals = Array.isArray(entry?.meals) ? entry.meals : [];
+  if(meals.length === 0){
+    state.logs.protein.splice(idx, 1);
+    Storage.save(state);
+  }
+}
+
+/********************
+ * 4c) Protein (Today) Helpers (Step 5)
+ * OPTION B: A date only exists if user logs >0g and saves
+ ********************/
+
+// ✅ Read-only lookup (never creates/saves)
+function findProteinEntry(dateISO){
+  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
+  state.logs.protein = state.logs.protein || [];
+  return state.logs.protein.find(x => x.dateISO === dateISO) || null;
+}
+
+// ✅ Write-path helper (creates ONLY when we truly need to save something)
+function ensureProteinEntry(dateISO){
+  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
+  state.logs.protein = state.logs.protein || [];
+  let entry = state.logs.protein.find(x => x.dateISO === dateISO);
+  if(!entry){
+    entry = { dateISO, meals: [] }; // meals: [{ id, label, grams }]
+    state.logs.protein.push(entry);
+    Storage.save(state);
+  }
+  return entry;
+}
+
+// ✅ If an entry has no meals, remove the entire day so it doesn't appear in history
+function cleanupProteinEntryIfEmpty(dateISO){
+  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
+  state.logs.protein = state.logs.protein || [];
+
+  const idx = state.logs.protein.findIndex(x => x.dateISO === dateISO);
+  if(idx < 0) return;
+
+  const entry = state.logs.protein[idx];
+  const meals = Array.isArray(entry?.meals) ? entry.meals : [];
+  if(meals.length === 0){
+    state.logs.protein.splice(idx, 1);
+    Storage.save(state);
+  }
+}
+
+// ⚠️ Keep for compatibility (but this DOES create). Use only for write paths.
+function getProteinForDate(dateISO){
+  return ensureProteinEntry(dateISO);
+}
+
+// ✅ Save/update a meal:
+// - If grams <= 0 → treat as "no log" and delete meal if it exists
+// - If grams > 0 → create the day entry if missing and save
+function upsertMeal(dateISO, mealId, label, grams){
+  const cleanGrams = Math.max(0, Math.round(Number(grams) || 0));
+
+  // ✅ If user sets 0g, this means "do not keep an entry"
+  if(cleanGrams <= 0){
+    if(mealId) deleteMeal(dateISO, mealId); // safe: won't create a day
+    return null;
+  }
+
+  const p = ensureProteinEntry(dateISO);
+  p.meals = p.meals || [];
+
+  const idx = p.meals.findIndex(m => m.id === mealId);
+  const clean = {
+    id: mealId || uid("meal"),
+    label: (label || "").trim() || "Meal",
+    grams: cleanGrams
+  };
+
+  if(idx >= 0) p.meals[idx] = clean;
+  else p.meals.push(clean);
+
+  Storage.save(state);
+  return clean.id;
+}
+
+// ✅ Delete a meal without creating the day.
+// If last meal removed → delete the entire day entry.
+function deleteMeal(dateISO, mealId){
+  const p = findProteinEntry(dateISO);
+  if(!p) return;
+
+  p.meals = p.meals || [];
+  const idx = p.meals.findIndex(m => m.id === mealId);
+  if(idx >= 0) p.meals.splice(idx, 1);
+
+  Storage.save(state);
+  cleanupProteinEntryIfEmpty(dateISO);
+}
+
+// ✅ Read-only total (never creates/saves)
+function totalProtein(dateISO){
+  const p = findProteinEntry(dateISO);
+  if(!p || !Array.isArray(p.meals)) return 0;
+  return p.meals.reduce((sum,m) => sum + (Number(m.grams)||0), 0);
+}
+
     function buildProteinTodayModal(dateISO, goal){
   const container = el("div", { class:"grid" });
 
@@ -3427,7 +3522,7 @@ lib.core = [
   }
 
   // ---- load existing data and auto-convert (map existing meals into the 5 standard slots) ----
-  const entry = getProteinForDate(dateISO);
+  const entry = findProteinEntry(dateISO) || { dateISO, meals: [] };
   const existingMeals = (entry?.meals || []).slice();
 
   // map by label (case-insensitive)
@@ -5327,7 +5422,7 @@ el("div", { class:"card" }, [
         for(let i=0;i<7;i++){
           const dISO = Dates.addDaysISO(startThisWeekISO, i);
           const total = proteinTotalForDateRO(dISO);
-          const hasEntry = cleaned.some(x => x.dateISO === dISO && Array.isArray(x.meals) && x.meals.length);
+          const hasEntry = total > 0;
           if(hasEntry){
             weekLoggedDays++;
             weekSum += total;
@@ -5414,7 +5509,7 @@ el("div", { class:"card" }, [
           // show only days that actually have entries (plus today for “This Week” visibility)
           const cards = [];
           for(const dISO of dateList){
-            const hasEntry = cleaned.some(x => x.dateISO === dISO && Array.isArray(x.meals) && x.meals.length);
+            const hasEntry = proteinTotalForDateRO(dISO) > 0;
             if(hasEntry || (title === "This Week" && Dates.sameISO(dISO, todayISO))){
               cards.push(dayCard(dISO));
             }
