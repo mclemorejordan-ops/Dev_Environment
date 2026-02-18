@@ -2248,49 +2248,70 @@ html[data-ui="xl"]{ --ui-font-size: 18px; }
     font-size: 16px !important;
   }
 }
+    /* ─────────────────────────────
+   ✅ UI Scale (Safari A button equivalent)
+   applyUIScale() sets: <html data-ui="sm|md|lg|xl">
+   We scale #uiRoot and compensate width so layout still fits.
+───────────────────────────── */
+:root{ --uiScale: 1; }
+
+html[data-ui="sm"]{ --uiScale: .92; }
+html[data-ui="md"]{ --uiScale: 1; }
+html[data-ui="lg"]{ --uiScale: 1.08; }
+html[data-ui="xl"]{ --uiScale: 1.16; }
+
+#uiRoot{
+  transform: scale(var(--uiScale));
+  transform-origin: top center;
+  width: calc(100% / var(--uiScale));
+  margin: 0 auto;
+}
   </style>
 </head>
 
 <body>
-  <div class="app">
-<header>
-  <div class="topbar">
-    <div class="brand">
-      <div class="title" id="appTitle">Gym Dashboard</div>
+  <!-- ✅ UI Scale root (Safari A button equivalent) -->
+  <div id="uiRoot">
+    <div class="app">
+      <header>
+        <div class="topbar">
+          <div class="brand">
+            <div class="title" id="appTitle">Gym Dashboard</div>
 
-      <div class="subtitle" id="appSubtitle">
-        <div class="subPills">
-          <button class="subPill" id="syncPill" type="button">Offline</button>
-          <button class="subPill" id="verPill" type="button">v0.0.0</button>
+            <div class="subtitle" id="appSubtitle">
+              <div class="subPills">
+                <button class="subPill" id="syncPill" type="button">Offline</button>
+                <button class="subPill" id="verPill" type="button">v0.0.0</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="chip" id="chipStatus">Not set up</div>
         </div>
-      </div>
+      </header>
+
+      <main id="viewRoot"></main>
     </div>
 
-    <div class="chip" id="chipStatus">Not set up</div>
-  </div>
-</header>
+    <div class="nav">
+      <div class="navbar" id="navbar"></div>
+    </div>
 
-
-    <main id="viewRoot"></main>
-  </div>
-
-  <div class="nav">
-    <div class="navbar" id="navbar"></div>
-  </div>
-
-  <!-- Modal Host -->
-  <div class="modalHost" id="modalHost" aria-hidden="true">
-    <div class="backdrop" id="modalBackdrop"></div>
-    <div class="sheet" role="dialog" aria-modal="true">
-      <div class="sheetHeader">
-        <div class="h" id="modalTitle">Modal</div>
-        <button class="xbtn" id="modalClose">Close</button>
+    <!-- Modal Host -->
+    <div class="modalHost" id="modalHost" aria-hidden="true">
+      <div class="backdrop" id="modalBackdrop"></div>
+      <div class="sheet" role="dialog" aria-modal="true">
+        <div class="sheetHeader">
+          <div class="h" id="modalTitle">Modal</div>
+          <button class="xbtn" id="modalClose">Close</button>
+        </div>
+        <div id="modalBody"></div>
       </div>
-      <div id="modalBody"></div>
     </div>
   </div>
 
   <script>
+
     /********************
      * 1) State + Storage
      ********************/
@@ -2917,7 +2938,17 @@ function setUIScale(scale){
   const s = (scale === "sm" || scale === "md" || scale === "lg" || scale === "xl") ? scale : "md";
   try{ localStorage.setItem(UI_SCALE_KEY, s); }catch(_){}
   applyUIScale(s);
+
+  // Helps iOS reflow some fixed/positioned elements after scaling
+  try{ window.dispatchEvent(new Event("resize")); }catch(_){}
+
+  // Feedback so it doesn't feel like "nothing happened"
+  try{
+    const label = (s === "sm") ? "A−" : (s === "md") ? "A" : (s === "lg") ? "A+" : "A++";
+    showToast(`Text size: ${label}`);
+  }catch(_){}
 }
+
     
     /********************
      * Attendance Helpers (Step 9)
