@@ -1,127 +1,178 @@
-Gym Dashboard (Offline Tracker)
+# Gym Dashboard (PWA)
 
-A minimalist, iOS-style gym tracking dashboard that runs entirely in the browser
-(no login, no backend).
+A production-hardened, fully client-side Progressive Web App for
+tracking:
 
-Tracks weight, protein, attendance, routines, and lift progress with PR history.
+-   Workouts & Routines
+-   Exercise Progress
+-   Weight Tracking
+-   Protein Intake
+-   Attendance
+-   Backup & Restore
 
+Built as a single-file SPA with deterministic service worker updates,
+schema migration safety, and zero data loss guarantees.
 
-FEATURES
---------
+------------------------------------------------------------------------
 
-ONBOARDING
-- Create profile (name, protein goal, week starts on, hide rest days)
-- Create routine from templates:
-  - PPL
-  - Upper / Lower
-  - Full Body (3-day)
-  - Body Part Split
-  - Blank
+# Architecture Overview
 
-HOME DASHBOARD
-- Today’s workout (auto based on day of week)
-- Weekly attendance dots + quick “Check In”
-- Protein “grams left” ring + focus text
+## Core Files
 
-ROUTINE
-- Multiple routines (create / edit / duplicate / delete)
-- Template routines converted into saved routines
-- Mark days as rest days (hidden if enabled)
+  File                   Purpose
+  ---------------------- ------------------------------------------------------------
+  index.html             Main application (UI, routing, state engine)
+  sw.js                  Versioned service worker (offline + deterministic updates)
+  version.json           Single source of truth for version + release notes
+  manifest.webmanifest   PWA install configuration
 
-LOG SETS
-- Log sets per exercise (weight + reps)
-- Automatically calculates lifetime max and PR flags
-- Exercise history modal
+------------------------------------------------------------------------
 
-PROGRESS
-- Table view + graph view (Chart.js)
-- Graph metrics:
-  - Top Weight
-  - Estimated 1RM (Epley)
-  - Volume
-- Download current graph as PNG
+# State & Schema System
 
-WEIGHT
-- Table view + graph view (Chart.js)
-- Latest entry, delta, and 7-day average
+The application uses a schema‑guarded local storage model.
 
-ATTENDANCE
-- Tap calendar days trained
-- Monthly count + clear month
+``` js
+const SCHEMA_VERSION = 1;
+```
 
-PROTEIN
-- Daily meal breakdown + remaining goal
-- Home ring updates live while typing (today)
+## Migration Strategy
 
-BACKUP / IMPORT
-- Export full app data as JSON
-- Import backup JSON (overwrites current browser data)
+All loaded state passes through:
 
+``` js
+migrateState(saved)
+```
 
-DATA STORAGE (IMPORTANT)
-------------------------
-This app stores data using localStorage on the device/browser you use.
+Guarantees:
 
-That means:
-- Clearing browser data clears your gym data
-- Using a different browser/device starts fresh unless you import a backup
+-   Always merges into DefaultState()
+-   Ensures required containers exist
+-   Normalizes arrays/objects
+-   Prevents runtime crashes from corrupted data
+-   Automatically stamps latest schemaVersion
 
-Recommended:
-Use Settings → Backup Now regularly.
+Critical containers guarded:
 
+-   routines\[\]
+-   exerciseLibrary.{weightlifting, cardio, core}\[\]
+-   logs.{workouts, weight, protein}\[\]
+-   attendance\[\]
 
-RUN LOCALLY
------------
+No state is ever used without migration repair.
 
-OPTION 1: OPEN DIRECTLY
-Open index.html in your browser.
+------------------------------------------------------------------------
 
-Note:
-Some browsers block features when running from file://
-If anything behaves oddly, use a local server.
+# Versioning System (Deterministic Updates)
 
+`version.json` is the single source of truth.
 
-OPTION 2: SIMPLE LOCAL SERVER (RECOMMENDED)
+When version.json changes:
 
-macOS / Linux:
-cd <repo-folder>
-python3 -m http.server 8000
+1.  The app detects a new version.
+2.  Service worker URL becomes:
 
-Windows (PowerShell):
-cd <repo-folder>
-python -m http.server 8000
+```{=html}
+<!-- -->
+```
+    ./sw.js?v=<version>
 
-Then open:
-http://localhost:8000
+3.  Browser installs new service worker.
+4.  Old caches are deterministically removed.
+5.  User taps "Reload to update".
+6.  Controller switches once.
+7.  App reloads safely without clearing localStorage.
 
+User data is never wiped during updates.
 
-PROJECT STRUCTURE
------------------
-index.html
-assets/
-  css/
-    styles.css
-  js/
-    storage.js   (localStorage helper + keys)
-    dom.js       (DOM helpers / shared selectors)
-    utils.js     (general helpers: dates, formatting, normalization)
-    app.js       (main app logic, router, features)
+------------------------------------------------------------------------
 
+# Version Metadata Isolation
 
-TROUBLESHOOTING
----------------
+Version data is stored separately from user state:
 
-BLANK SCREEN
-- Open DevTools Console
-- Check for errors
-- Confirm script order in index.html:
-  1. Chart.js
-  2. storage.js
-  3. dom.js
-  4. utils.js
-  5. app.js
+-   gymdash:latestVersion
+-   gymdash:appliedVersion
+-   gymdash:latestNotes
+-   gymdash:latestBuildDate
 
-DATA MISSING
-- You may be on a different browser/device
-- Check Settings → Storage info
-- Restore using Import if you have a backup JSON
+This ensures:
+
+-   Updates do not modify profile data
+-   Version tracking is device-specific
+-   Safe reload under new build
+
+------------------------------------------------------------------------
+
+# Update Activation Safety
+
+Before applying an update:
+
+``` js
+Storage.flush(state)
+```
+
+This guarantees:
+
+-   No pending debounced writes are lost
+-   No partial state corruption
+-   Clean transition to new build
+
+If a service worker is waiting:
+
+    SKIP_WAITING
+
+Otherwise, normal reload.
+
+------------------------------------------------------------------------
+
+# Backup & Import System
+
+Export:
+
+-   Full state snapshot
+-   Wrapped payload with metadata
+
+Import validation ensures:
+
+-   Valid JSON
+-   schemaVersion present
+-   Required containers exist
+-   Automatic migration before applying
+
+Imported data fully replaces local state only after validation succeeds.
+
+------------------------------------------------------------------------
+
+# UI Architecture
+
+-   Mobile-first (100dvh layout)
+-   Sticky header + bottom navigation
+-   Scroll-locked modals
+-   Compact 3D carousel routine system
+-   Compact log set modal with sticky header
+-   Glass design system with deterministic layering
+
+Optimized for: - iPhone PWA install - Offline resilience - Touch
+performance
+
+------------------------------------------------------------------------
+
+# Deployment
+
+1.  Update version.json
+2.  Commit & deploy
+3.  User taps "Reload to update"
+
+No build tools required. No backend required. Static hosting ready.
+
+------------------------------------------------------------------------
+
+# Current Release
+
+Version: 2.6 Build Date: 2026-02-16
+
+------------------------------------------------------------------------
+
+Built with production-level update control, schema safety, and
+deterministic cache management.
