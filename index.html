@@ -5753,12 +5753,17 @@ const root = el("div", { class:"routinePage" });
   const todayIndex = today.getDay();               // 0=Sun..6=Sat
   const todayISO = Dates.todayISO(); // local date (fixes Feb 14 UTC bug)
 
-  let selectedIndex = todayIndex;
+let selectedIndex = todayIndex;
+
+// ✅ Persistent snapshot state (per routine day index)
+UIState.routine = UIState.routine || {};
+if(typeof UIState.routine.showSnapshot !== "boolean"){
+  UIState.routine.showSnapshot = false;
+}
 
   // ✅ NEW: tap-to-expand Performance Snapshot
   // - Only toggles when you tap the currently-selected day again
   // - Resets (closes) when switching to a different day
-  let showSnapshot = false;
 
   // Helpers for snapshot
   function __entriesForRoutineDayTemplate(routineId, dayId){
@@ -6697,13 +6702,14 @@ fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
 // - If you tap the SAME selected day again → toggle snapshot
 card.addEventListener("click", () => {
   if(idx === selectedIndex){
-    showSnapshot = !showSnapshot;
+    UIState.routine.showSnapshot = !UIState.routine.showSnapshot;
   }else{
     selectedIndex = idx;
-    showSnapshot = false;
+    UIState.routine.showSnapshot = false;
   }
   repaint();
 });
+
 
 
       c3d.appendChild(card);
@@ -6720,9 +6726,10 @@ card.addEventListener("click", () => {
         class: "routineDayBtn" + (i === selectedIndex ? " sel" : ""),
 onClick: () => {
   selectedIndex = i;
-  showSnapshot = false;
+  UIState.routine.showSnapshot = false;
   repaint();
 }
+
       }, [
         el("div", { text: label }),
         el("div", { class:"dot" })
@@ -6765,7 +6772,7 @@ scrollHost.appendChild(el("div", { class:"card" }, [
 // Performance Snapshot (tap-to-expand)
 // Rule: must have at least 2 completed sessions (attendance+logs) for this routine day template
 // ────────────────────────────
-if(showSnapshot){
+if(UIState.routine.showSnapshot){
   const sessionDates = __sessionDatesForRoutineDayTemplate(routine.id, day.id);
 
   // Always render the card when toggled, but lock if <2 sessions
