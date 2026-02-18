@@ -87,7 +87,7 @@ html{
   text-size-adjust: 100%;
 
   /* ✅ Baseline * user scale */
-  font-size: calc(var(--baseFont) * var(--uiScale));
+  font-size: var(--baseFont);
 }
 
 
@@ -106,12 +106,18 @@ body{
       min-height: 100dvh; /* better than 100vh for iPhone/PWA */
     }
 .app{
+       /* ✅ Global UI scale (affects ALL pages, not just Settings) */
+       transform: scale(var(--uiScale));
+       transform-origin: top center;
+       /* Compensate width so scaled UI still fits the viewport */
+       width: min(780px, calc(100% / var(--uiScale)));
+
       min-height: 100%;
       /* IMPORTANT: remove safe-area top here so HEADER can own it (looks seamless on iPhone) */
       padding: 0 14px calc(var(--navH) + env(safe-area-inset-bottom)) 14px;
-      max-width: 780px;
       margin: 0 auto;
     }
+
 header{
   position: sticky;
   top: 0;
@@ -1112,7 +1118,9 @@ select option{
       pointer-events:none;
     }
 .navbar{
-      width: min(780px, calc(100% - 18px));
+      width: min(780px, calc((100% - 18px) / var(--uiScale)));
+      transform: scale(var(--uiScale));
+      transform-origin: bottom center;
       display:flex;
       justify-content:space-between;
       gap: 8px;
@@ -8274,16 +8282,39 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
         weekSelect.value = normalized;
 // ───────────────
 // UI Scale selector (saved in profile)
+// Range: 75% → 100%
 // ───────────────
-const uiScaleSelect = el("select", {});
 
-[
-  { v: "0.85", t: "Smaller (85%)" },
-  { v: "0.92", t: "Slightly smaller (92%)" },
-  { v: "1.00", t: "Standard (100%)" },
-  { v: "1.08", t: "Slightly larger (108%)" },
-  { v: "1.15", t: "Larger (115%)" }
-].forEach(o => uiScaleSelect.appendChild(el("option", { value:o.v, text:o.t })));
+// Current value (default 100%)
+const currentScale = Number(state.profile?.uiScale);
+const initialPercent = Number.isFinite(currentScale)
+  ? Math.round(currentScale * 100)
+  : 100;
+
+// Range slider
+const uiScaleRange = el("input", {
+  type: "range",
+  min: "75",
+  max: "100",
+  step: "1",
+  value: String(initialPercent)
+});
+
+// Percentage label
+const uiScalePct = el("div", {
+  class: "meta",
+  text: initialPercent + "%"
+});
+
+// Live preview (does NOT save until Save button clicked)
+uiScaleRange.addEventListener("input", () => {
+  const percent = Number(uiScaleRange.value);
+  uiScalePct.textContent = percent + "%";
+
+  const scale = percent / 100;
+  document.documentElement.style.setProperty("--uiScale", String(scale));
+});
+
 
 // Default from profile (or 1.0)
 const currentScale = Number(state.profile?.uiScale);
@@ -8331,10 +8362,11 @@ function saveProfile(){
   // ✅ Persist the preference
   state.profile.show3DCards = !!show3DCards;
 
-  // ✅ NEW: persist UI scale (clamped)
-  const raw = Number(uiScaleSelect.value);
-  const scale = (Number.isFinite(raw) && raw > 0) ? raw : 1;
-  state.profile.uiScale = Math.max(0.80, Math.min(1.15, scale));
+  // ✅ NEW: persist UI scale (75% → 100%)
+const percent = Number(uiScaleRange.value);
+const scale = percent / 100;
+state.profile.uiScale = Math.max(0.75, Math.min(1.00, scale));
+
 
   Storage.save(state);
 
@@ -8454,10 +8486,14 @@ function saveProfile(){
           el("div", { class:"setRow" }, [
   el("div", {}, [
     el("div", { style:"font-weight:820;", text:"UI scale" }),
-    el("div", { class:"meta", text:"Adjust overall app size (Safari + Home Screen)" })
+    el("div", { class:"meta", text:"Adjust overall app size (75% – 100%)" })
   ]),
-  uiScaleSelect
+  el("div", { style:"display:flex; flex-direction:column; gap:6px; align-items:flex-end;" }, [
+    uiScaleRange,
+    uiScalePct
+  ])
 ]),
+
 
   // ✅ NEW: 3D card toggle
   el("div", { class:"setRow" }, [
