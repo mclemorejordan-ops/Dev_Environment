@@ -8321,13 +8321,6 @@ let hideRestDays = !!state.profile?.hideRestDays;
 // ✅ New: show/hide the 3D routine cards (default ON)
 let show3DCards = (state.profile?.show3DCards === undefined) ? true : !!state.profile.show3DCards;
 
-
-
-        let hideRestDays = !!state.profile?.hideRestDays;
-
-// ✅ New: show/hide the 3D routine cards (default ON)
-let show3DCards = (state.profile?.show3DCards === undefined) ? true : !!state.profile.show3DCards;
-
 const hideRestSwitch = el("div", {
   class: "switch" + (hideRestDays ? " on" : ""),
   onClick: () => {
