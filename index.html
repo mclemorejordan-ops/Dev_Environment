@@ -8273,22 +8273,23 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
         weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
         weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
 
-        // Backward compatible: accept older numeric values (0/1) if they exist
-        const ws = state.profile?.weekStartsOn;
-        const normalized =
-          (ws === 0 || ws === "0" || ws === "sun") ? "sun" :
-          (ws === 1 || ws === "1" || ws === "mon") ? "mon" :
-          "mon";
-        weekSelect.value = normalized;
+       // Backward compatible: accept older numeric values (0/1) if they exist
+const ws = state.profile?.weekStartsOn;
+const normalized =
+  (ws === 0 || ws === "0" || ws === "sun") ? "sun" :
+  (ws === 1 || ws === "1" || ws === "mon") ? "mon" :
+  "mon";
+weekSelect.value = normalized;
+
 // ───────────────
 // UI Scale selector (saved in profile)
 // Range: 75% → 100%
 // ───────────────
 
 // Current value (default 100%)
-const currentScale = Number(state.profile?.uiScale);
-const initialPercent = Number.isFinite(currentScale)
-  ? Math.round(currentScale * 100)
+const savedScale = Number(state.profile?.uiScale);
+const initialPercent = Number.isFinite(savedScale)
+  ? Math.round(savedScale * 100)
   : 100;
 
 // Range slider
@@ -8315,19 +8316,11 @@ uiScaleRange.addEventListener("input", () => {
   document.documentElement.style.setProperty("--uiScale", String(scale));
 });
 
+let hideRestDays = !!state.profile?.hideRestDays;
 
-// Default from profile (or 1.0)
-const currentScale = Number(state.profile?.uiScale);
-uiScaleSelect.value = (Number.isFinite(currentScale) ? String(currentScale.toFixed(2)) : "1.00");
+// ✅ New: show/hide the 3D routine cards (default ON)
+let show3DCards = (state.profile?.show3DCards === undefined) ? true : !!state.profile.show3DCards;
 
-// Live preview (does NOT save until “Save changes”)
-uiScaleSelect.addEventListener("change", () => {
-  const v = Number(uiScaleSelect.value);
-  if(Number.isFinite(v) && v > 0){
-    document.documentElement.style.setProperty("--uiScale", String(v));
-    showToast("Preview size applied");
-  }
-});
 
 
         let hideRestDays = !!state.profile?.hideRestDays;
@@ -8454,7 +8447,8 @@ state.profile.uiScale = Math.max(0.75, Math.min(1.00, scale));
         }
 
         // --- Section bodies ---
-        const profileBody = el("div", {}, [
+      const profileBody = el("div", {}, [
+
   el("div", { class:"setRow" }, [
     el("div", {}, [
       el("div", { style:"font-weight:820;", text:"Name" }),
@@ -8462,6 +8456,7 @@ state.profile.uiScale = Math.max(0.75, Math.min(1.00, scale));
     ]),
     nameInput
   ]),
+
   el("div", { class:"setRow" }, [
     el("div", {}, [
       el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
@@ -8469,6 +8464,7 @@ state.profile.uiScale = Math.max(0.75, Math.min(1.00, scale));
     ]),
     proteinInput
   ]),
+
   el("div", { class:"setRow" }, [
     el("div", {}, [
       el("div", { style:"font-weight:820;", text:"Week starts on" }),
@@ -8476,23 +8472,31 @@ state.profile.uiScale = Math.max(0.75, Math.min(1.00, scale));
     ]),
     weekSelect
   ]),
+
+  // ✅ UI SCALE (75% – 100%)
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"UI scale" }),
+      el("div", { class:"meta", text:"Adjust overall app size (75% – 100%)" })
+    ]),
+    el("div", {
+      style:"display:flex; flex-direction:column; gap:6px; align-items:flex-end;"
+    }, [
+      uiScaleRange,
+      uiScalePct
+    ])
+  ]),
+
   el("div", { class:"setRow" }, [
     el("div", {}, [
       el("div", { style:"font-weight:820;", text:"Hide rest days" }),
       el("div", { class:"meta", text:"Keep Home focused on training days" })
     ]),
     hideRestSwitch
-  ]),
-          el("div", { class:"setRow" }, [
-  el("div", {}, [
-    el("div", { style:"font-weight:820;", text:"UI scale" }),
-    el("div", { class:"meta", text:"Adjust overall app size (75% – 100%)" })
-  ]),
-  el("div", { style:"display:flex; flex-direction:column; gap:6px; align-items:flex-end;" }, [
-    uiScaleRange,
-    uiScalePct
   ])
-]),
+
+]);
+
 
 
   // ✅ NEW: 3D card toggle
