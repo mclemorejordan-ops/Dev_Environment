@@ -2370,7 +2370,7 @@ function exportBackupJSON(){
   // Keep export simple: full state snapshot
   const payload = {
     exportedAt: new Date().toISOString(),
-    app: "gym-dashboard-dev",
+    app: "gym-dashboard",
     data: state
   };
   return JSON.stringify(payload, null, 2);
