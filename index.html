@@ -1420,7 +1420,43 @@ body.modalOpen{
   touch-action: pan-y;
   user-select:none;
 }
+/* ─────────────────────────────
+   Flip + Expand + Dim Background
+   ───────────────────────────── */
 
+/* Backdrop overlay when flipped (makes it feel “out there”) */
+.c3d.flipMode::before{
+  content:"";
+  position:absolute;
+  inset:-18px;
+  border-radius: 22px;
+  background: rgba(0,0,0,.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Ensure cards sit above the overlay */
+.c3d.flipMode .c3dCard{ z-index: 1; }
+
+/* Dim/blur non-selected cards while flipped */
+.c3d.flipMode .c3dCard:not(.sel){
+  opacity: .10 !important;
+  filter: blur(1.6px) brightness(.70) saturate(.8);
+  pointer-events: none; /* prevents accidental taps behind */
+}
+
+/* Bring the selected card forward in stacking order */
+.c3d.flipMode .c3dCard.sel{
+  z-index: 10;
+}
+
+/* Optional: slightly enhance the selected card glass while in flip mode */
+.c3d.flipMode .c3dCard.sel{
+  box-shadow: 0 28px 85px rgba(0,0,0,.70);
+  border-color: rgba(55,214,122,.42);
+}
 /* Square “3D” card */
 /* Square “3D” card */
 .c3dCard{
@@ -6788,19 +6824,29 @@ fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
   if(!down) return;
   down = false;
 
-  // Swipe only (do NOT toggle anything on tap here)
+  // ✅ If flipped open, do NOT swipe days.
+  // Any swipe gesture just closes the flip (clean “exit” behavior).
+  if(UIState.routine?.flipOpen){
+    if(Math.abs(dx) > 18){
+      UIState.routine.flipOpen = false;
+      repaint();
+      return;
+    }
+    // Small movement → let click/tap on card handle flip toggle
+    return;
+  }
+
+  // Normal swipe behavior when NOT flipped
   if(dx <= -THRESH){
     selectedIndex = (selectedIndex + 1) % 7;
-    UIState.routine.flipOpen = false; // close flip when changing days
+    UIState.routine.flipOpen = false;
     repaint();
   }
   else if(dx >= THRESH){
     selectedIndex = (selectedIndex + 6) % 7;
-    UIState.routine.flipOpen = false; // close flip when changing days
+    UIState.routine.flipOpen = false;
     repaint();
   }
-
-  // If it was a tap, let the card's click handler handle flipping.
 }
 
 
@@ -6808,13 +6854,21 @@ fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
     const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
     const c3d = el("div", {
-      class:"c3d",
-      onPointerDown: onDown,
-      onPointerMove: onMove,
-      onPointerUp: onEnd,
-      onPointerCancel: onEnd,
-      onLostPointerCapture: onEnd
-    }, []);
+  class: "c3d" + (UIState.routine?.flipOpen ? " flipMode" : ""),
+  onPointerDown: onDown,
+  onPointerMove: onMove,
+  onPointerUp: onEnd,
+  onPointerCancel: onEnd,
+  onLostPointerCapture: onEnd,
+
+  // Tap outside the selected card (the stage) closes the flip
+  onClick: (e) => {
+    if(UIState.routine?.flipOpen && e.target === c3d){
+      UIState.routine.flipOpen = false;
+      repaint();
+    }
+  }
+}, []);
 
     // Show selected ±2
     const offsets = [-2,-1,0,1,2];
@@ -6823,20 +6877,30 @@ fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
       const d = getDay(idx) || { label:"Day", isRest:false, exercises:[] };
 
       const abs = Math.abs(off);
-      const scale = (off === 0) ? 1 : (1 - abs * 0.10);
-      const x = off * 92;              // ✅ tighter spacing (more compact)
-      const z = -(abs * 95);           // ✅ less depth than before
-      const y = abs * 6;
-      const rot = off * -22;           // ✅ slightly tighter rotation
-      const op = (off === 0) ? 1 : (abs === 1 ? .65 : .30);
 
+let scale = (off === 0) ? 1 : (1 - abs * 0.10);
+let x = off * 92;              // tighter spacing
+let z = -(abs * 95);           // depth
+let y = abs * 6;
+let rot = off * -22;
+let op = (off === 0) ? 1 : (abs === 1 ? .65 : .30);
+
+const isSel = (idx === selectedIndex);
+const isFlipped = isSel && !!UIState.routine.flipOpen;
+
+/* ✅ Flip+Expand: make the selected flipped card feel “out there” */
+if(isFlipped){
+  scale = 1.22;     // bigger, readable
+  z = 140;          // push forward
+  y = -10;          // lift up slightly
+  rot = 0;          // keep facing forward while in detail mode
+  op = 1;
+}
       const chips = [];
       chips.push(el("div", { class:"c3dChip", text: d.isRest ? "Rest Day" : "Training Day" }));
       if(idx === selectedIndex) chips.push(el("div", { class:"c3dChip active", text:"Active" }));
 
-      const isSel = (idx === selectedIndex);
-const isFlipped = isSel && !!UIState.routine.flipOpen;
-
+      
 function buildBackFace(){
   // Must have at least 2 sessions for this routine day template to show real data
   const sessionDates = __sessionDatesForRoutineDayTemplate(routine.id, d.id);
