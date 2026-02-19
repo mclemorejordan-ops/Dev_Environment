@@ -1422,7 +1422,6 @@ body.modalOpen{
   user-select:none;
 }
 .manageLink:active{ transform: translateY(1px); }
-
 /* ─────────────────────────────
    Routine — 3D Square Carousel + Day Strip (Option C - compact)
    (visual-only)
@@ -1556,6 +1555,69 @@ body.modalOpen{
 .c3dChip.active{
   border-color: rgba(55,214,122,.45);
   box-shadow: 0 0 0 1px rgba(55,214,122,.18) inset;
+}
+    /* ===== Flip + Scorecard (DO NOT CHANGE CARD SIZE) ===== */
+
+.c3dInner{
+  position:relative;
+  width:100%;
+  height:100%;
+  transform-style: preserve-3d;
+  transition: transform 280ms ease;
+}
+
+.c3dCard.flipped .c3dInner{
+  transform: rotateY(180deg);
+}
+
+.c3dFace{
+  position:absolute;
+  inset:0;
+  backface-visibility:hidden;
+  border-radius: inherit;
+}
+
+.c3dBack{
+  transform: rotateY(180deg);
+  display:flex;
+  flex-direction:column;
+  padding:14px;
+}
+
+.scorePanel{
+  margin-top:10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.12);
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.scoreRow{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  font-size:12px;
+}
+
+.scoreTop{
+  display:flex;
+  justify-content:space-between;
+  font-weight:800;
+}
+
+.scoreBase{
+  font-size:11px;
+  opacity:.65;
+}
+
+.scoreFocus{
+  margin-top:6px;
+  padding-top:6px;
+  border-top:1px solid rgba(255,255,255,.1);
+  font-size:12px;
+  font-weight:700;
 }
 
 /* Day strip (fixed under carousel) */
@@ -6565,22 +6627,85 @@ if(show3DPreview){
         chips.push(el("div", { class:"c3dChip", text: d.isRest ? "Rest Day" : "Training Day" }));
         if(idx === selectedIndex) chips.push(el("div", { class:"c3dChip active", text:"Active" }));
 
-        const card = el("div", {
-          class: "c3dCard" + (idx === selectedIndex ? " sel" : ""),
-          style: `transform: translateX(${x}px) translateY(${y}px) translateZ(${z}px) rotateY(${rot}deg) scale(${scale}); opacity:${op};`
-        }, [
-          el("div", {}, [
-            el("div", { class:"c3dDay", text: names[idx].toUpperCase() }),
-            el("div", { class:"c3dLabel", text: d.label || "Day" }),
-            el("div", { class:"c3dMeta", text: d.isRest ? "Rest" : `${(d.exercises||[]).length} exercises` })
-          ]),
-          el("div", { class:"c3dChips" }, chips)
-        ]);
+        const isFlipped = UIState?.routine?.flipIdx === idx;
 
-        card.addEventListener("click", () => {
-          selectedIndex = idx;
-          repaint();
-        });
+const card = el("div", {
+  class: "c3dCard" +
+         (idx === selectedIndex ? " sel" : "") +
+         (isFlipped ? " flipped" : ""),
+  style: `transform: ${transformStyle}`
+}, [
+
+  el("div", { class:"c3dInner" }, [
+
+    /* FRONT */
+    el("div", { class:"c3dFace" }, [
+      el("div", { class:"c3dTitle", text: day.title || "Workout" }),
+      el("div", { class:"c3dMeta", text: "Tap to view performance" })
+    ]),
+
+    /* BACK */
+    el("div", { class:"c3dFace c3dBack" }, [
+
+      el("div", {
+        style:"font-weight:900;font-size:12px;letter-spacing:.5px;",
+        text:"TOP IMPROVEMENTS"
+      }),
+
+      el("div", { class:"scorePanel" }, [
+
+        el("div", { class:"scoreRow" }, [
+          el("div", { class:"scoreTop" }, [
+            el("div", { text:"Bench Press" }),
+            el("div", { text:"+10 lb" })
+          ]),
+          el("div", { class:"scoreBase", text:"(225 vs 215 avg)" })
+        ]),
+
+        el("div", { class:"scoreRow" }, [
+          el("div", { class:"scoreTop" }, [
+            el("div", { text:"Incline DB Press" }),
+            el("div", { text:"+2 reps @ 70 lb" })
+          ]),
+          el("div", { class:"scoreBase", text:"(8 vs 6 avg)" })
+        ]),
+
+        el("div", { class:"scoreRow" }, [
+          el("div", { class:"scoreTop" }, [
+            el("div", { text:"Barbell Row" }),
+            el("div", { text:"+5 lb" })
+          ]),
+          el("div", { class:"scoreBase", text:"(185 vs 180 avg)" })
+        ]),
+
+        el("div", {
+          class:"scoreFocus",
+          text:"Strength is trending upward. Stay progressive."
+        })
+
+      ])
+
+    ])
+
+  ])
+]);
+
+card.addEventListener("click", () => {
+
+  /* If NOT selected → just select */
+  if(selectedIndex !== idx){
+    selectedIndex = idx;
+    repaint();
+    return;
+  }
+
+  /* If selected → flip */
+  if(!UIState.routine) UIState.routine = {};
+  UIState.routine.flipIdx =
+    UIState.routine.flipIdx === idx ? null : idx;
+
+  repaint();
+});
 
         c3d.appendChild(card);
       });
