@@ -1422,6 +1422,7 @@ body.modalOpen{
   user-select:none;
 }
 .manageLink:active{ transform: translateY(1px); }
+
 /* ─────────────────────────────
    Routine — 3D Square Carousel + Day Strip (Option C - compact)
    (visual-only)
@@ -1556,115 +1557,6 @@ body.modalOpen{
   border-color: rgba(55,214,122,.45);
   box-shadow: 0 0 0 1px rgba(55,214,122,.18) inset;
 }
-/* ===== Flip + Scorecard (DO NOT CHANGE CARD SIZE) ===== */
-
-.c3dInner{
-  position:relative;
-  width:100%;
-  height:100%;
-  transform-style: preserve-3d;
-  transition: transform 280ms ease;
-}
-
-.c3dCard.flipped .c3dInner{
-  transform: rotateY(180deg);
-}
-
-.c3dFace{
-  position:absolute;
-  inset:0;
-  backface-visibility:hidden;
-  border-radius: inherit;
-}
-
-.c3dBack{
-  transform: rotateY(180deg);
-  display:flex;
-  flex-direction:column;
-
-  /* Tight spacing so everything fits */
-  padding:10px;
-  gap:6px;
-
-  /* No scrollbars, no overflow */
-  overflow:hidden;
-}
-
-/* ===== Scorecard (stats-only compact) ===== */
-
-.c3dScoreCloseFloat{
-  position:absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 5;
-
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.92);
-  font-weight: 900;
-  font-size: 12px;
-  line-height: 1;
-}
-
-.c3dScoreMini{
-  height: 100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-.c3dScoreList{
-  width: 100%;
-  display:grid;
-  gap: 10px;
-
-  /* IMPORTANT: no scrollbars */
-  overflow: hidden;
-}
-
-.c3dScoreRow{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap: 10px;
-
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.06);
-  padding: 10px;
-}
-
-.c3dScoreRow .l{
-  min-width: 0;
-  display:flex;
-  flex-direction:column;
-  gap: 2px;
-}
-
-.c3dScoreRow .name{
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: .1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.c3dScoreRow .base{
-  font-size: 11px;
-  opacity: .70;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.c3dScoreRow .r{
-  font-weight: 900;
-  font-size: 13px;
-  white-space: nowrap;
-}
 
 /* Day strip (fixed under carousel) */
 .routineDayStrip{
@@ -1672,326 +1564,6 @@ body.modalOpen{
   gap: 8px;
   justify-content:space-between;
   margin-top: 20px; 
-}
-  /* =========================================================
-   Expanded Performance Overlay (Option B)
-   - DOES NOT change the 3D carousel card size
-   - Shows a centered expanded flip card styled like your sandbox
-   ========================================================= */
-
-.perfOverlay{
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: none;              /* hidden until opened */
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-}
-
-.perfOverlay.show{
-  display: flex;
-}
-
-.perfBackdrop{
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.perfWrap{
-  position: relative;
-  width: min(480px, calc(100vw - 32px));
-  /* Keep the SAME “look” as your sandbox */
-  aspect-ratio: 1.45 / 1;
-  z-index: 1;
-  perspective: 1100px;
-}
-
-.perfStage{
-  position: relative;
-  width: 100%;
-  height: 100%;
-  perspective: 1100px;
-}
-
-.perfCard{
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-  transition: transform 280ms ease;
-  border-radius: 18px;
-  cursor: pointer;
-}
-
-.perfStage.flipped .perfCard{
-  transform: rotateY(180deg);
-}
-
-.perfSide{
-  position: absolute;
-  inset: 0;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(17,26,43,1), rgba(15,22,38,1));
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
-  padding: 20px;
-  backface-visibility: hidden;
-  overflow: hidden;
-}
-
-.perfFrontTitle{
-  font-size: 24px;
-  font-weight: 900;
-}
-
-.perfFrontSub{
-  margin-top: 6px;
-  font-size: 14px;
-  color: rgba(234,240,255,.72);
-}
-
-.perfBack{
-  transform: rotateY(180deg);
-}
-
-.perfBackTitle{
-  font-weight: 900;
-  font-size: 14px;
-}
-
-.perfBackSub{
-  margin-top: 6px;
-  font-size: 12px;
-  color: rgba(234,240,255,.55);
-}
-
-/* Panel exactly like your sandbox */
-.perfPanel{
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 70px;
-  bottom: 14px;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 16px;
-  padding: 10px;
-  opacity: 0;
-  transform: translateY(10px) scale(.96);
-  transition: all 200ms ease;
-}
-
-.perfStage.flipped .perfPanel{
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.perfRow{
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-
-.perfRow:last-child{
-  border-bottom: none;
-}
-
-.perfEx{
-  font-weight: 800;
-}
-
-.perfDelta{
-  float: right;
-  font-weight: 800;
-}
-
-.perfBaseline{
-  font-size: 12px;
-  color: rgba(234,240,255,.55);
-  margin-top: 4px;
-}
-
-.perfFocus{
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255,255,255,.12);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-/* Close button (top-right, doesn’t change layout) */
-.perfClose{
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: rgba(255,255,255,.08);
-  color: rgba(255,255,255,.92);
-  font-weight: 900;
-  padding: 8px 12px;
-  cursor: pointer;
-}
-
-body.perfLock{
-  overflow: hidden;
-}
-  /* ===== Expanded Performance Modal (flip like sandbox) ===== */
-.perfWrap{
-  width: min(520px, 100%);
-  margin: 0 auto;
-}
-
-.perfStage{
-  perspective:1100px;
-  position:relative;
-}
-
-.perfCard{
-  position:relative;
-  width:100%;
-  aspect-ratio: 1.45 / 1;
-  transform-style:preserve-3d;
-  transition:transform 280ms ease;
-  border-radius:18px;
-  overflow:hidden;
-  border:1px solid rgba(255,255,255,.12);
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
-  background: linear-gradient(180deg, rgba(17,26,43,.95), rgba(15,22,38,.92));
-}
-
-.perfSide{
-  position:absolute;
-  inset:0;
-  padding:18px;
-  backface-visibility:hidden;
-}
-
-.perfFront{
-  /* not really used since we auto-flip, but kept for completeness */
-}
-
-.perfBack{
-  transform: rotateY(180deg);
-}
-
-.perfStage.flipped .perfCard{
-  transform: rotateY(180deg);
-}
-
-/* Panel is INSIDE the card (no scrollbars) */
-.perfPanel{
-  position:absolute;
-  left:14px;
-  right:14px;
-  top:70px;
-  bottom:14px;
-
-  background:rgba(255,255,255,.08);
-  border:1px solid rgba(255,255,255,.15);
-  border-radius:16px;
-  padding:10px;
-
-  opacity:0;
-  transform:translateY(10px) scale(.96);
-  transition:all 200ms ease;
-  overflow:hidden;           /* ✅ no scrollbars */
-}
-
-.perfStage.flipped .perfPanel{
-  opacity:1;
-  transform:translateY(0) scale(1);
-}
-
-.perfRow{
-  padding:10px 0;
-  border-bottom:1px solid rgba(255,255,255,.08);
-}
-
-.perfRow:last-child{ border-bottom:none; }
-
-.perfRowTop{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-}
-
-.perfEx{
-  font-weight:900;
-  font-size:15px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width: 70%;
-}
-
-.perfDelta{
-  font-weight:900;
-  font-size:14px;
-  white-space:nowrap;
-}
-
-.perfBase{
-  font-size:12px;
-  color: rgba(234,240,255,.55);
-  margin-top:4px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-.perfClose{
-  position:absolute;
-  top:14px;
-  right:14px;
-  z-index:5;
-
-  padding:8px 12px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.14);
-  background:rgba(255,255,255,.06);
-  color: rgba(255,255,255,.92);
-  font-weight:900;
-  font-size:12px;
-  line-height:1;
-}
-
-.perfHdrTitle{
-  font-weight:950;
-  letter-spacing:.3px;
-  font-size:14px;
-}
-
-.perfHdrSub{
-  margin-top:6px;
-  font-size:12px;
-  color: rgba(234,240,255,.55);
-}
-
-.perfFocus{
-  margin-top:12px;
-  padding-top:10px;
-  border-top:1px solid rgba(255,255,255,.12);
-  font-size:13px;
-  font-weight:800;
-  line-height:1.2;
-
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-/* iPhone: keep it feeling big without pushing off-screen */
-@media (max-width: 500px){
-  .perfSide{ padding:16px; }
-  .perfPanel{ top:66px; }
-  .perfEx{ font-size:14px; }
-  .perfDelta{ font-size:13px; }
 }
 /* ✅ Day strip: day + date number + label (Compact Hybrid) */
 .routineDayStrip{
@@ -3089,7 +2661,6 @@ const Dates = {
       else state.attendance.push(dateISO);
       Storage.save(state);
     }
-    
     /********************
      * Attendance Helpers (Step 9)
      ********************/
@@ -5049,53 +4620,6 @@ const Modal = {
     host.setAttribute("aria-hidden", "false");
 
     lockBodyScroll();
-    
-    function openTodayPerformanceModal({ label, top3, focusQuote }){
-  const stage = el("div", { class:"perfStage flipped" }, []);
-
-  const card = el("div", { class:"perfCard" }, [
-    // FRONT (not shown because we start flipped)
-    el("div", { class:"perfSide perfFront" }, [
-      el("div", { style:"font-weight:950;font-size:18px;", text: label || "Workout" }),
-      el("div", { class:"perfHdrSub", text:"Tap to view performance" })
-    ]),
-
-    // BACK (shown)
-    el("div", { class:"perfSide perfBack" }, [
-      el("div", { class:"perfHdrTitle", text:"TODAY'S PERFORMANCE" }),
-      el("div", { class:"perfHdrSub", text:`${label || "Workout"} • Compared to last 2 weeks` })
-    ])
-  ]);
-
-  const panel = el("div", { class:"perfPanel" }, [
-    ...top3.map(row => (
-      el("div", { class:"perfRow" }, [
-        el("div", { class:"perfRowTop" }, [
-          el("div", { class:"perfEx", text: row.name }),
-          el("div", { class:"perfDelta", text: row.r })
-        ]),
-        el("div", { class:"perfBase", text: row.base })
-      ])
-    )),
-    el("div", { class:"perfFocus", text: focusQuote || "Stay progressive." })
-  ]);
-
-  const closeBtn = el("button", {
-    class:"perfClose",
-    onClick: (e) => { e.preventDefault(); Modal.close(); }
-  }, ["Close"]);
-
-  stage.appendChild(card);
-  stage.appendChild(panel);
-  stage.appendChild(closeBtn);
-
-  Modal.open({
-    title: "",
-    center: true,
-    size: "md",
-    bodyNode: el("div", { class:"perfWrap" }, [ stage ])
-  });
-}
 
     // Focus management: move focus into modal (prefer Close button)
     const closeBtn = $("#modalClose");
@@ -6932,111 +6456,6 @@ function setShow3DPreview(v){
   Storage.save(state);
   renderView(); // re-render Routine cleanly
 }
-    // ─────────────────────────────────────────────
-// Performance Overlay (Option B: centered expanded card)
-// ─────────────────────────────────────────────
-let __perfOverlayEl = null;
-
-function ensurePerfOverlay(){
-  if(__perfOverlayEl) return __perfOverlayEl;
-
-  const host = document.createElement("div");
-  host.className = "perfOverlay";
-  host.innerHTML = `
-    <div class="perfBackdrop" data-close="1"></div>
-    <div class="perfWrap" role="dialog" aria-modal="true">
-      <button class="perfClose" type="button" data-close="1">Close</button>
-
-      <div class="perfStage" id="perfStage">
-        <div class="perfCard" id="perfCard">
-          <div class="perfSide perfFront" id="perfFront">
-            <div class="perfFrontTitle" id="perfFrontTitle">Workout</div>
-            <div class="perfFrontSub" id="perfFrontSub">Tap to view performance</div>
-            <div style="margin-top:14px;color:rgba(234,240,255,.55);font-size:12px;">Tap to flip</div>
-          </div>
-
-          <div class="perfSide perfBack perfBackSide" id="perfBack">
-            <div class="perfBackTitle" id="perfBackTitle">TODAY'S PERFORMANCE</div>
-            <div class="perfBackSub" id="perfBackSub">Compared to last 2 weeks</div>
-          </div>
-        </div>
-
-        <div class="perfPanel" id="perfPanel"></div>
-      </div>
-    </div>
-  `;
-
-  // Close handlers
-  host.addEventListener("click", (e) => {
-    const t = e.target;
-    if(t && t.getAttribute && t.getAttribute("data-close") === "1"){
-      closePerfOverlay();
-    }
-  });
-
-  // ESC closes
-  window.addEventListener("keydown", (e) => {
-    if(e.key === "Escape" && host.classList.contains("show")){
-      closePerfOverlay();
-    }
-  });
-
-  document.body.appendChild(host);
-  __perfOverlayEl = host;
-  return host;
-}
-
-function openPerfOverlay({ workoutTitle, workoutSub, top3, focusQuote, startFlipped = false }){
- const host = ensurePerfOverlay();
-
-  // Fill text
-  host.querySelector("#perfFrontTitle").textContent = workoutTitle || "Workout";
-  host.querySelector("#perfFrontSub").textContent = workoutSub || "Tap to view performance";
-  host.querySelector("#perfBackSub").textContent = workoutSub || "Compared to last 2 weeks";
-
-  // Build panel (exact sandbox layout)
-  const panel = host.querySelector("#perfPanel");
-  panel.innerHTML = "";
-
-  (top3 || []).slice(0,3).forEach(row => {
-    const div = document.createElement("div");
-    div.className = "perfRow";
-    div.innerHTML = `
-      <div>
-        <span class="perfEx">${row.name || "Exercise"}</span>
-        <span class="perfDelta">${row.r || "—"}</span>
-      </div>
-      <div class="perfBaseline">${row.base || ""}</div>
-    `;
-    panel.appendChild(div);
-  });
-
-  const focus = document.createElement("div");
-  focus.className = "perfFocus";
-  focus.textContent = focusQuote || "Strength is trending upward. Stay progressive.";
-  panel.appendChild(focus);
-
-  // Show overlay + lock scroll
-  document.body.classList.add("perfLock");
-  host.classList.add("show");
-
-  // Start flipped (or not) — if startFlipped is true, we show the stats immediately
-const stage = host.querySelector("#perfStage");
-stage.classList.toggle("flipped", !!startFlipped);
-
-// If we start flipped, keep it in "performance" view (no unflip).
-// If not, allow a tap to flip.
-const card = host.querySelector("#perfCard");
-card.onclick = () => {
-  if(!startFlipped) stage.classList.toggle("flipped");
-};
-}
-
-function closePerfOverlay(){
-  if(!__perfOverlayEl) return;
-  __perfOverlayEl.classList.remove("show");
-  document.body.classList.remove("perfLock");
-}
     fixedHost.appendChild(el("div", { class:"card routineHeaderCard" }, [
   el("h2", { text:"Routine" }),
   el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
@@ -7098,189 +6517,75 @@ if(show3DPreview){
       let dx = 0;
       const THRESH = 55;
 
-function onDown(e){
-  down = true;
-  startX = e.clientX;
-  dx = 0;
+      function onDown(e){
+        down = true;
+        startX = e.clientX;
+        dx = 0;
+        try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+      }
+      function onMove(e){
+        if(!down) return;
+        dx = e.clientX - startX;
+      }
+      function onEnd(){
+        if(!down) return;
+        down = false;
 
-  // ✅ If the user touched a card, remember which card it was
-  tapCardEl = (e.target && e.target.closest) ? e.target.closest(".c3dCard") : null;
+        if(dx <= -THRESH) selectedIndex = (selectedIndex + 1) % 7;
+        else if(dx >= THRESH) selectedIndex = (selectedIndex + 6) % 7;
 
-  // ✅ Only capture pointer when swiping on the background (not on a card)
-  if(!tapCardEl){
-    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
-  }
-}
-
-function onMove(e){
-  if(!down) return;
-  dx = e.clientX - startX;
-}
-
-function onEnd(){
-  if(!down) return;
-  down = false;
-
-  const TAP_SLOP = 10; // px (tap tolerance)
-
-  // ✅ TAP on a card (not a swipe)
-  if(tapCardEl && Math.abs(dx) < TAP_SLOP){
-    const idxStr = tapCardEl.getAttribute("data-idx");
-    const idx = Number(idxStr);
-
-    if(Number.isFinite(idx)){
-      // Tap non-active card -> select it (no modal)
-      if(idx !== selectedIndex){
-        UIState.routine.flipIdx = null;
-        selectedIndex = idx;
-        tapCardEl = null;
         repaint();
-        return;
       }
 
-      // Tap active card -> open Today's Performance overlay (auto-flipped)
-      UIState.routine.flipIdx = null;
+      const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-      const dayForOverlay = getDay(idx) || { label:"Workout", isRest:false, exercises:[] };
+      const c3d = el("div", {
+        class:"c3d",
+        onPointerDown: onDown,
+        onPointerMove: onMove,
+        onPointerUp: onEnd,
+        onPointerCancel: onEnd,
+        onLostPointerCapture: onEnd
+      }, []);
 
-      const top3 = (dayForOverlay.exercises || []).slice(0, 3).map((ex, i) => {
-        const name = (ex?.name || ex?.nameSnap || `Exercise ${i+1}`);
-        const r = (i === 0) ? "+10 lb" : (i === 1) ? "+2 reps @ 70 lb" : "+5 lb";
-        const base = (i === 0) ? "(225 vs 215 avg)" : (i === 1) ? "(8 vs 6 avg)" : "(185 vs 180 avg)";
-        return { name, r, base };
+      const offsets = [-2,-1,0,1,2];
+      offsets.forEach(off => {
+        const idx = (selectedIndex + off + 7) % 7;
+        const d = getDay(idx) || { label:"Day", isRest:false, exercises:[] };
+
+        const abs = Math.abs(off);
+        const scale = (off === 0) ? 1 : (1 - abs * 0.10);
+        const x = off * 92;
+        const z = -(abs * 95);
+        const y = abs * 6;
+        const rot = off * -22;
+        const op = (off === 0) ? 1 : (abs === 1 ? .65 : .30);
+
+        const chips = [];
+        chips.push(el("div", { class:"c3dChip", text: d.isRest ? "Rest Day" : "Training Day" }));
+        if(idx === selectedIndex) chips.push(el("div", { class:"c3dChip active", text:"Active" }));
+
+        const card = el("div", {
+          class: "c3dCard" + (idx === selectedIndex ? " sel" : ""),
+          style: `transform: translateX(${x}px) translateY(${y}px) translateZ(${z}px) rotateY(${rot}deg) scale(${scale}); opacity:${op};`
+        }, [
+          el("div", {}, [
+            el("div", { class:"c3dDay", text: names[idx].toUpperCase() }),
+            el("div", { class:"c3dLabel", text: d.label || "Day" }),
+            el("div", { class:"c3dMeta", text: d.isRest ? "Rest" : `${(d.exercises||[]).length} exercises` })
+          ]),
+          el("div", { class:"c3dChips" }, chips)
+        ]);
+
+        card.addEventListener("click", () => {
+          selectedIndex = idx;
+          repaint();
+        });
+
+        c3d.appendChild(card);
       });
 
-      while(top3.length < 3){
-        const k = top3.length + 1;
-        top3.push({ name:`Exercise ${k}`, r:"—", base:"" });
-      }
-
-      const focusQuote = "Strength is trending upward. Stay progressive.";
-
-      // ✅ OPEN the big centered overlay (starts flipped so it shows stats immediately)
-      openPerfOverlay({
-        workoutTitle: dayForOverlay.label || "Workout",
-        workoutSub: `${(dayForOverlay.label || "Workout")} • Compared to last 2 weeks`,
-        top3,
-        focusQuote,
-        startFlipped: true
-      });
-
-      tapCardEl = null;
-      return;
-    }
-
-    tapCardEl = null;
-    repaint();
-    return;
-  }
-
-  // Swipe behavior (unchanged)
-  if(dx <= -THRESH) selectedIndex = (selectedIndex + 1) % 7;
-  else if(dx >= THRESH) selectedIndex = (selectedIndex + 6) % 7;
-
-  tapCardEl = null;
-  repaint();
-}
-
-let tapCardEl = null;
-
-const c3d = el("div", {
-  class:"c3d",
-  onPointerDown: onDown,
-  onPointerMove: onMove,
-  onPointerUp: onEnd,
-  onPointerCancel: onEnd,
-  onLostPointerCapture: onEnd
-}, []);
-
-const offsets = [-2,-1,0,1,2];
-offsets.forEach(off => {
-  const idx = (selectedIndex + off + 7) % 7;
-  const d = getDay(idx) || { label:"Day", isRest:false, exercises:[] };
-
-  const abs = Math.abs(off);
-  const scale = (off === 0) ? 1 : (1 - abs * 0.10);
-  const x = off * 92;
-  const z = -(abs * 95);
-  const y = abs * 6;
-  const rot = off * -22;
-  const op = (off === 0) ? 1 : (abs === 1 ? .65 : .30);
-
-  const chips = [];
-  chips.push(el("div", { class:"c3dChip", text: d.isRest ? "Rest Day" : "Training Day" }));
-  if(idx === selectedIndex) chips.push(el("div", { class:"c3dChip active", text:"Active" }));
-
-  // Persist flip state across repaints (in-memory UIState only)
-  UIState.routine = UIState.routine || {};
-  const isFlipped = (UIState.routine.flipIdx === idx);
-
-  // Back-of-card scorecard UI
-  const selectedDateISO_forCard = getSelectedDateISO(idx);
-  const focusQuote = "Strength is trending upward. Stay progressive.";
-
-  const top3 = (d.exercises || []).slice(0, 3).map((ex, i) => {
-    const name = (ex?.name || ex?.nameSnap || `Exercise ${i+1}`);
-    const r = (i === 0) ? "+10 lb" : (i === 1) ? "+2 reps @ 70 lb" : "+5 lb";
-    const base = (i === 0) ? "(225 vs 215 avg)" : (i === 1) ? "(8 vs 6 avg)" : "(185 vs 180 avg)";
-    return { name, r, base };
-  });
-
-  while(top3.length < 3){
-    const k = top3.length + 1;
-    top3.push({ name:`Exercise ${k}`, r:"—", base:"(no baseline yet)" });
-  }
-
-  const frontFace = el("div", { class:"c3dFace c3dFront" }, [
-    el("div", {}, [
-      el("div", { class:"c3dDay", text: names[idx].toUpperCase() }),
-      el("div", { class:"c3dLabel", text: d.label || "Day" }),
-      el("div", { class:"c3dMeta", text: d.isRest ? "Rest" : `${(d.exercises||[]).length} exercises` })
-    ]),
-    el("div", { class:"c3dChips" }, chips)
-  ]);
-
-  const backFace = el("div", { class:"c3dFace c3dBack" }, [
-
-  // Small close button (does not take layout space)
-  el("button", {
-    class:"c3dScoreClose c3dScoreCloseFloat",
-    onClick: (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      UIState.routine.flipIdx = null;
-      repaint();
-    }
-  }, ["✕"]),
-
-  // Stats only (no headers, no date, no focus text)
-  el("div", { class:"c3dScoreMini" }, [
-    el("div", { class:"c3dScoreList" }, top3.map(row => {
-      return el("div", { class:"c3dScoreRow" }, [
-        el("div", { class:"l" }, [
-          el("div", { class:"name", text: row.name }),
-          el("div", { class:"base", text: row.base })
-        ]),
-        el("div", { class:"r", text: row.r })
-      ]);
-    }))
-  ])
-]);
-
-
-  const inner = el("div", { class:"c3dInner" }, [frontFace, backFace]);
-
-  const card = el("div", {
-    class: "c3dCard" + (idx === selectedIndex ? " sel" : "") + (isFlipped ? " flipped" : ""),
-    "data-idx": String(idx),
-    style: `transform: translateX(${x}px) translateY(${y}px) translateZ(${z}px) rotateY(${rot}deg) scale(${scale}); opacity:${op};`
-  }, [ inner ]);
-
-  // ✅ IMPORTANT: no click handler here anymore (tap is handled in pointerup logic)
-  c3d.appendChild(card);
-});
-
-return c3d;
+      return c3d;
     })()
   ]));
 }
@@ -7305,11 +6610,7 @@ fixedHost.appendChild(el("div", { class:"routineDayStrip" }, [
     }, [
       el("div", { class:"dow", text: dow }),
       el("div", { class:"num", text: String(dayNum || "") }),
-      ...(show3DPreview 
-          ? [] 
-          : [el("div", { class:"lbl", text: dayLabel })]
-      ),
-
+      el("div", { class:"lbl", text: dayLabel }),
       el("div", { class:"dot" })
     ]);
   })
