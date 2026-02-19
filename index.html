@@ -6986,8 +6986,8 @@ function ensurePerfOverlay(){
   return host;
 }
 
-function openPerfOverlay({ workoutTitle, workoutSub, top3, focusQuote }){
-  const host = ensurePerfOverlay();
+function openPerfOverlay({ workoutTitle, workoutSub, top3, focusQuote, startFlipped = false }){
+ const host = ensurePerfOverlay();
 
   // Fill text
   host.querySelector("#perfFrontTitle").textContent = workoutTitle || "Workout";
@@ -7020,13 +7020,16 @@ function openPerfOverlay({ workoutTitle, workoutSub, top3, focusQuote }){
   document.body.classList.add("perfLock");
   host.classList.add("show");
 
-  // Start NOT flipped
-  const stage = host.querySelector("#perfStage");
-  stage.classList.remove("flipped");
+  // Start flipped (or not) — if startFlipped is true, we show the stats immediately
+const stage = host.querySelector("#perfStage");
+stage.classList.toggle("flipped", !!startFlipped);
 
-  // Flip on tap anywhere on the card
-  const card = host.querySelector("#perfCard");
-  card.onclick = () => stage.classList.toggle("flipped");
+// If we start flipped, keep it in "performance" view (no unflip).
+// If not, allow a tap to flip.
+const card = host.querySelector("#perfCard");
+card.onclick = () => {
+  if(!startFlipped) stage.classList.toggle("flipped");
+};
 }
 
 function closePerfOverlay(){
@@ -7095,7 +7098,7 @@ if(show3DPreview){
       let dx = 0;
       const THRESH = 55;
 
-      function onDown(e){
+function onDown(e){
   down = true;
   startX = e.clientX;
   dx = 0;
@@ -7120,25 +7123,26 @@ function onEnd(){
 
   const TAP_SLOP = 10; // px (tap tolerance)
 
-// ✅ TAP on a card (not a swipe)
-if(tapCardEl && Math.abs(dx) < TAP_SLOP){
-  const idxStr = tapCardEl.getAttribute("data-idx");
-  const idx = Number(idxStr);
+  // ✅ TAP on a card (not a swipe)
+  if(tapCardEl && Math.abs(dx) < TAP_SLOP){
+    const idxStr = tapCardEl.getAttribute("data-idx");
+    const idx = Number(idxStr);
 
-  if(Number.isFinite(idx)){
-    // If you tap a non-active card -> select it (no overlay)
-    if(idx !== selectedIndex){
+    if(Number.isFinite(idx)){
+      // Tap non-active card -> select it (no modal)
+      if(idx !== selectedIndex){
+        UIState.routine.flipIdx = null;
+        selectedIndex = idx;
+        tapCardEl = null;
+        repaint();
+        return;
+      }
+
+      // Tap active card -> open Today's Performance overlay (auto-flipped)
       UIState.routine.flipIdx = null;
-      selectedIndex = idx;
-      repaint();
-        } else {
-      // If you tap the active card -> open expanded "Today's Performance" modal (auto-flipped)
-      UIState.routine.flipIdx = null; // ensure the small card isn't flipped
 
-      // Build day data in THIS scope (prevents 'd not defined' crashes)
       const dayForOverlay = getDay(idx) || { label:"Workout", isRest:false, exercises:[] };
 
-      // Build Top 3 list (use real exercise names, placeholder deltas for now)
       const top3 = (dayForOverlay.exercises || []).slice(0, 3).map((ex, i) => {
         const name = (ex?.name || ex?.nameSnap || `Exercise ${i+1}`);
         const r = (i === 0) ? "+10 lb" : (i === 1) ? "+2 reps @ 70 lb" : "+5 lb";
@@ -7153,65 +7157,31 @@ if(tapCardEl && Math.abs(dx) < TAP_SLOP){
 
       const focusQuote = "Strength is trending upward. Stay progressive.";
 
-      // OPEN the big modal card (this is the expanded centered card)
-      openTodayPerformanceModal({
-        label: dayForOverlay.label || "Workout",
+      // ✅ OPEN the big centered overlay (starts flipped so it shows stats immediately)
+      openPerfOverlay({
+        workoutTitle: dayForOverlay.label || "Workout",
+        workoutSub: `${(dayForOverlay.label || "Workout")} • Compared to last 2 weeks`,
         top3,
-        focusQuote
+        focusQuote,
+        startFlipped: true
       });
 
-      // IMPORTANT: do NOT repaint here; modal is the UI action
+      tapCardEl = null;
+      return;
     }
-  // ✅ Build overlay data INSIDE this scope (so we don't reference undefined vars)
-  const dayForOverlay = getDay(idx) || { label:"Workout", isRest:false, exercises:[] };
-  const workoutTitle = (dayForOverlay.label || "Workout");
-  const selectedDateISO_forOverlay = getSelectedDateISO(idx);
 
-  const focusQuote = "Strength is trending upward. Stay progressive.";
-
-  const top3 = (dayForOverlay.exercises || []).slice(0, 3).map((ex, i) => {
-    const name = (ex?.name || ex?.nameSnap || `Exercise ${i+1}`);
-    const r = (i === 0) ? "+10 lb" : (i === 1) ? "+2 reps @ 70 lb" : "+5 lb";
-    const base = (i === 0) ? "(225 vs 215 avg)" : (i === 1) ? "(8 vs 6 avg)" : "(185 vs 180 avg)";
-    return { name, r, base };
-  });
-
-  while(top3.length < 3){
-    const k = top3.length + 1;
-    top3.push({ name:`Exercise ${k}`, r:"—", base:"(no baseline yet)" });
-  }
-
-  openPerfOverlay({
-    workoutTitle,
-    workoutSub: `${workoutTitle} • Compared to last 2 weeks`,
-    dateISO: selectedDateISO_forOverlay,
-    top3,
-    focusQuote
-  });
-}
-  }else{
+    tapCardEl = null;
     repaint();
+    return;
   }
 
-  tapCardEl = null;
-  return;
-}
-
-  // ✅ SWIPE (same behavior as before)
-  if(dx <= -THRESH){
-    UIState.routine.flipIdx = null; // optional safety: stop showing back when swiping days
-    selectedIndex = (selectedIndex + 1) % 7;
-  }
-  else if(dx >= THRESH){
-    UIState.routine.flipIdx = null; // optional safety
-    selectedIndex = (selectedIndex + 6) % 7;
-  }
+  // Swipe behavior (unchanged)
+  if(dx <= -THRESH) selectedIndex = (selectedIndex + 1) % 7;
+  else if(dx >= THRESH) selectedIndex = (selectedIndex + 6) % 7;
 
   tapCardEl = null;
   repaint();
 }
-
-const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 let tapCardEl = null;
 
