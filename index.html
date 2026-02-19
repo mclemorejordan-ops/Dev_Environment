@@ -6601,13 +6601,23 @@ return el("div", { class:"card" }, [
   }
 }
 
+}
+
+function isDayComplete(dateISO, day){
+  const ex = (day?.exercises || []);
+  if(ex.length === 0) return false;
+  // Complete = every routine exercise has a log for this date
+  return ex.every(rx => hasRoutineExerciseLog(dateISO, rx.id));
+}
+
 function isDayStarted(dateISO, day){
   const ex = (day?.exercises || []);
   if(ex.length === 0) return false;
   // Started = at least one exercise has any log for this date
   return ex.some(rx => hasRoutineExerciseLog(dateISO, rx.id));
 }
-  function repaint(){
+
+function repaint(){
   routine = Routines.getActive();
   root.innerHTML = "";
 
