@@ -6418,14 +6418,8 @@ function openExerciseHistoryModal(type, exerciseId, exNameOverride=null){
     // ────────────────────────────
     // Header Card (locked layout)
     // ────────────────────────────
-fixedHost.appendChild(el("div", { class:"card" }, [
-      el("h2", { text:"Routine" }),
-      el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
-
-      el("div", { style:"height:10px" }),
-
-      // ✅ NEW: persisted preference (default ON)
-let show3DPreview = (state.profile?.show3DPreview !== false);
+// ✅ NEW: persisted preference (default ON)
+const show3DPreview = (state.profile?.show3DPreview !== false);
 
 function setShow3DPreview(v){
   state.profile = state.profile || {};
@@ -6433,6 +6427,11 @@ function setShow3DPreview(v){
   Storage.save(state);
   renderView(); // re-render Routine cleanly
 }
+    fixedHost.appendChild(el("div", { class:"card" }, [
+      el("h2", { text:"Routine" }),
+      el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
+
+      el("div", { style:"height:10px" }),
 
 el("div", { class:"rHdrRow" }, [
   el("button", {
@@ -6561,7 +6560,7 @@ if(show3DPreview){
   ]));
 }
 
-  el("div", { class:"routineDayStrip" }, [
+fixedHost.appendChild(el("div", { class:"routineDayStrip" }, [
   ...(weekStartsOn === "sun" ? [0,1,2,3,4,5,6] : [1,2,3,4,5,6,0]).map(i => {
     const d = getDay(i) || { label:"", isRest:false, exercises:[] };
 
@@ -6585,7 +6584,6 @@ if(show3DPreview){
       el("div", { class:"dot" })
     ]);
   })
-])
 ]));
 
 
