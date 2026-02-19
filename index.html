@@ -1673,6 +1673,174 @@ body.modalOpen{
   justify-content:space-between;
   margin-top: 20px; 
 }
+  /* =========================================================
+   Expanded Performance Overlay (Option B)
+   - DOES NOT change the 3D carousel card size
+   - Shows a centered expanded flip card styled like your sandbox
+   ========================================================= */
+
+.perfOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;              /* hidden until opened */
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.perfOverlay.show{
+  display: flex;
+}
+
+.perfBackdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.perfWrap{
+  position: relative;
+  width: min(480px, calc(100vw - 32px));
+  /* Keep the SAME “look” as your sandbox */
+  aspect-ratio: 1.45 / 1;
+  z-index: 1;
+  perspective: 1100px;
+}
+
+.perfStage{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 1100px;
+}
+
+.perfCard{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 280ms ease;
+  border-radius: 18px;
+  cursor: pointer;
+}
+
+.perfStage.flipped .perfCard{
+  transform: rotateY(180deg);
+}
+
+.perfSide{
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(17,26,43,1), rgba(15,22,38,1));
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  padding: 20px;
+  backface-visibility: hidden;
+  overflow: hidden;
+}
+
+.perfFrontTitle{
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.perfFrontSub{
+  margin-top: 6px;
+  font-size: 14px;
+  color: rgba(234,240,255,.72);
+}
+
+.perfBack{
+  transform: rotateY(180deg);
+}
+
+.perfBackTitle{
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.perfBackSub{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(234,240,255,.55);
+}
+
+/* Panel exactly like your sandbox */
+.perfPanel{
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 70px;
+  bottom: 14px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 16px;
+  padding: 10px;
+  opacity: 0;
+  transform: translateY(10px) scale(.96);
+  transition: all 200ms ease;
+}
+
+.perfStage.flipped .perfPanel{
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.perfRow{
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.perfRow:last-child{
+  border-bottom: none;
+}
+
+.perfEx{
+  font-weight: 800;
+}
+
+.perfDelta{
+  float: right;
+  font-weight: 800;
+}
+
+.perfBaseline{
+  font-size: 12px;
+  color: rgba(234,240,255,.55);
+  margin-top: 4px;
+}
+
+.perfFocus{
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Close button (top-right, doesn’t change layout) */
+.perfClose{
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.92);
+  font-weight: 900;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+body.perfLock{
+  overflow: hidden;
+}
+  
 /* ✅ Day strip: day + date number + label (Compact Hybrid) */
 .routineDayStrip{
   display:flex;
@@ -6564,6 +6732,108 @@ function setShow3DPreview(v){
   Storage.save(state);
   renderView(); // re-render Routine cleanly
 }
+    // ─────────────────────────────────────────────
+// Performance Overlay (Option B: centered expanded card)
+// ─────────────────────────────────────────────
+let __perfOverlayEl = null;
+
+function ensurePerfOverlay(){
+  if(__perfOverlayEl) return __perfOverlayEl;
+
+  const host = document.createElement("div");
+  host.className = "perfOverlay";
+  host.innerHTML = `
+    <div class="perfBackdrop" data-close="1"></div>
+    <div class="perfWrap" role="dialog" aria-modal="true">
+      <button class="perfClose" type="button" data-close="1">Close</button>
+
+      <div class="perfStage" id="perfStage">
+        <div class="perfCard" id="perfCard">
+          <div class="perfSide perfFront" id="perfFront">
+            <div class="perfFrontTitle" id="perfFrontTitle">Workout</div>
+            <div class="perfFrontSub" id="perfFrontSub">Tap to view performance</div>
+            <div style="margin-top:14px;color:rgba(234,240,255,.55);font-size:12px;">Tap to flip</div>
+          </div>
+
+          <div class="perfSide perfBack perfBackSide" id="perfBack">
+            <div class="perfBackTitle" id="perfBackTitle">TODAY'S PERFORMANCE</div>
+            <div class="perfBackSub" id="perfBackSub">Compared to last 2 weeks</div>
+          </div>
+        </div>
+
+        <div class="perfPanel" id="perfPanel"></div>
+      </div>
+    </div>
+  `;
+
+  // Close handlers
+  host.addEventListener("click", (e) => {
+    const t = e.target;
+    if(t && t.getAttribute && t.getAttribute("data-close") === "1"){
+      closePerfOverlay();
+    }
+  });
+
+  // ESC closes
+  window.addEventListener("keydown", (e) => {
+    if(e.key === "Escape" && host.classList.contains("show")){
+      closePerfOverlay();
+    }
+  });
+
+  document.body.appendChild(host);
+  __perfOverlayEl = host;
+  return host;
+}
+
+function openPerfOverlay({ workoutTitle, workoutSub, top3, focusQuote }){
+  const host = ensurePerfOverlay();
+
+  // Fill text
+  host.querySelector("#perfFrontTitle").textContent = workoutTitle || "Workout";
+  host.querySelector("#perfFrontSub").textContent = workoutSub || "Tap to view performance";
+  host.querySelector("#perfBackSub").textContent = workoutSub || "Compared to last 2 weeks";
+
+  // Build panel (exact sandbox layout)
+  const panel = host.querySelector("#perfPanel");
+  panel.innerHTML = "";
+
+  (top3 || []).slice(0,3).forEach(row => {
+    const div = document.createElement("div");
+    div.className = "perfRow";
+    div.innerHTML = `
+      <div>
+        <span class="perfEx">${row.name || "Exercise"}</span>
+        <span class="perfDelta">${row.r || "—"}</span>
+      </div>
+      <div class="perfBaseline">${row.base || ""}</div>
+    `;
+    panel.appendChild(div);
+  });
+
+  const focus = document.createElement("div");
+  focus.className = "perfFocus";
+  focus.textContent = focusQuote || "Strength is trending upward. Stay progressive.";
+  panel.appendChild(focus);
+
+  // Show overlay + lock scroll
+  document.body.classList.add("perfLock");
+  host.classList.add("show");
+
+  // Start NOT flipped
+  const stage = host.querySelector("#perfStage");
+  stage.classList.remove("flipped");
+
+  // Flip on tap anywhere on the card
+  const card = host.querySelector("#perfCard");
+  card.onclick = () => stage.classList.toggle("flipped");
+}
+
+function closePerfOverlay(){
+  if(!__perfOverlayEl) return;
+  __perfOverlayEl.classList.remove("show");
+  document.body.classList.remove("perfLock");
+}
     fixedHost.appendChild(el("div", { class:"card routineHeaderCard" }, [
   el("h2", { text:"Routine" }),
   el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
@@ -6650,29 +6920,35 @@ function onEnd(){
 
   const TAP_SLOP = 10; // px (tap tolerance)
 
-  // ✅ TAP on a card (not a swipe)
-  if(tapCardEl && Math.abs(dx) < TAP_SLOP){
-    const idxStr = tapCardEl.getAttribute("data-idx");
-    const idx = Number(idxStr);
+// ✅ TAP on a card (not a swipe)
+if(tapCardEl && Math.abs(dx) < TAP_SLOP){
+  const idxStr = tapCardEl.getAttribute("data-idx");
+  const idx = Number(idxStr);
 
-    if(Number.isFinite(idx)){
-      // If you tap a non-active card -> select it (no flip)
-      if(idx !== selectedIndex){
-        UIState.routine.flipIdx = null;
-        selectedIndex = idx;
-        repaint();
-      } else {
-        // If you tap the active card -> flip toggle
-        UIState.routine.flipIdx = (UIState.routine.flipIdx === idx) ? null : idx;
-        repaint();
-      }
-    }else{
+  if(Number.isFinite(idx)){
+    // If you tap a non-active card -> select it (no overlay)
+    if(idx !== selectedIndex){
+      UIState.routine.flipIdx = null;
+      selectedIndex = idx;
       repaint();
-    }
+    } else {
+      // If you tap the active card -> open expanded overlay (centered)
+      UIState.routine.flipIdx = null;
 
-    tapCardEl = null;
-    return;
+      openPerfOverlay({
+        workoutTitle: (d && d.label) ? d.label : "Workout",
+        workoutSub: `${(d && d.label) ? d.label : "Workout"} • Compared to last 2 weeks`,
+        top3,
+        focusQuote
+      });
+    }
+  }else{
+    repaint();
   }
+
+  tapCardEl = null;
+  return;
+}
 
   // ✅ SWIPE (same behavior as before)
   if(dx <= -THRESH){
