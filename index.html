@@ -1585,7 +1585,7 @@ body.modalOpen{
 .routineDayBtn{
   flex: 1 1 0;
   min-width: 0;
-  height: 58px;                  /* ✅ more compact */
+  height: 70px;                  /* room for date + label */
   border-radius: 16px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.03);
@@ -1593,10 +1593,45 @@ body.modalOpen{
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap: 8px;
+  gap: 4px;
   color: rgba(255,255,255,.60);
   font-weight: 950;
   letter-spacing: .6px;
+}
+
+/* Day pill: top line (MON 18) */
+.routineDayBtn .dTop{
+  display:flex;
+  align-items:baseline;
+  justify-content:center;
+  gap: 6px;
+  width: 100%;
+  padding: 0 6px;
+}
+.routineDayBtn .dTop .dow{
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .7px;
+  opacity: .9;
+}
+.routineDayBtn .dTop .num{
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .2px;
+  opacity: .75;
+}
+
+/* Day pill: routine label (Push/Pull/Rest) */
+.routineDayBtn .dLbl{
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  opacity: .85;
+  max-width: 100%;
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .routineDayBtn .dot{
@@ -1983,6 +2018,10 @@ button.mini.added{
   .settingsSearch input{
     font-size: 16px !important;
   }
+}
+    /* Routine carousel: when 3D preview is OFF, tighten day strip spacing */
+.carouselCard.no3d .routineDayStrip{
+  margin-top: 0 !important;
 }
   </style>
 </head>
@@ -5161,11 +5200,13 @@ else root.appendChild(el("div", { class:"card" }, [
           }
 
           const profile = {
-            name: cleanName,
-            proteinGoal: Math.round(cleanProtein),
-            weekStartsOn,
-            hideRestDays: !!hideRestDays
-          };
+  name: cleanName,
+  proteinGoal: Math.round(cleanProtein),
+  weekStartsOn,
+  hideRestDays: !!hideRestDays,
+  show3DPreview: true
+};
+
 
           // Seed library FIRST so template exercises can resolve to real exerciseIds
           ExerciseLibrary.ensureSeeded();
@@ -6328,6 +6369,7 @@ function isDayComplete(dateISO, day){
 
   const day = getDay(selectedIndex);
   const selectedDateISO = getSelectedDateISO(selectedIndex);
+  const show3DPreview = (state.profile?.show3DPreview !== false); // default ON
 
 function openExerciseHistoryModal(type, exerciseId, exNameOverride=null){
   LogEngine.ensure();
@@ -6441,65 +6483,61 @@ fixedHost.appendChild(el("div", { class:"card" }, [
       ]),
 
       el("div", { class:"rHdrRow", style:"margin-top:10px; align-items:center;" }, [
-        el("div", {
-          class:"manageLink",
-          onClick: () => navigate("routine_editor")
-        }, ["Manage Routine ▾"]),
 
-        el("button", {
-          class: "subPill " + (show3DPreview ? "ok" : "off"),
-          onClick: () => {
-            state.profile = state.profile || {};
-            state.profile.show3DPreview = !show3DPreview;
-            Storage.save(state);
-            repaint(); // instant swap
-          }
-        }, [`3D Preview: ${show3DPreview ? "ON" : "OFF"} 👁`])
-      ])
-    ]));
+  el("div", {
+    class:"manageLink",
+    onClick: () => navigate("routine_editor")
+  }, ["Manage Routine ▾"]),
+
+  el("button", {
+    class: "subPill " + (show3DPreview ? "ok" : "off"),
+    onClick: () => {
+      state.profile = state.profile || {};
+      state.profile.show3DPreview = !show3DPreview;
+      Storage.save(state);
+      repaint(); // ✅ instant swap
+    }
+  }, [`3D Preview: ${show3DPreview ? "ON" : "OFF"} 👁`])
+
+]))
+
 
     if(!day){
       scrollHost.appendChild(el("div", { class:"card note" }, ["No day found."]));
       return;
     }
 
-   // ────────────────────────────
+  // ────────────────────────────
 // 3D Card Carousel (visual container)
 // ────────────────────────────
-const show3DPreview = (state.profile?.show3DPreview !== false); // default ON
 
-function dayStripNode(){
-  return el("div", { class:"routineDayStrip" }, [
-    ...(weekStartsOn === "sun" ? [0,1,2,3,4,5,6] : [1,2,3,4,5,6,0]).map(i => {
-      const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-      const dayName = names[i].toUpperCase();
+const dayStripNode = () => el("div", { class:"routineDayStrip" }, [
+  ...(weekStartsOn === "sun" ? [0,1,2,3,4,5,6] : [1,2,3,4,5,6,0]).map(i => {
+    const d = getDay(i) || {};
+    const iso = getSelectedDateISO(i);
+    const dayNum = (() => {
+      try{ return new Date(String(iso) + "T00:00:00").getDate(); }catch(_){ return ""; }
+    })();
 
-      const iso = getSelectedDateISO(i);
-      const dayNum = (() => {
-        try{ return new Date(iso).getDate(); }catch(_){ return ""; }
-      })();
+    const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i].toUpperCase();
+    const dayLabel = (d.isRest ? "Rest" : (d.label || d.title || d.name || "—"));
 
-      const d = getDay(i) || {};
-      const lbl = (d.isRest ? "Rest" : (d.label || "")).trim() || (d.isRest ? "Rest" : "");
-
-      return el("button", {
-        class: "routineDayBtn" + (i === selectedIndex ? " sel" : ""),
-        onClick: () => { selectedIndex = i; repaint(); }
-      }, [
-        el("div", { class:"dTop" }, [
-          el("div", { class:"dDow", text: dayName }),
-          el("div", { class:"dNum", text: String(dayNum || "") })
-        ]),
-        el("div", { class:"dLbl", text: lbl }),
-        el("div", { class:"dot" })
-      ]);
-    })
-  ]);
-}
+    return el("button", {
+      class: "routineDayBtn" + (i === selectedIndex ? " sel" : ""),
+      onClick: () => { selectedIndex = i; repaint(); }
+    }, [
+      el("div", { class:"dTop" }, [
+        el("span", { class:"dow", text: dow }),
+        el("span", { class:"num", text: String(dayNum || "") })
+      ]),
+      el("div", { class:"dLbl", text: dayLabel }),
+      el("div", { class:"dot" })
+    ]);
+  })
+]);
 
 if(show3DPreview){
 
-  // ✅ Keep your existing 3D carousel code exactly as-is
   fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
     (() => {
       let down = false;
@@ -6516,6 +6554,7 @@ if(show3DPreview){
       function onMove(e){
         if(!down) return;
         dx = e.clientX - startX;
+        // (visual-only: we keep drag simple; snap happens on release)
       }
       function onEnd(){
         if(!down) return;
@@ -6538,6 +6577,7 @@ if(show3DPreview){
         onLostPointerCapture: onEnd
       }, []);
 
+      // Show selected ±2
       const offsets = [-2,-1,0,1,2];
       offsets.forEach(off => {
         const idx = (selectedIndex + off + 7) % 7;
@@ -6545,8 +6585,8 @@ if(show3DPreview){
 
         const abs = Math.abs(off);
         const scale = (off === 0) ? 1 : (1 - abs * 0.10);
-        const x = off * 92;
-        const z = -(abs * 95);
+        const x = off * 92;              // ✅ tighter spacing (more compact)
+        const z = -(abs * 95);           // ✅ less depth than before
         const y = abs * 6;
         const rot = off * -22;
         const op = (off === 0) ? 1 : (abs === 1 ? .65 : .30);
@@ -6567,6 +6607,7 @@ if(show3DPreview){
           el("div", { class:"c3dChips" }, chips)
         ]);
 
+        // Tap any card to jump (visual-only)
         card.addEventListener("click", () => {
           selectedIndex = idx;
           repaint();
@@ -6578,18 +6619,19 @@ if(show3DPreview){
       return c3d;
     })(),
 
-    // ✅ Updated day strip (now includes date # + label)
+    // ✅ Day strip (now with date + label)
     dayStripNode()
   ]));
 
 } else {
 
-  // ✅ OFF mode: no 3D stage, only day strip
+  // OFF mode: remove 3D stage, keep only day strip (tight spacing)
   fixedHost.appendChild(el("div", { class:"card carouselCard no3d" }, [
     dayStripNode()
   ]));
 
 }
+
 
 
     // Rest Day
@@ -7580,107 +7622,102 @@ statsHost.appendChild(el("div", { class:"pill" }, [
           }
         }
       },
-         Settings(){
-        // Persist across renders (not saved to Storage)
-const ui = UIState.settings || (UIState.settings = {});
+Settings(){
+  // Persist across renders (not saved to Storage)
+  const ui = UIState.settings || (UIState.settings = {});
 
-// ✅ ensure accordion state exists so taps don’t crash
-if(!ui.open || typeof ui.open !== "object") ui.open = {};
+  // ✅ ensure accordion state exists so taps don’t crash
+  if(!ui.open || typeof ui.open !== "object") ui.open = {};
 
-// ✅ default: open Profile the first time Settings is visited
-if(Object.keys(ui.open).length === 0) ui.open.profile = true;
+  // ✅ default: open Profile the first time Settings is visited
+  if(Object.keys(ui.open).length === 0) ui.open.profile = true;
 
-        const normalize = (s) => (s||"").toString().trim().toLowerCase();
+  const normalize = (s) => (s||"").toString().trim().toLowerCase();
 
-        // Accordion builder
-        const makeSection = ({ key, title, subtitle, keywords, bodyNode }) => {
-          const q = normalize(ui.q);
-          const hay = normalize([title, subtitle, ...(keywords||[])].join(" "));
-          const match = !q || hay.includes(q);
+  // Accordion builder
+  const makeSection = ({ key, title, subtitle, keywords, bodyNode }) => {
+    const q = normalize(ui.q);
+    const hay = normalize([title, subtitle, ...(keywords||[])].join(" "));
+    const match = !q || hay.includes(q);
 
-          // Auto-open if searching and matched
-          const isOpen = !!ui.open?.[key] || (q && match);
+    // Auto-open if searching and matched
+    const isOpen = !!ui.open?.[key] || (q && match);
 
-          const item = el("div", { class:"accItem", style: match ? "" : "display:none;" });
+    const item = el("div", { class:"accItem", style: match ? "" : "display:none;" });
 
-          const head = el("div", {
-            class:"accHead",
-          onClick: () => {
-  ui.open = ui.open || {};
-  ui.open[key] = !ui.open[key];
-  renderView();
+    const head = el("div", {
+      class:"accHead",
+      onClick: () => {
+        ui.open = ui.open || {};
+        ui.open[key] = !ui.open[key];
+        renderView();
+      }
+    }, [
+      el("div", {}, [
+        el("div", { class:"accTitle", text: title }),
+        el("div", { class:"accSub", text: subtitle })
+      ]),
+      el("div", { class:"accCaret", text: isOpen ? "−" : "+" })
+    ]);
+
+    const body = el("div", { class:"accBody", style: isOpen ? "" : "display:none;" }, [ bodyNode ]);
+
+    item.appendChild(head);
+    item.appendChild(body);
+    return item;
+  };
+
+  // --- Profile controls ---
+  const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
+  const proteinInput = el("input", { type:"number", min:"0", step:"1", value: state.profile?.proteinGoal || 150 });
+
+  const weekSelect = el("select", {});
+  weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
+  weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
+
+  // Backward compatible: accept older numeric values (0/1) if they exist
+  const ws = state.profile?.weekStartsOn;
+  const normalized =
+    (ws === 0 || ws === "0" || ws === "sun") ? "sun" :
+    (ws === 1 || ws === "1" || ws === "mon") ? "mon" :
+    "mon";
+  weekSelect.value = normalized;
+
+  // ✅ toggles (no duplicates)
+  let hideRestDays = !!state.profile?.hideRestDays;
+  let show3DPreview = (state.profile?.show3DPreview !== false); // default ON
+
+  const hideRestSwitch = el("div", {
+    class: "switch" + (hideRestDays ? " on" : ""),
+    onClick: () => {
+      hideRestDays = !hideRestDays;
+      hideRestSwitch.classList.toggle("on", hideRestDays);
+    }
+  });
+
+  const show3DSwitch = el("div", {
+    class: "switch" + (show3DPreview ? " on" : ""),
+    onClick: () => {
+      show3DPreview = !show3DPreview;
+      show3DSwitch.classList.toggle("on", show3DPreview);
+    }
+  });
+
+  // ...continue building sections and saveProfile() below...
 }
-          }, [
-            el("div", {}, [
-              el("div", { class:"accTitle", text: title }),
-              el("div", { class:"accSub", text: subtitle })
-            ]),
-            el("div", { class:"accCaret", text: isOpen ? "−" : "+" })
-          ]);
 
-          const body = el("div", { class:"accBody", style: isOpen ? "" : "display:none;" }, [ bodyNode ]);
 
-          item.appendChild(head);
-          item.appendChild(body);
-          return item;
-        };
-
-        // --- Profile controls ---
-        const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
-        const proteinInput = el("input", { type:"number", min:"0", step:"1", value: state.profile?.proteinGoal || 150 });
-
-               const weekSelect = el("select", {});
-        weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
-        weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
-
-        // Backward compatible: accept older numeric values (0/1) if they exist
-const ws = state.profile?.weekStartsOn;
-const normalized =
-  (ws === 0 || ws === "0" || ws === "sun") ? "sun" :
-  (ws === 1 || ws === "1" || ws === "mon") ? "mon" :
-  "mon";
-weekSelect.value = normalized;
-
-// ────────────────────────────
-// Toggles (live UI state → saved on Save changes)
-// ────────────────────────────
-let hideRestDays = !!state.profile?.hideRestDays;
-
-const hideRestSwitch = el("div", {
-  class: "switch" + (hideRestDays ? " on" : ""),
-  onClick: () => {
-    hideRestDays = !hideRestDays;
-    hideRestSwitch.classList.toggle("on", hideRestDays);
-  }
-});
-
-// ✅ DEFAULT: 3D Preview ON unless user explicitly turned it off before
-let show3DPreview = (state.profile && ("show3DPreview" in state.profile))
-  ? !!state.profile.show3DPreview
-  : true;
-
-const show3DSwitch = el("div", {
-  class: "switch" + (show3DPreview ? " on" : ""),
-  onClick: () => {
-    show3DPreview = !show3DPreview;
-    show3DSwitch.classList.toggle("on", show3DPreview);
-  }
-});
-
-function saveProfile(){
-  state.profile = state.profile || {};
-  state.profile.name = (nameInput.value || "").trim();
-  state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
-  state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
-
-  // ✅ persist both toggles
-  state.profile.hideRestDays = !!hideRestDays;
-  state.profile.show3DPreview = !!show3DPreview;
-
-  Storage.save(state);
-  showToast("Saved");
-  renderView();
-}
+        function saveProfile(){
+          state.profile = state.profile || {};
+          state.profile.name = (nameInput.value || "").trim();
+          state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
+          state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
+          state.profile.hideRestDays = !!hideRestDays;
+          state.profile.show3DPreview = !!show3DPreview;
+          Storage.save(state);
+          showToast("Saved");
+          renderView();
+        }
 
         // --- Existing import/export helpers (reuse your current functions) ---
         function openImportPasteModal(){
