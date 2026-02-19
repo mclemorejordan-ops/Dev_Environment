@@ -1581,16 +1581,16 @@ body.modalOpen{
   transform: rotateY(180deg);
   display:flex;
   flex-direction:column;
-  padding:10px;              /* was 14px */
-  gap:6px;                   /* NEW: tighter vertical rhythm */
+
+  /* Tight spacing so everything fits */
+  padding:10px;
+  gap:6px;
+
+  /* No scrollbars, no overflow */
+  overflow:hidden;
 }
 
-    /* ===== Scorecard (stats-only compact) ===== */
-
-.c3dBack{
-  /* keep your existing settings — this just ensures no accidental scroll */
-  overflow: hidden;
-}
+/* ===== Scorecard (stats-only compact) ===== */
 
 .c3dScoreCloseFloat{
   position:absolute;
@@ -1665,60 +1665,6 @@ body.modalOpen{
   font-size: 13px;
   white-space: nowrap;
 }
-
-/* If your back has a Close button + headers, this helps keep it tight */
-.c3dBack h1, .c3dBack h2, .c3dBack h3, .c3dBack p{
-  margin:0;
-}
-
-.scorePanel{
-  margin-top:6px;            /* was 10px */
-  border-radius:12px;
-  border:1px solid rgba(255,255,255,.12);
-  padding:8px;               /* was 10px */
-  display:flex;
-  flex-direction:column;
-  gap:6px;                   /* was 8px */
-}
-
-.scoreRow{
-  display:flex;
-  flex-direction:column;
-  gap:1px;                   /* was 2px */
-  font-size:11px;            /* was 12px */
-  line-height:1.15;          /* NEW: tighter lines */
-}
-
-.scoreTop{
-  display:flex;
-  justify-content:space-between;
-  gap:8px;                   /* NEW: prevents ugly wrapping */
-  font-weight:850;           /* slightly stronger */
-  font-size:11.5px;          /* NEW */
-  line-height:1.1;           /* NEW */
-}
-
-/* Keep the right-side delta on one line */
-.scoreTop > :last-child{
-  white-space:nowrap;
-}
-
-.scoreBase{
-  font-size:10px;            /* was 11px */
-  opacity:.62;               /* slightly softer */
-  line-height:1.1;           /* NEW */
-}
-
-/* Focus line must never push content off-card */
-.scoreFocus{
-  margin-top:4px;            /* was 6px */
-  padding-top:5px;           /* was 6px */
-  border-top:1px solid rgba(255,255,255,.1);
-  font-size:11px;            /* was 12px */
-  font-weight:750;           /* was 700 */
-  line-height:1.2;           /* NEW */
-}
-
 
 /* Day strip (fixed under carousel) */
 .routineDayStrip{
