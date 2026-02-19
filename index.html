@@ -6610,7 +6610,11 @@ fixedHost.appendChild(el("div", { class:"routineDayStrip" }, [
     }, [
       el("div", { class:"dow", text: dow }),
       el("div", { class:"num", text: String(dayNum || "") }),
-      el("div", { class:"lbl", text: dayLabel }),
+      ...(show3DPreview 
+          ? [] 
+          : [el("div", { class:"lbl", text: dayLabel })]
+      ),
+
       el("div", { class:"dot" })
     ]);
   })
