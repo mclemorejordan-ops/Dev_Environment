@@ -1397,6 +1397,24 @@ body.modalOpen{
   gap: 12px;
   padding-bottom: 6px;
 }
+/* ✅ Routine header: lock button positions */
+.routineHeaderCard{
+  position: relative;
+}
+
+/* Start Today = top-right */
+.routineStartBtn{
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+/* 3D Preview toggle = bottom-right */
+.routine3DToggle{
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+}    
 .manageLink{
   margin-top: 10px;
   font-weight: 750;
@@ -1548,15 +1566,38 @@ body.modalOpen{
   justify-content:space-between;
   margin-top: 20px; 
 }
-/* ✅ Day strip: add day number + label (Compact Hybrid) */
+/* ✅ Day strip: day + date number + label (Compact Hybrid) */
+.routineDayStrip{
+  display:flex;
+  gap: 8px;
+  justify-content:space-between;
+  margin-top: 20px;
+}
+
 .routineDayBtn{
+  flex: 1 1 0;
+  min-width: 0;
+
+  /* ✅ Taller so the label line can be seen */
+  height: 74px;
+
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.03);
+
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:2px;
+
+  /* ✅ Tight spacing so 3 lines + dot fit cleanly */
+  gap: 3px;
+
+  color: rgba(255,255,255,.60);
+  font-weight: 950;
+  letter-spacing: .6px;
+
   padding: 10px 8px;
-  min-width: 54px;
 }
 
 .routineDayBtn .dow{
@@ -1564,6 +1605,7 @@ body.modalOpen{
   font-weight: 900;
   letter-spacing: .6px;
   opacity: .85;
+  line-height: 1;
 }
 
 .routineDayBtn .num{
@@ -1575,7 +1617,9 @@ body.modalOpen{
 .routineDayBtn .lbl{
   font-size: 11px;
   font-weight: 850;
-  opacity: .75;
+  opacity: .78;
+  line-height: 1;
+
   max-width: 70px;
   overflow:hidden;
   text-overflow: ellipsis;
@@ -1583,27 +1627,13 @@ body.modalOpen{
 }
 
 .routineDayBtn.rest .lbl{
-  opacity: .9;
-}
-.routineDayBtn{
-  flex: 1 1 0;
-  min-width: 0;
-  height: 58px;                  /* ✅ more compact */
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.03);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap: 8px;
-  color: rgba(255,255,255,.60);
-  font-weight: 950;
-  letter-spacing: .6px;
+  opacity: .92;
 }
 
 .routineDayBtn .dot{
-  width: 8px; height: 8px; border-radius: 999px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
   background: rgba(255,255,255,.22);
 }
 
@@ -6427,48 +6457,49 @@ function setShow3DPreview(v){
   Storage.save(state);
   renderView(); // re-render Routine cleanly
 }
-    fixedHost.appendChild(el("div", { class:"card" }, [
-      el("h2", { text:"Routine" }),
-      el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
+    fixedHost.appendChild(el("div", { class:"card routineHeaderCard" }, [
+  el("h2", { text:"Routine" }),
+  el("div", { class:"note", text:`${routine.name} • ${weekStartsOn === "sun" ? "Sun–Sat" : "Mon–Sun"}` }),
 
-      el("div", { style:"height:10px" }),
-
-el("div", { class:"rHdrRow" }, [
+  // ✅ Start Today (top-right)
   el("button", {
-    class:"btn ghost",
-    onClick: (e) => openRoutinePicker(e.currentTarget)
-  }, [`${routine.name} ▼`]),
+    class:"btn primary routineStartBtn",
+    onClick: () => {
+      selectedIndex = todayIndex;
+      repaint();
+      setTimeout(()=>{
+        const first = scrollHost.querySelector("[data-unlogged='true']");
+        if(first){
+          first.scrollIntoView({ behavior:"smooth", block:"center" });
+          first.classList.add("pulse");
+          setTimeout(()=>first.classList.remove("pulse"),1200);
+        }
+      },0);
+    }
+  }, ["▶ Start Today"]),
 
-  el("div", { style:"display:flex; gap:10px; align-items:center;" }, [
+  // ✅ 3D Preview toggle (bottom-right)
+  el("button", {
+    class:"btn mini routine3DToggle",
+    onClick: () => setShow3DPreview(!show3DPreview)
+  }, [`3D Preview: ${show3DPreview ? "ON" : "OFF"} 👁`]),
+
+  el("div", { style:"height:10px" }),
+
+  // Left-side: routine picker only
+  el("div", { class:"rHdrRow" }, [
     el("button", {
-      class:"btn mini",
-      onClick: () => setShow3DPreview(!show3DPreview)
-    }, [`3D Preview: ${show3DPreview ? "ON" : "OFF"} 👁`]),
+      class:"btn ghost",
+      onClick: (e) => openRoutinePicker(e.currentTarget)
+    }, [`${routine.name} ▼`])
+  ]),
 
-    el("button", {
-      class:"btn primary",
-      onClick: () => {
-        selectedIndex = todayIndex;
-        repaint();
-        setTimeout(()=>{
-          const first = scrollHost.querySelector("[data-unlogged='true']");
-          if(first){
-            first.scrollIntoView({ behavior:"smooth", block:"center" });
-            first.classList.add("pulse");
-            setTimeout(()=>first.classList.remove("pulse"),1200);
-          }
-        },0);
-      }
-    }, ["▶ Start Today"])
-  ])
-]),
+  el("div", {
+    class:"manageLink",
+    onClick: () => navigate("routine_editor")
+  }, ["Manage Routine ▾"])
+]));
 
-
-      el("div", {
-        class:"manageLink",
-        onClick: () => navigate("routine_editor")
-      }, ["Manage Routine ▾"])
-    ]));
 
     if(!day){
       scrollHost.appendChild(el("div", { class:"card note" }, ["No day found."]));
