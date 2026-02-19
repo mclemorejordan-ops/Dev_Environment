@@ -1585,6 +1585,87 @@ body.modalOpen{
   gap:6px;                   /* NEW: tighter vertical rhythm */
 }
 
+    /* ===== Scorecard (stats-only compact) ===== */
+
+.c3dBack{
+  /* keep your existing settings — this just ensures no accidental scroll */
+  overflow: hidden;
+}
+
+.c3dScoreCloseFloat{
+  position:absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.92);
+  font-weight: 900;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.c3dScoreMini{
+  height: 100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.c3dScoreList{
+  width: 100%;
+  display:grid;
+  gap: 10px;
+
+  /* IMPORTANT: no scrollbars */
+  overflow: hidden;
+}
+
+.c3dScoreRow{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 10px;
+
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  padding: 10px;
+}
+
+.c3dScoreRow .l{
+  min-width: 0;
+  display:flex;
+  flex-direction:column;
+  gap: 2px;
+}
+
+.c3dScoreRow .name{
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: .1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c3dScoreRow .base{
+  font-size: 11px;
+  opacity: .70;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c3dScoreRow .r{
+  font-weight: 900;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 /* If your back has a Close button + headers, this helps keep it tight */
 .c3dBack h1, .c3dBack h2, .c3dBack h3, .c3dBack p{
   margin:0;
@@ -6721,47 +6802,32 @@ offsets.forEach(off => {
   ]);
 
   const backFace = el("div", { class:"c3dFace c3dBack" }, [
-    el("div", { class:"c3dScore" }, [
-      el("div", { class:"c3dScoreHead" }, [
-        el("div", {}, [
-          el("div", { class:"c3dScoreTitle", text:"TODAY'S PERFORMANCE" }),
-          el("div", { class:"c3dScoreSub", text:`${d.label || "Workout"} • Compared to last 2 weeks` })
-        ]),
-        el("button", {
-          class:"c3dScoreClose",
-          onClick: (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            UIState.routine.flipIdx = null;
-            repaint();
-          }
-        }, ["Close"])
-      ]),
 
-      el("div", { class:"c3dScoreCard" }, [
-        el("div", { class:"c3dScoreCardTop" }, [
-          el("div", {}, [
-            el("div", { class:"t", text:"Top Improvements" }),
-            el("div", { class:"m", text:`Compared to your last 14 days of ${d.label || "sessions"}` })
-          ]),
-          el("div", { class:"note", text:selectedDateISO_forCard })
+  // Small close button (does not take layout space)
+  el("button", {
+    class:"c3dScoreClose c3dScoreCloseFloat",
+    onClick: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      UIState.routine.flipIdx = null;
+      repaint();
+    }
+  }, ["✕"]),
+
+  // Stats only (no headers, no date, no focus text)
+  el("div", { class:"c3dScoreMini" }, [
+    el("div", { class:"c3dScoreList" }, top3.map(row => {
+      return el("div", { class:"c3dScoreRow" }, [
+        el("div", { class:"l" }, [
+          el("div", { class:"name", text: row.name }),
+          el("div", { class:"base", text: row.base })
         ]),
-        el("div", { class:"c3dScoreList" }, top3.map(row => {
-          return el("div", { class:"c3dScoreRow" }, [
-            el("div", { class:"l" }, [
-              el("div", { class:"name", text: row.name }),
-              el("div", { class:"base", text: row.base })
-            ]),
-            el("div", { class:"r", text: row.r })
-          ]);
-        })),
-        el("div", { class:"c3dScoreFocus" }, [
-          el("div", { class:"note", text:"FOCUS" }),
-          el("div", { text: focusQuote })
-        ])
-      ])
-    ])
-  ]);
+        el("div", { class:"r", text: row.r })
+      ]);
+    }))
+  ])
+]);
+
 
   const inner = el("div", { class:"c3dInner" }, [frontFace, backFace]);
 
