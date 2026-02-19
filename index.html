@@ -6803,93 +6803,96 @@ fixedHost.appendChild(el("div", { class:"rV2Module" }, [
 
   el("div", { class:"rV2Sep" }),
 
-/* BIG CARD (only when 3D preview is ON) */
+  /* BIG CARD (only when 3D preview is ON) */
   ...(show3DPreview ? [el("div", { class:"rV2Carousel" }, [
     el("div", { class:"rV2CardStack", id:"rV2Carousel" }, [
       el("div", { class:"rV2Card backL" }),
       el("div", { class:"rV2Card backR" }),
 
       (() => {
-  const d = getDay(selectedIndex) || { label:"Day", isRest:false, exercises:[] };
-  const exCount = (d.exercises || []).length;
-  const isTraining = !d.isRest;
-  const dateISO = getSelectedDateISO(selectedIndex);
+        const d = getDay(selectedIndex) || { label:"Day", isRest:false, exercises:[] };
+        const exCount = (d.exercises || []).length;
+        const isTraining = !d.isRest;
+        const dateISO = getSelectedDateISO(selectedIndex);
 
-  // Badge 1 stays the same
-  const badge1 = isTraining ? "Training Day" : "Rest Day";
+        // Badge 1 stays the same
+        const badge1 = isTraining ? "Training Day" : "Rest Day";
 
-  // Badge 2: status
-  let badge2 = "Pending";
-  let badge2Class = "status-pending";
+        // Badge 2: Pending / In Progress / Completed (Rest day uses Recovery)
+        let badge2 = "Pending";
+        let badge2Class = "status-pending";
 
-  if(!isTraining){
-    badge2 = "Recovery";
-    badge2Class = "status-rest";
-  } else if(isDayComplete(dateISO, d)){
-    badge2 = "Completed";
-    badge2Class = "status-complete";
-  } else if(isDayStarted(dateISO, d)){
-    badge2 = "In Progress";
-    badge2Class = "status-progress";
-  }
+        if(!isTraining){
+          badge2 = "Recovery";
+          badge2Class = "status-rest";
+        } else if(isDayComplete(dateISO, d)){
+          badge2 = "Completed";
+          badge2Class = "status-complete";
+        } else if(isDayStarted(dateISO, d)){
+          badge2 = "In Progress";
+          badge2Class = "status-progress";
+        }
 
-  return el("div", { class:"rV2Card active" }, [
-    el("div", { class:"rV2CardInner" }, [
-      el("div", { class:"rV2TopLine" }, [
-        el("div", { class:"rV2Day" }, [
-          el("div", { class:"dow", text: dowShort(selectedIndex) }),
-          el("div", { class:"lift", text: d.isRest ? "Rest" : (d.label || "Training") })
-        ]),
-        el("div", { class:"rV2ExRight" }, [
-          el("div", { class:"rV2ExPill" }, [
-            el("div", { class:"rV2ExCount", text: String(exCount) }),
-            el("div", { class:"rV2ExLabel", text:"Exercises" })
+        return el("div", { class:"rV2Card active" }, [
+          el("div", { class:"rV2CardInner" }, [
+            el("div", { class:"rV2TopLine" }, [
+              el("div", { class:"rV2Day" }, [
+                el("div", { class:"dow", text: dowShort(selectedIndex) }),
+                el("div", { class:"lift", text: d.isRest ? "Rest" : (d.label || "Training") })
+              ]),
+              el("div", { class:"rV2ExRight" }, [
+                el("div", { class:"rV2ExPill" }, [
+                  el("div", { class:"rV2ExCount", text: String(exCount) }),
+                  el("div", { class:"rV2ExLabel", text:"Exercises" })
+                ])
+              ])
+            ]),
+
+            el("div", { class:"rV2Badges" }, [
+              el("div", { class:"rV2Badge", text: badge1 }),
+              el("div", { class:"rV2Badge " + badge2Class, text: badge2 })
+            ])
           ])
-        ])
-      ]),
-
-      el("div", { class:"rV2Badges" }, [
-        el("div", { class:"rV2Badge", text: badge1 }),
-        el("div", { class:"rV2Badge " + badge2Class, text: badge2 })
-      ])
+        ]);
+      })()
     ])
-  ]);
-})()
+  ])] : []),
 
   ...(show3DPreview ? [el("div", { class:"rV2Sep" })] : []),
 
   // WEEK GRID (always visible)
-el("div", { class:"rV2Week" }, [
-  ...(weekStartsOn === "sun" ? [0,1,2,3,4,5,6] : [1,2,3,4,5,6,0]).map(i => {
-    const d = getDay(i) || { label:"", isRest:false, exercises:[] };
-    const label = d.isRest ? "Rest" : (d.label || "Training");
-    const dateISO = getSelectedDateISO(i);
+  el("div", { class:"rV2Week" }, [
+    ...(weekStartsOn === "sun" ? [0,1,2,3,4,5,6] : [1,2,3,4,5,6,0]).map(i => {
+      const d = getDay(i) || { label:"", isRest:false, exercises:[] };
+      const label = d.isRest ? "Rest" : (d.label || "Training");
+      const dateISO = getSelectedDateISO(i);
 
-    // ✅ Status class drives DOT color (outline stays neutral)
-    let statusClass = "status-pending";
-    if(d.isRest){
-      statusClass = "status-rest";
-    }else if(isDayComplete(dateISO, d)){
-      statusClass = "status-complete";
-    }else if(isDayStarted(dateISO, d)){
-      statusClass = "status-progress";
-    }
+      // ✅ Status class drives DOT color (outline stays neutral)
+      let statusClass = "status-pending";
+      if(d.isRest){
+        statusClass = "status-rest";
+      }else if(isDayComplete(dateISO, d)){
+        statusClass = "status-complete";
+      }else if(isDayStarted(dateISO, d)){
+        statusClass = "status-progress";
+      }
 
-    return el("button", {
-      class: "rV2DayBtn " + statusClass + (i === selectedIndex ? " active" : ""),
-      onClick: () => setIdx(i, i > selectedIndex ? "next" : "prev")
-    }, [
-      el("span", { class:"n", text: dowShort(i) }),
-      el("span", { class:"d", text: String(dayNum(i) || "") }),
+      return el("button", {
+        class: "rV2DayBtn " + statusClass + (i === selectedIndex ? " active" : ""),
+        onClick: () => setIdx(i, i > selectedIndex ? "next" : "prev")
+      }, [
+        el("span", { class:"n", text: dowShort(i) }),
+        el("span", { class:"d", text: String(dayNum(i) || "") }),
 
-      // ✅ If 3D Preview ON, do NOT render labels (your prior requirement)
-      ...(!show3DPreview ? [el("span", { class:"lbl", text: label })] : []),
+        // ✅ If 3D Preview ON, do NOT render labels (your prior requirement)
+        ...(!show3DPreview ? [el("span", { class:"lbl", text: label })] : []),
 
-      el("div", { class:"rV2Dot" })
-    ]);
-  })
-])
-]));  // keep your existing closing exactly as-is
+        el("div", { class:"rV2Dot" })
+      ]);
+    })
+  ])
+
+]));
 
 // ────────────────────────────
 // Swipe (only when 3D preview is ON)
