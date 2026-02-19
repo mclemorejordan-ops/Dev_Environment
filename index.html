@@ -3089,52 +3089,7 @@ const Dates = {
       else state.attendance.push(dateISO);
       Storage.save(state);
     }
-    function openTodayPerformanceModal({ label, top3, focusQuote }){
-  const stage = el("div", { class:"perfStage flipped" }, []);
-
-  const card = el("div", { class:"perfCard" }, [
-    // FRONT (not shown because we start flipped)
-    el("div", { class:"perfSide perfFront" }, [
-      el("div", { style:"font-weight:950;font-size:18px;", text: label || "Workout" }),
-      el("div", { class:"perfHdrSub", text:"Tap to view performance" })
-    ]),
-
-    // BACK (shown)
-    el("div", { class:"perfSide perfBack" }, [
-      el("div", { class:"perfHdrTitle", text:"TODAY'S PERFORMANCE" }),
-      el("div", { class:"perfHdrSub", text:`${label || "Workout"} • Compared to last 2 weeks` })
-    ])
-  ]);
-
-  const panel = el("div", { class:"perfPanel" }, [
-    ...top3.map(row => (
-      el("div", { class:"perfRow" }, [
-        el("div", { class:"perfRowTop" }, [
-          el("div", { class:"perfEx", text: row.name }),
-          el("div", { class:"perfDelta", text: row.r })
-        ]),
-        el("div", { class:"perfBase", text: row.base })
-      ])
-    )),
-    el("div", { class:"perfFocus", text: focusQuote || "Stay progressive." })
-  ]);
-
-  const closeBtn = el("button", {
-    class:"perfClose",
-    onClick: (e) => { e.preventDefault(); Modal.close(); }
-  }, ["Close"]);
-
-  stage.appendChild(card);
-  stage.appendChild(panel);
-  stage.appendChild(closeBtn);
-
-  Modal.open({
-    title: "",
-    center: true,
-    size: "md",
-    bodyNode: el("div", { class:"perfWrap" }, [ stage ])
-  });
-}
+    
     /********************
      * Attendance Helpers (Step 9)
      ********************/
@@ -5094,6 +5049,53 @@ const Modal = {
     host.setAttribute("aria-hidden", "false");
 
     lockBodyScroll();
+    
+    function openTodayPerformanceModal({ label, top3, focusQuote }){
+  const stage = el("div", { class:"perfStage flipped" }, []);
+
+  const card = el("div", { class:"perfCard" }, [
+    // FRONT (not shown because we start flipped)
+    el("div", { class:"perfSide perfFront" }, [
+      el("div", { style:"font-weight:950;font-size:18px;", text: label || "Workout" }),
+      el("div", { class:"perfHdrSub", text:"Tap to view performance" })
+    ]),
+
+    // BACK (shown)
+    el("div", { class:"perfSide perfBack" }, [
+      el("div", { class:"perfHdrTitle", text:"TODAY'S PERFORMANCE" }),
+      el("div", { class:"perfHdrSub", text:`${label || "Workout"} • Compared to last 2 weeks` })
+    ])
+  ]);
+
+  const panel = el("div", { class:"perfPanel" }, [
+    ...top3.map(row => (
+      el("div", { class:"perfRow" }, [
+        el("div", { class:"perfRowTop" }, [
+          el("div", { class:"perfEx", text: row.name }),
+          el("div", { class:"perfDelta", text: row.r })
+        ]),
+        el("div", { class:"perfBase", text: row.base })
+      ])
+    )),
+    el("div", { class:"perfFocus", text: focusQuote || "Stay progressive." })
+  ]);
+
+  const closeBtn = el("button", {
+    class:"perfClose",
+    onClick: (e) => { e.preventDefault(); Modal.close(); }
+  }, ["Close"]);
+
+  stage.appendChild(card);
+  stage.appendChild(panel);
+  stage.appendChild(closeBtn);
+
+  Modal.open({
+    title: "",
+    center: true,
+    size: "md",
+    bodyNode: el("div", { class:"perfWrap" }, [ stage ])
+  });
+}
 
     // Focus management: move focus into modal (prefer Close button)
     const closeBtn = $("#modalClose");
