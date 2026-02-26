@@ -1968,4 +1968,29 @@ button.mini.added{
     font-size: 16px !important;
   }
 }
-  
+  /* ─────────────────────────────
+   Onboarding vA (onbV1)
+───────────────────────────── */
+.onbV1{
+  display:grid;
+  gap: 12px;
+}
+
+.onbV1 .onbHero .kpi .big{
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.onbV1 .onbHero .kpi .small{
+  opacity: .85;
+}
+
+@media (min-width: 860px){
+  .onbV1{
+    grid-template-columns: 1fr 1fr;
+    align-items:start;
+  }
+  .onbV1 .onbHero{
+    grid-column: 1 / -1;
+  }
+}
