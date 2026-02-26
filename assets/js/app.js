@@ -5109,28 +5109,30 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           });
         }
 
-        // --- Section bodies ---
-        const profileBody = el("div", {}, [
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Name" }),
-              el("div", { class:"meta", text:"Shown on Home" })
-            ]),
-            nameInput
+        // --- Protein controls (Profile section) ---
+        let trackProtein = (state.profile?.trackProtein !== false);
+
+        // Protein goal row (created first so the toggle can reference it safely)
+        const proteinGoalRow = el("div", {
+          class:"setRow",
+          style: trackProtein ? "" : "display:none;"
+        }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
+            el("div", { class:"meta", text:"grams/day" })
           ]),
-          let proteinGoalRow = null;
+          proteinInput
+        ]);
 
         const trackProteinSwitch = el("div", {
           class: "switch" + (trackProtein ? " on" : ""),
           onClick: () => {
             trackProtein = !trackProtein;
             trackProteinSwitch.classList.toggle("on", trackProtein);
-        
+
             // ✅ Live show/hide immediately (no Save needed)
-            if(proteinGoalRow){
-              proteinGoalRow.style.display = trackProtein ? "" : "none";
-            }
-        
+            proteinGoalRow.style.display = trackProtein ? "" : "none";
+
             // Optional: if turning ON and goal is empty/0, seed a default + focus
             if(trackProtein){
               const v = Number(proteinInput.value || 0);
@@ -5141,14 +5143,28 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             }
           }
         });
-                  
-          (proteinGoalRow = el("div", { class:"setRow", style: trackProtein ? "" : "display:none;" }, [
-          el("div", {}, [
-            el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
-            el("div", { class:"meta", text:"grams/day" })
+
+        const profileBody = el("div", {}, [
+          el("div", { class:"setRow" }, [
+            el("div", {}, [
+              el("div", { style:"font-weight:820;", text:"Name" }),
+              el("div", { class:"meta", text:"Shown on Home" })
+            ]),
+            nameInput
           ]),
-          proteinInput
-        ])),
+
+          // ✅ Track protein toggle
+          el("div", { class:"setRow" }, [
+            el("div", {}, [
+              el("div", { style:"font-weight:820;", text:"Track protein" }),
+              el("div", { class:"meta", text:"Enable or disable protein tracking across the app" })
+            ]),
+            trackProteinSwitch
+          ]),
+
+          // ✅ Goal row (live hidden/shown)
+          proteinGoalRow,
+
           el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"Week starts on" }),
@@ -5156,6 +5172,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             ]),
             weekSelect
           ]),
+
           el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"Hide rest days" }),
@@ -5163,6 +5180,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             ]),
             hideRestSwitch
           ]),
+
           el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"3D Preview" }),
@@ -5170,7 +5188,9 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             ]),
             show3DSwitch
           ]),
+
           el("div", { style:"height:12px" }),
+
           el("div", { class:"btnrow" }, [
             el("button", { class:"btn primary", onClick: () => {
               try{ saveProfile(); }
