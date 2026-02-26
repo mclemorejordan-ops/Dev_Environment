@@ -1431,46 +1431,6 @@ function cleanupProteinEntryIfEmpty(dateISO){
   }
 }
 
-/********************
- * 4c) Protein (Today) Helpers (Step 5)
- * OPTION B: A date only exists if user logs >0g and saves
- ********************/
-
-// ✅ Read-only lookup (never creates/saves)
-function findProteinEntry(dateISO){
-  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
-  state.logs.protein = state.logs.protein || [];
-  return state.logs.protein.find(x => x.dateISO === dateISO) || null;
-}
-
-// ✅ Write-path helper (creates ONLY when we truly need to save something)
-function ensureProteinEntry(dateISO){
-  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
-  state.logs.protein = state.logs.protein || [];
-  let entry = state.logs.protein.find(x => x.dateISO === dateISO);
-  if(!entry){
-    entry = { dateISO, meals: [] }; // meals: [{ id, label, grams }]
-    state.logs.protein.push(entry);
-    Storage.save(state);
-  }
-  return entry;
-}
-
-// ✅ If an entry has no meals, remove the entire day so it doesn't appear in history
-function cleanupProteinEntryIfEmpty(dateISO){
-  state.logs = state.logs || { workouts: [], weight: [], protein: [] };
-  state.logs.protein = state.logs.protein || [];
-
-  const idx = state.logs.protein.findIndex(x => x.dateISO === dateISO);
-  if(idx < 0) return;
-
-  const entry = state.logs.protein[idx];
-  const meals = Array.isArray(entry?.meals) ? entry.meals : [];
-  if(meals.length === 0){
-    state.logs.protein.splice(idx, 1);
-    Storage.save(state);
-  }
-}
 
 // ⚠️ Keep for compatibility (but this DOES create). Use only for write paths.
 function getProteinForDate(dateISO){
@@ -3028,7 +2988,7 @@ else root.appendChild(el("div", { class:"card" }, [
         const weekStartsOn = state.profile?.weekStartsOn || "mon";
         const weekStartISO = Dates.startOfWeekISO(todayISO, weekStartsOn);
 
-        const { routine, day } = getTodayWorkout();
+                const { routine, day } = getTodayWorkout();
 
         const trainedThisWeek = [];
         for(let i=0;i<7;i++){
@@ -3036,9 +2996,27 @@ else root.appendChild(el("div", { class:"card" }, [
           trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
         }
 
+        // ✅ Attendance action (used by Attendance card buttons)
+        const openCheckIn = () => {
+          toggleTrained(todayISO);
+          renderView();
+        };
+
+        // ✅ Workout card display vars (used by Today’s workout card)
+        const workoutTitle = !routine ? "No routine selected"
+          : (!day ? "No day found"
+          : (day.isRest ? "Rest Day" : (day.label || "Workout")));
+
+        const workoutSub = !routine ? "Go to Routine → create/select a routine."
+          : (!day ? "Open Routine Editor to fix day mapping."
+          : (day.isRest ? "Recovery day. Hydrate + mobility."
+          : `${(day.exercises || []).length} exercises planned`));
+
+        const workoutExercises = (day?.isRest || !day) ? []
+          : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
+
         const proteinOn = (state.profile?.trackProtein !== false);
 
-        
         // Protein (feature-gated)
         let goal = 0;
         let done = 0;
@@ -3046,7 +3024,7 @@ else root.appendChild(el("div", { class:"card" }, [
         let pct = 0;
         let deg = 0;
         let ring = null;
-        
+
         const openProteinModal = (dateISO = todayISO) => {
           if(!proteinOn){
             showToast("Protein tracking is disabled. Enable it in Settings → Profile.");
@@ -3057,14 +3035,14 @@ else root.appendChild(el("div", { class:"card" }, [
             bodyNode: buildProteinTodayModal(dateISO, goal)
           });
         };
-        
+
         if(proteinOn){
           goal = Number(state.profile?.proteinGoal) || 0;
           done = totalProtein(todayISO);
           left = Math.max(0, goal - done);
           pct = goal > 0 ? Math.max(0, Math.min(1, done / goal)) : 0;
           deg = Math.round(pct * 360);
-        
+
           ring = el("div", {
             class:"ringWrap",
             style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
@@ -3077,7 +3055,7 @@ else root.appendChild(el("div", { class:"card" }, [
           ]);
         }
 
-  const dots = el("div", { class:"dots" });
+        const dots = el("div", { class:"dots" });
 trainedThisWeek.forEach((d, idx) => {
   const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
   dots.appendChild(dot);
