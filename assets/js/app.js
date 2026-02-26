@@ -4959,26 +4959,37 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           return item;
         };
 
-        // --- Profile controls ---
-       const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
+                // --- Profile controls ---
+        const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
 
-let trackProtein = (state.profile?.trackProtein !== false);
-const trackProteinSwitch = el("div", {
-  class: "switch" + (trackProtein ? " on" : ""),
-  onClick: () => {
-    trackProtein = !trackProtein;
-    trackProteinSwitch.classList.toggle("on", trackProtein);
-    proteinRow.style.display = trackProtein ? "" : "none";
-  }
-});
+        // ✅ NEW: Track Protein toggle (default ON)
+        let trackProtein = (state.profile?.trackProtein !== false);
 
-const proteinInput = el("input", { type:"number", min:"0", step:"1", value: state.profile?.proteinGoal || 150 });
+        const proteinInput = el("input", {
+          type:"number",
+          min:"0",
+          step:"1",
+          value: state.profile?.proteinGoal || 150
+        });
 
-// Wrap so we can show/hide cleanly
-const proteinRow = el("div", { class:"row2", style: trackProtein ? "" : "display:none;" }, [
-  el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
-]);
-               const weekSelect = el("select", {});
+        // Wrap so we can show/hide cleanly
+        const proteinRow = el("div", {
+          class:"row2",
+          style: trackProtein ? "" : "display:none;"
+        }, [
+          el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
+        ]);
+
+        const trackProteinSwitch = el("div", {
+          class: "switch" + (trackProtein ? " on" : ""),
+          onClick: () => {
+            trackProtein = !trackProtein;
+            trackProteinSwitch.classList.toggle("on", trackProtein);
+            proteinRow.style.display = trackProtein ? "" : "none";
+          }
+        });
+
+        const weekSelect = el("select", {});
         weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
         weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
 
@@ -4990,43 +5001,46 @@ const proteinRow = el("div", { class:"row2", style: trackProtein ? "" : "display
           "mon";
         weekSelect.value = normalized;
 
-
         let hideRestDays = !!state.profile?.hideRestDays;
         let show3DPreview = (state.profile?.show3DPreview !== false); // default ON
 
-const hideRestSwitch = el("div", {
-  class: "switch" + (hideRestDays ? " on" : ""),
-  onClick: () => {
-    hideRestDays = !hideRestDays;
-    hideRestSwitch.classList.toggle("on", hideRestDays);
-  }
-});
-           // ✅ NEW: 3D Preview switch (persisted)
-const show3DSwitch = el("div", {
-  class: "switch" + (show3DPreview ? " on" : ""),
-  onClick: () => {
-    show3DPreview = !show3DPreview;
-    show3DSwitch.classList.toggle("on", show3DPreview);
-  }
-});
+        const hideRestSwitch = el("div", {
+          class: "switch" + (hideRestDays ? " on" : ""),
+          onClick: () => {
+            hideRestDays = !hideRestDays;
+            hideRestSwitch.classList.toggle("on", hideRestDays);
+          }
+        });
+
+        // ✅ NEW: 3D Preview switch (persisted)
+        const show3DSwitch = el("div", {
+          class: "switch" + (show3DPreview ? " on" : ""),
+          onClick: () => {
+            show3DPreview = !show3DPreview;
+            show3DSwitch.classList.toggle("on", show3DPreview);
+          }
+        });
 
 
 
-        function saveProfile(){
-        state.profile = state.profile || {};
-        state.profile.name = (nameInput.value || "").trim();
-      
-        state.profile.trackProtein = !!trackProtein;
-        state.profile.proteinGoal = trackProtein ? Math.max(0, Number(proteinInput.value || 0)) : 0;
-      
-        state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
-        state.profile.hideRestDays = !!hideRestDays;
-        state.profile.show3DPreview = !!show3DPreview;
-      
-        Storage.save(state);
-        showToast("Saved");
-        renderView();
-      }
+          function saveProfile(){
+          state.profile = state.profile || {};
+          state.profile.name = (nameInput.value || "").trim();
+
+          // ✅ NEW
+          state.profile.trackProtein = !!trackProtein;
+          state.profile.proteinGoal = trackProtein
+            ? Math.max(0, Number(proteinInput.value || 0))
+            : 0;
+
+          state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
+          state.profile.hideRestDays = !!hideRestDays;
+          state.profile.show3DPreview = !!show3DPreview;
+
+          Storage.save(state);
+          showToast("Saved");
+          renderView();
+        }
 
         // --- Existing import/export helpers (reuse your current functions) ---
         function openImportPasteModal(){
