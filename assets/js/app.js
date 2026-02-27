@@ -3125,8 +3125,18 @@ trainedThisWeek.forEach((d) => {
   dots.appendChild(dot);
 });
 
-  const workoutsDone = trainedThisWeek.filter(x => x.trained).length;
+  // Count workouts ONLY inside the coaching window (coachStartClampedISO..weekEndISO)
+  // This keeps Attendance perfectly consistent for mid-week starters.
+  const coachStartIdx = Math.max(
+    0,
+    Math.min(6, Dates.diffDaysISO(weekStartISO, coachStartClampedISO))
+  );
 
+  let workoutsDone = 0;
+  for(let i = coachStartIdx; i < 7; i++){
+    if(trainedThisWeek[i]?.trained) workoutsDone++;
+  }
+             
 // ----------------------------
 // Attendance target (NO default "workouts/week" goal)
 // - If user has an explicit workouts_week goal, use it.
