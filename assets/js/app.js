@@ -3764,16 +3764,14 @@ let pct = (target > 0)
 
     // weightlifting
 const toGo = target - best;
-const pct = (target > 0) ? Math.max(0, Math.round((best / target) * 100)) : null;
 
 return {
   title: goal?.title?.trim() || `${exName} ${Math.round(target)} lb`,
   sub: (toGo <= 0)
     ? `Current: ${Math.round(best)} lb • +${Math.abs(Math.round(toGo))} lb above goal`
     : `Current: ${Math.round(best)} lb • ${Math.round(toGo)} lb to goal`,
-  pct
+  pct // ✅ reuse the existing pct declared above
 };
-  }
 
   // Unknown types: keep legacy fallback (but avoids crashing)
   return { title: legacyTitle || "Goal", sub: legacySub, pct: legacyPct };
