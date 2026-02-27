@@ -3052,32 +3052,24 @@ else root.appendChild(el("div", { class:"card" }, [
   WeightEngine.ensure();
 
   const todayISO = Dates.todayISO();
-  const weekStartsOn = state.profile?.weekStartsOn || "mon";
-  const weekStartISO = Dates.startOfWeekISO(todayISO, weekStartsOn);
+const weekStartsOn = state.profile?.weekStartsOn || "mon";
+const weekStartISO = Dates.startOfWeekISO(todayISO, weekStartsOn);
 
 // ----------------------------
 // Coaching window (respects when user starts)
-// - User may start mid-week; insight + attendance should only consider start day → week end
 // ----------------------------
-const todayISO = Dates.todayISO();
-const weekStartsOn = state.profile?.weekStartsOn || "mon";
-const weekStartISO = Dates.startOfWeekISO(todayISO, weekStartsOn);
-const weekEndISO = Dates.addDaysISO(weekStartISO, 6); // KEEP ONE declaration only
-
+const weekEndISO = Dates.addDaysISO(weekStartISO, 6);
 const userStartISO = state.profile?.startDateISO || todayISO;
 
-// Clamp start into this week window so math never goes weird
 const coachStartClampedISO =
   (userStartISO < weekStartISO) ? weekStartISO :
   (userStartISO > weekEndISO)   ? weekEndISO :
   userStartISO;
 
-// Helpful flags (NO DUPLICATE DECLARATIONS ANYWHERE ELSE)
 const startedMidWeek = (userStartISO > weekStartISO);
-
-// Remaining days in the active coaching window (includes today->weekEnd, exclusive diff)
-const remainingDaysInWindow = Math.max(0, Dates.diffDaysISO(todayISO, weekEndISO));
-
+const remainingDaysInWindow =
+  Math.max(0, Dates.diffDaysISO(todayISO, weekEndISO));
+  
 const { routine, day } = getTodayWorkout();
 
   // ----------------------------
