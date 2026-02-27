@@ -3346,23 +3346,27 @@ function buildCoachInsight(){
     };
   }
 
-  // User-start-aware remaining window (calendar week end, but ignoring days before coachStartClampedISO)
+  // User-start-aware remaining window (calendar week end, ignoring days before coachStartClampedISO)
   const remainingDays = Math.max(1, Dates.diffDaysISO(todayISO, weekEndISO) + 1);
-  const remainingWorkouts = Math.max(0, workoutsGoal - workoutsDone);
-
   const startedMidWeek = (String(coachStartClampedISO) > String(weekStartISO));
 
-  // ✅ Compute these INSIDE the function to avoid TDZ / init-order issues
+  // ✅ Compute INSIDE function (no global dependencies)
   const __todayPlan = anchoredRoutineDayForDate(todayISO);        // {label,isRest,...} or null
-  const __remainingPlans = plannedDaysRemainingThisWeek();        // [{dateISO,label},...]
+  const __remainingPlans = plannedDaysRemainingThisWeek();        // [{dateISO,label},...] (already window-filtered + non-rest)
 
-  // Today / remaining plan (anchored to profile.startDateISO)
+  // Today label / rest
   const todayLabel = __todayPlan ? String(__todayPlan.label || "Workout") : "Workout";
   const todayIsRest = !!(__todayPlan && __todayPlan.isRest);
 
+  // Planned remaining labels from TODAY forward
   const remainingLabels = __remainingPlans
-    .filter(x => x.dateISO >= todayISO)        // from today forward
+    .filter(x => x.dateISO >= todayISO)
     .map(x => x.label);
+
+  // ✅ Workouts left = planned workout-days remaining (from today..weekEnd) that are NOT trained yet
+  const plannedRemainingFromToday = __remainingPlans.filter(x => x.dateISO >= todayISO);
+  const trainedPlannedRemaining = plannedRemainingFromToday.filter(x => isTrained(x.dateISO)).length;
+  const remainingWorkouts = Math.max(0, plannedRemainingFromToday.length - trainedPlannedRemaining);
 
   // Reliability signals
   const hasProteinData = !!(proteinOn && proteinGoal > 0);
@@ -3376,8 +3380,8 @@ function buildCoachInsight(){
   if(todayIsRest){
     const nextUp = remainingLabels[0] ? `Next up: ${remainingLabels[0]}.` : "Next up: your next training day.";
     return {
-      line1: `Today is a rest day — recovery is part of the plan.`,
-      line2: `${nextUp}`,
+      line1: "Today is a rest day — recovery is part of the plan.",
+      line2: nextUp,
       action: "Next: do 10 minutes of mobility or an easy walk to stay in rhythm."
     };
   }
@@ -3385,8 +3389,9 @@ function buildCoachInsight(){
   // --- FOUNDATION FIRST: if behind pace, coach the remaining window + today’s plan
   if(weeklyBehind){
     const windowLine = startedMidWeek
-  ? `You started mid-week — ${plannedRemainingWorkouts} workout day${plannedRemainingWorkouts===1?"":"s"} left with ${remainingDays} day${remainingDays===1?"":"s"} remaining.`
-  : `You’re behind pace — ${plannedRemainingWorkouts} workout day${plannedRemainingWorkouts===1?"":"s"} left with ${remainingDays} day${remainingDays===1?"":"s"} remaining.`;
+      ? `You started mid-week — ${remainingWorkouts} workout day${remainingWorkouts===1?"":"s"} left with ${remainingDays} day${remainingDays===1?"":"s"} remaining.`
+      : `You’re behind pace — ${remainingWorkouts} workout day${remainingWorkouts===1?"":"s"} left with ${remainingDays} day${remainingDays===1?"":"s"} remaining.`;
+
     const remainLine = remainingLabels.length
       ? `Remaining plan: ${remainingLabels.join(", ")}.`
       : "Your remaining plan is light — keep it simple and execute.";
@@ -3457,7 +3462,7 @@ function buildCoachInsight(){
     };
   }
 
-  // --- Fallback (rare)
+  // --- Fallback
   return {
     line1: `Today: ${todayLabel}. Keep moving in the right direction.`,
     line2: remainingLabels.length ? `Remaining plan: ${remainingLabels.join(", ")}.` : "Stay consistent.",
