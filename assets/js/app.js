@@ -2806,6 +2806,23 @@ else root.appendChild(el("div", { class:"card" }, [
   // NEW: protein toggle + conditional goal input
   let trackProtein = true;
 
+    // ✅ Track protein switch (controls whether proteinWrap is visible)
+    const trackProteinSwitch = el("div", { class:"switch on" });
+    trackProteinSwitch.addEventListener("click", () => {
+      trackProtein = !trackProtein;
+      trackProteinSwitch.classList.toggle("on", trackProtein);
+    
+      // show/hide protein goal block immediately
+      proteinWrap.style.display = trackProtein ? "" : "none";
+    
+      // optional: seed default + focus when turning ON
+      if(trackProtein){
+        const v = Number(proteinInput.value || 0);
+        if(!Number.isFinite(v) || v <= 0) proteinInput.value = "150";
+        try{ proteinInput.focus(); }catch(_){}
+      }
+    });
+
   const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
   const hideRestSwitch = el("div", { class:"switch on" });
@@ -2838,10 +2855,13 @@ else root.appendChild(el("div", { class:"card" }, [
 
   const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
 
-  const proteinWrap = el("div", { class:"row2" }, [
-    el("label", {}, [ el("span", { text:"Daily protein goal (grams)" }), proteinInput ]),
-    el("div", { class:"note", text:"You can change this later in Settings." })
-  ]);
+  const proteinWrap = el("div", {
+  class:"row2",
+  style: trackProtein ? "" : "display:none;"
+}, [
+  el("label", {}, [ el("span", { text:"Daily protein goal (grams)" }), proteinInput ]),
+  el("div", { class:"note", text:"You can change this later in Settings." })
+]);
 
   const finish = () => {
     errorBox.style.display = "none";
