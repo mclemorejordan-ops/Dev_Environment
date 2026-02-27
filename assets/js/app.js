@@ -3183,13 +3183,15 @@ const workoutsGoal = (explicitWorkoutsGoal !== null) ? explicitWorkoutsGoal : pl
   const proteinGoal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
 
   let proteinGoalDays = 0;
-  if(proteinOn && proteinGoal > 0){
-    for(let i=0;i<7;i++){
-      const dISO = Dates.addDaysISO(weekStartISO, i);
-      const total = totalProtein(dISO); // read-only (does not create entries)
-      if(total >= proteinGoal) proteinGoalDays++;
-    }
+if(proteinOn && proteinGoal > 0){
+  // ✅ Count ONLY inside the coaching window (coachStartClampedISO..weekEndISO)
+  // This keeps Protein consistent for mid-week starters.
+  for(let i = coachStartIdx; i < 7; i++){
+    const dISO = Dates.addDaysISO(weekStartISO, i);
+    const total = totalProtein(dISO); // read-only (does not create entries)
+    if(total >= proteinGoal) proteinGoalDays++;
   }
+}
 
   function weightDeltaForWeek(){
     const entries = WeightEngine.listAsc();
@@ -3410,7 +3412,7 @@ function buildCoachInsight(){
       if(hasProteinData && proteinGoalDays <= 2){
         return {
           line1: `Today: ${todayLabel}. Training is on track — protein is the lever.`,
-          line2: `Goal days: ${proteinGoalDays}/7 at ${proteinGoal}g. ${remainLine}`,
+          line2: `Goal days: ${proteinGoalDays}/${activeDaysTotal} at ${proteinGoal}g. ${remainLine}`,
           action: `Next: hit ${proteinGoal}g today (plan 2 protein meals).`
         };
       }
@@ -3484,8 +3486,10 @@ const coach = buildCoachInsight();
     rows.push({ dISO, trained, pTotal, pMet, wVal });
   }
 
-  const trainedCount = rows.filter(r=>r.trained).length;
-  const proteinMetCount = rows.filter(r=>r.pMet).length;
+  // ✅ Only count days inside the coaching window for summary numerators/denominators
+const activeRows = rows.slice(coachStartIdx);
+const trainedCount = activeRows.filter(r => r.trained).length;
+const proteinMetCount = activeRows.filter(r => r.pMet).length;
 
   // Weight delta within week: first available vs last available
   const weightsInWeek = rows.filter(r => Number.isFinite(r.wVal)).map(r=>r.wVal);
@@ -3504,11 +3508,11 @@ const coach = buildCoachInsight();
       ]),
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Trained Days" }),
-        el("div", { class:"val", text:`${trainedCount} / 7` })
+        el("div", { class:"val", text:`${trainedCount} / ${activeDaysTotal}` })
       ]),
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Protein Goal Days" }),
-        el("div", { class:"val", text: proteinOn ? `${proteinMetCount} / 7` : "Off" })
+        el("div", { class:"val", text: proteinOn ? `${proteinMetCount} / ${activeDaysTotal}` : "Off" })
       ])
     ]),
     el("div", { style:"height:10px" }),
@@ -4333,10 +4337,10 @@ cards.push(
       }, [
         el("div", { class:"homeMetricTop" }, [
           el("div", { class:"homeMetricTitle", text:"Protein" }),
-          el("div", { class:"homeMetricPill", text: proteinOn ? `${proteinGoalDays}/7` : "Off" })
+          el("div", { class:"homeMetricPill", text: proteinOn ? `${proteinGoalDays}/${activeDaysTotal}` : "Off" })
         ]),
         el("div", { class:"homeMetricSub", text: proteinOn ? "Days you hit your goal" : "Enable in Settings → Profile" }),
-        el("div", { class:"homeMetricVal", text: proteinOn ? `${proteinGoalDays} / 7` : "Off" })
+        el("div", { class:"homeMetricVal", text: proteinOn ? `${proteinGoalDays} / ${activeDaysTotal}` : "Off" })
       ])
     ]),
 
