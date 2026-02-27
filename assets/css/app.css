@@ -2072,6 +2072,12 @@ button.mini.added{
   flex-direction:column;
   gap: 10px;
 }
+.goalsList{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
 .goalItem{
   display:flex;
   align-items:flex-start;
@@ -2081,21 +2087,63 @@ button.mini.added{
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,.10);
   background: rgba(0,0,0,.14);
+  position: relative;
+  overflow: hidden;
 }
-.goalLeft{ display:flex; flex-direction:column; gap:6px; min-width: 0; }
+
+/* ✅ V2 completion glow/sheen */
+.goalItem.complete{
+  border-color: rgba(124,92,255,.34);
+  background: linear-gradient(180deg, rgba(124,92,255,.12), rgba(0,0,0,.14));
+  box-shadow: 0 0 0 1px rgba(124,92,255,.10) inset, 0 14px 40px rgba(124,92,255,.06);
+}
+.goalItem.complete::after{
+  content:"";
+  position:absolute;
+  inset:-40% -60%;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.08) 45%, transparent 60%);
+  opacity: 0;
+  pointer-events:none;
+  animation: goalSheen 3.6s ease-in-out infinite;
+}
+@keyframes goalSheen{
+  0%   { opacity:0; transform: translateX(-40%) rotate(18deg); }
+  15%  { opacity:.55; }
+  35%  { opacity:0; }
+  100% { opacity:0; transform: translateX(40%) rotate(18deg); }
+}
+
+/* ✅ IMPORTANT: makes the bar span the full row width */
+.goalLeft{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .goalName{ font-weight: 900; letter-spacing: .15px; }
-.goalSubtext{ color: rgba(255,255,255,.55); font-size: 12px; line-height: 1.25; }
+
+.goalSubtext{
+  color: rgba(255,255,255,.55);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+/* Percent chip */
 .goalPct{
   flex: 0 0 auto;
   padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.80);
+  color: rgba(255,255,255,.86);
   font-size: 12px;
   white-space: nowrap;
 }
-/* Goals V2: progress bar (replaces ring/radial visuals) */
+
+/* V2: progress bar + goal tick */
 .goalBar{
   width: 100%;
   height: 8px;
@@ -2103,13 +2151,48 @@ button.mini.added{
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.06);
   overflow: hidden;
+  position: relative;
 }
+
+.goalTick{
+  position:absolute;
+  top: -2px;
+  right: 0;
+  width: 2px;
+  height: calc(100% + 4px);
+  background: rgba(255,255,255,.32);
+  border-radius: 2px;
+  opacity: .55;
+}
+
 .goalBarFill{
   height: 100%;
   width: 0%;
   border-radius: 999px;
   background: rgba(255,255,255,.70);
   transition: width 420ms ease;
+}
+
+/* State coloring (optional but matches v2 sandbox feel) */
+.goalItem.good .goalBarFill{ background: rgba(55,214,122,.85); }
+.goalItem.warn .goalBarFill{ background: rgba(255,209,102,.85); }
+.goalItem.bad  .goalBarFill{ background: rgba(255,92,122,.85); }
+
+.goalItem.good .goalPct{
+  border-color: rgba(55,214,122,.28);
+  background: rgba(55,214,122,.12);
+}
+.goalItem.warn .goalPct{
+  border-color: rgba(255,209,102,.28);
+  background: rgba(255,209,102,.12);
+}
+.goalItem.bad .goalPct{
+  border-color: rgba(255,92,122,.28);
+  background: rgba(255,92,122,.12);
+}
+.goalItem.complete .goalPct{
+  border-color: rgba(124,92,255,.34);
+  background: rgba(124,92,255,.16);
 }
 
 /* Simple editor blocks inside Modal (Home -> Edit Goals) */
