@@ -4302,16 +4302,21 @@ cards.push(
     // 3 separate metric cards
     el("div", { class:"homeMetricCards" }, [
       el("button", {
-        class:"homeMetricCard",
-        onClick: () => navigate("attendance")
-      }, [
-        el("div", { class:"homeMetricTop" }, [
-          el("div", { class:"homeMetricTitle", text:"Attendance" }),
-          el("div", { class:"homeMetricPill", text:`${workoutsDone}/${workoutsGoal}` })
-        ]),
-        el("div", { class:"homeMetricSub", text:"Workouts completed this week" }),
-        el("div", { class:"homeMetricVal", text:`${workoutsDone} / ${workoutsGoal}` })
-      ]),
+  class:"homeMetricCard",
+  onClick: () => navigate("attendance")
+}, [
+  el("div", { class:"homeMetricTop" }, [
+    el("div", { class:"homeMetricTitle", text:"Attendance" }),
+
+    // ✅ Use coaching-window denominator so mid-week starters never see 0/6, 0/7, etc.
+    el("div", { class:"homeMetricPill", text:`${workoutsDone}/${activeDaysTotal}` })
+  ]),
+
+  // ✅ Copy matches what we’re actually measuring (days trained in the active window)
+  el("div", { class:"homeMetricSub", text:"Days trained this week" }),
+
+  el("div", { class:"homeMetricVal", text:`${workoutsDone} / ${activeDaysTotal}` })
+]),
 
       el("button", {
         class:"homeMetricCard",
