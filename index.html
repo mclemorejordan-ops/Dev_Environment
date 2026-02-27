@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BEG1YYMSB5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-BEG1YYMSB5');
+</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f17" />
+
+        <!-- 🔒 Production Content Security Policy -->
+  <meta http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.google-analytics.com;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https://www.google-analytics.com;
+        connect-src 'self' https://cdn.jsdelivr.net https://formspree.io https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com;
+        font-src 'self';
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self' https://formspree.io;
+      ">
+
+  <!-- ✅ PWA manifest + icons -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <meta name="application-name" content="Gym Dashboard" />
+
+  <!-- iOS Add to Home Screen -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Gym Dashboard" />
+
+  <title>Gym Dashboard</title>
+
+
+  <!-- Chart.js (used later in Progress/Weight) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <link rel="stylesheet" href="./assets/css/app.css" />
+
+</head>
+
+<body>
+  <div class="app">
+<header>
+  <div class="topbar">
+    <div class="brand">
+      <div class="title" id="appTitle">Gym Dashboard</div>
+
+      <div class="subtitle" id="appSubtitle">
+        <div class="subPills">
+          <button class="subPill" id="syncPill" type="button">Offline</button>
+          <button class="subPill" id="verPill" type="button">v0.0.0</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="chip" id="chipStatus">Not set up</div>
+  </div>
+</header>
+
+
+    <main id="viewRoot"></main>
+  </div>
+
+  <div class="nav">
+    <div class="navbar" id="navbar"></div>
+  </div>
+
+  <!-- Modal Host -->
+  <div class="modalHost" id="modalHost" aria-hidden="true">
+    <div class="backdrop" id="modalBackdrop"></div>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <div class="sheetHeader">
+        <div class="h" id="modalTitle">Modal</div>
+        <button class="xbtn" id="modalClose">Close</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+  <script defer src="./assets/js/app.js"></script>
+</body>
+</html>

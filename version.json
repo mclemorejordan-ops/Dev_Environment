@@ -1,0 +1,13 @@
+
+{
+  "version": "2.7",
+  "buildDate": "2026-02-17",
+  "notes": [
+    "Redesigned Protein layout with integrated Protein History tracking",
+    "Header redesign for improved visual consistency",
+    "Implemented Backup Reminders with Auto Save & Restore functionality",
+    "Added Settings Support with Report Issue creation flow",
+    "Improved Add Exercise modal structure and grouping behavior",
+    "Enabled Routine Creation directly from Settings"
+  ]
+}
