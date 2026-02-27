@@ -3155,9 +3155,12 @@ function getPlannedWorkoutsThisWeek(){
   const startISO = state.profile?.startDateISO || Dates.todayISO();
   const cycleLen = routine.days.length;
 
+  // Clamp week expectation to when the user actually started (mid-week safe)
+  const coachStartIdx = Math.max(0, Math.min(6, Dates.diffDaysISO(weekStartISO, coachStartClampedISO)));
+
   let planned = 0;
 
-  for(let i=0;i<7;i++){
+  for(let i=coachStartIdx;i<7;i++){
     const dISO = Dates.addDaysISO(weekStartISO, i);
 
     // Align routine day index to when the user started
@@ -3180,16 +3183,20 @@ const plannedWorkoutsGoal = getPlannedWorkoutsThisWeek();
 const workoutsGoal = (explicitWorkoutsGoal !== null) ? explicitWorkoutsGoal : plannedWorkoutsGoal;
 
   const proteinOn = (state.profile?.trackProtein !== false);
-  const proteinGoal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
+const proteinGoal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
 
-  let proteinGoalDays = 0;
-  if(proteinOn && proteinGoal > 0){
-    for(let i=0;i<7;i++){
-      const dISO = Dates.addDaysISO(weekStartISO, i);
-      const total = totalProtein(dISO); // read-only (does not create entries)
-      if(total >= proteinGoal) proteinGoalDays++;
-    }
+// Clamp protein goal-days to the active window (mid-week safe)
+const proteinStartIdx = Math.max(0, Math.min(6, Dates.diffDaysISO(weekStartISO, coachStartClampedISO)));
+const proteinDenomDays = 7 - proteinStartIdx;
+
+let proteinMetCount = 0;
+if(proteinOn && proteinGoal > 0){
+  for(let i=proteinStartIdx;i<7;i++){
+    const dISO = Dates.addDaysISO(weekStartISO, i);
+    const total = totalProtein(dISO); // read-only (does not create entries)
+    if(total >= proteinGoal) proteinMetCount++;
   }
+}
 
   function weightDeltaForWeek(){
     const entries = WeightEngine.listAsc();
@@ -3504,11 +3511,11 @@ const coach = buildCoachInsight();
       ]),
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Trained Days" }),
-        el("div", { class:"val", text:`${trainedCount} / 7` })
+        el("div", { class:"val", text:`${trainedCount} / ${proteinDenomDays}` })
       ]),
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Protein Goal Days" }),
-        el("div", { class:"val", text: proteinOn ? `${proteinMetCount} / 7` : "Off" })
+        el("div", { class:"val", text: proteinOn ? `${proteinMetCount} / ${proteinDenomDays}` : "Off" })
       ])
     ]),
     el("div", { style:"height:10px" }),
