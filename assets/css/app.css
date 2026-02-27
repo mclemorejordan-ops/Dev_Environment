@@ -2124,14 +2124,26 @@ button.mini.added{
 .homeMetricCard{
   width:100%;
   text-align:left;
+
+  /* ✅ iOS button text default is blue — force white */
+  color: var(--text);
+
+  /* ✅ remove iOS button styling */
+  appearance: none;
+  -webkit-appearance: none;
   border:0;
+  background: rgba(255,255,255,.06);
+
+  /* ✅ keep your existing look */
   cursor:pointer;
   padding:12px;
   border-radius:16px;
-  background: rgba(255,255,255,.06);
   box-shadow: 0 10px 26px rgba(0,0,0,.18);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+
+  /* ✅ typography consistency */
+  font: inherit;
 }
 
 .homeMetricCard:active{
