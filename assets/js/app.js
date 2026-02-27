@@ -2814,12 +2814,30 @@ else root.appendChild(el("div", { class:"card" }, [
     hideRestSwitch.classList.toggle("on", hideRestDays);
   });
 
-  const trackProteinSwitch = el("div", { class:"switch on" });
-  trackProteinSwitch.addEventListener("click", () => {
-    trackProtein = !trackProtein;
-    trackProteinSwitch.classList.toggle("on", trackProtein);
-    proteinWrap.style.display = trackProtein ? "" : "none";
-  });
+  let proteinGoalRow = null;
+
+    const trackProteinSwitch = el("div", {
+      class: "switch" + (trackProtein ? " on" : ""),
+      onClick: () => {
+        trackProtein = !trackProtein;
+        trackProteinSwitch.classList.toggle("on", trackProtein);
+    
+        // ✅ Live show/hide the goal row immediately (no save required)
+        if(proteinGoalRow){
+          proteinGoalRow.style.display = trackProtein ? "" : "none";
+        }
+    
+        // Optional: if turning ON and goal is 0/empty, seed a reasonable default
+        if(trackProtein){
+          const v = Number(proteinInput.value || 0);
+          if(!Number.isFinite(v) || v <= 0){
+            proteinInput.value = "150";
+          }
+          // Put cursor in the box
+          try{ proteinInput.focus(); }catch(_){}
+        }
+      }
+    });
 
   const tplCardsHost = el("div", { class:"tplGrid" });
   const renderTplCards = () => {
@@ -5126,12 +5144,20 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             nameInput
           ]),
           el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
-              el("div", { class:"meta", text:"grams/day" })
-            ]),
-            proteinInput
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Track protein" }),
+            el("div", { class:"meta", text:"Enable or disable protein tracking across the app" })
           ]),
+          trackProteinSwitch
+        ]),
+        
+        (proteinGoalRow = el("div", { class:"setRow", style: trackProtein ? "" : "display:none;" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
+            el("div", { class:"meta", text:"grams/day" })
+          ]),
+          proteinInput
+        ])),
           el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"Week starts on" }),
