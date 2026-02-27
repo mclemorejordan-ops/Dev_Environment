@@ -45,6 +45,12 @@ function migrateState(saved){
   if(!Array.isArray(merged.logs.protein)) merged.logs.protein = [];
   if(!Array.isArray(merged.attendance)) merged.attendance = [];
 
+  // Profile hard guards (future-proof Home/Goals)
+  if(merged.profile && typeof merged.profile === "object"){
+    if(!Array.isArray(merged.profile.goals)) merged.profile.goals = [];
+    if(!Number.isFinite(Number(merged.profile.workoutsPerWeekGoal))) merged.profile.workoutsPerWeekGoal = 4;
+  }
+
   // Always stamp latest schema
   merged.schemaVersion = SCHEMA_VERSION;
 
@@ -2895,18 +2901,22 @@ else root.appendChild(el("div", { class:"card" }, [
     }
 
     const profile = {
-      name: cleanName,
-
-      // ✅ NEW: persisted feature flag
-      trackProtein: !!trackProtein,
-      proteinGoal: proteinGoal,
-
-      weekStartsOn,
-      hideRestDays: !!hideRestDays,
-
-      // ✅ 3D Preview default (ON)
-      show3DPreview: true
-    };
+       name: cleanName,
+     
+       // ✅ NEW: persisted feature flag
+       trackProtein: !!trackProtein,
+       proteinGoal: proteinGoal,
+     
+       // Goals + weekly target (Phase 1)
+       workoutsPerWeekGoal: 4,
+       goals: [],
+     
+       weekStartsOn,
+       hideRestDays: !!hideRestDays,
+     
+       // ✅ 3D Preview default (ON)
+       show3DPreview: true
+     };
 
     // Seed library FIRST so template exercises can resolve to real exerciseIds
     ExerciseLibrary.ensureSeeded();
@@ -3013,222 +3023,359 @@ else root.appendChild(el("div", { class:"card" }, [
 },
 
         Home(){
-        ExerciseLibrary.ensureSeeded();
-        WeightEngine.ensure();
+  ExerciseLibrary.ensureSeeded();
+  WeightEngine.ensure();
 
+  const todayISO = Dates.todayISO();
+  const weekStartsOn = state.profile?.weekStartsOn || "mon";
+  const weekStartISO = Dates.startOfWeekISO(todayISO, weekStartsOn);
 
-        const todayISO = Dates.todayISO();
-        const weekStartsOn = state.profile?.weekStartsOn || "mon";
-        const weekStartISO = Dates.startOfWeekISO(todayISO, weekStartsOn);
+  const { routine, day } = getTodayWorkout();
 
-                const { routine, day } = getTodayWorkout();
+  // ----------------------------
+  // Today (planned)
+  // ----------------------------
+  const workoutTitle = !routine ? "No routine selected"
+    : (!day ? "No day found"
+    : (day.isRest ? "Rest Day" : (day.label || "Workout")));
 
-        const trainedThisWeek = [];
-        for(let i=0;i<7;i++){
-          const dISO = Dates.addDaysISO(weekStartISO, i);
-          trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
-        }
+  const workoutSub = !routine ? "Go to Routine → create/select a routine."
+    : (!day ? "Open Routine Editor to fix day mapping."
+    : (day.isRest ? "Recovery day. Hydrate + mobility."
+    : `${(day.exercises || []).length} exercises planned`));
 
-        // ✅ Attendance action (used by Attendance card buttons)
-        const openCheckIn = () => {
-          toggleTrained(todayISO);
-          renderView();
-        };
+  const plannedNames = (day?.isRest || !day)
+    ? []
+    : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
 
-        // ✅ Workout card display vars (used by Today’s workout card)
-        const workoutTitle = !routine ? "No routine selected"
-          : (!day ? "No day found"
-          : (day.isRest ? "Rest Day" : (day.label || "Workout")));
+  const top3 = plannedNames.slice(0,3);
 
-        const workoutSub = !routine ? "Go to Routine → create/select a routine."
-          : (!day ? "Open Routine Editor to fix day mapping."
-          : (day.isRest ? "Recovery day. Hydrate + mobility."
-          : `${(day.exercises || []).length} exercises planned`));
+  // Status derives from logged sets (workout logs) for today's routine exercises
+  function workoutStatus(){
+    if(!routine || !day || day.isRest) return { key:"rest", label:"Rest Day", tag:"🧘 Rest Day", kind:"" };
+    const ex = (day.exercises || []);
+    if(ex.length === 0) return { key:"none", label:"Not Started", tag:"🔘 Not Started", kind:"" };
 
-        const workoutExercises = (day?.isRest || !day) ? []
-          : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
+    let doneCount = 0;
+    for(const rx of ex){
+      if(rx?.id && isExerciseTrained(todayISO, rx.id)) doneCount++;
+    }
 
-        const proteinOn = (state.profile?.trackProtein !== false);
+    if(doneCount <= 0) return { key:"not_started", label:"Not Started", tag:"🔘 Not Started", kind:"" };
+    if(doneCount < ex.length) return { key:"in_progress", label:"In Progress", tag:"🟡 In Progress", kind:"warn" };
+    return { key:"complete", label:"Complete", tag:"🟢 Complete", kind:"good" };
+  }
 
-        // Protein (feature-gated)
-        let goal = 0;
-        let done = 0;
-        let left = 0;
-        let pct = 0;
-        let deg = 0;
-        let ring = null;
+  const status = workoutStatus();
 
-        const openProteinModal = (dateISO = todayISO) => {
-          if(!proteinOn){
-            showToast("Protein tracking is disabled. Enable it in Settings → Profile.");
-            return;
-          }
-          Modal.open({
-            title: "Protein",
-            bodyNode: buildProteinTodayModal(dateISO, goal)
-          });
-        };
+  // ----------------------------
+  // This Week (aggregated)
+  // ----------------------------
+  const trainedThisWeek = [];
+  for(let i=0;i<7;i++){
+    const dISO = Dates.addDaysISO(weekStartISO, i);
+    trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
+  }
 
-        if(proteinOn){
-          goal = Number(state.profile?.proteinGoal) || 0;
-          done = totalProtein(todayISO);
-          left = Math.max(0, goal - done);
-          pct = goal > 0 ? Math.max(0, Math.min(1, done / goal)) : 0;
-          deg = Math.round(pct * 360);
+  const dots = el("div", { class:"homeWeekDots", style:"justify-content:center;" });
+  trainedThisWeek.forEach((d, idx) => {
+    const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
+    dots.appendChild(dot);
+  });
 
-          ring = el("div", {
-            class:"ringWrap",
-            style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
-          }, [
-            el("div", { class:"ringText" }, [
-              el("div", { class:"big", text: `${left}g` }),
-              el("div", { class:"small", text: "left" }),
-              el("div", { class:"small", text: `${done} / ${goal}g` })
-            ])
-          ]);
-        }
+  const workoutsDone = trainedThisWeek.filter(x => x.trained).length;
+  const workoutsGoal = Math.max(0, Math.round(Number(state.profile?.workoutsPerWeekGoal || 4)));
 
-        const dots = el("div", { class:"dots" });
-trainedThisWeek.forEach((d, idx) => {
-  const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
-  dots.appendChild(dot);
-});
+  const proteinOn = (state.profile?.trackProtein !== false);
+  const proteinGoal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
 
-const weekLabel = weekStartsOn === "sun" ? "Week (Sun–Sat)" : "Week (Mon–Sun)";
+  let proteinGoalDays = 0;
+  if(proteinOn && proteinGoal > 0){
+    for(let i=0;i<7;i++){
+      const dISO = Dates.addDaysISO(weekStartISO, i);
+      const total = totalProtein(dISO); // read-only (does not create entries)
+      if(total >= proteinGoal) proteinGoalDays++;
+    }
+  }
 
-const wLatest = WeightEngine.latest();
-const wPrev = WeightEngine.previous();
-const wDelta = (wLatest && wPrev)
-  ? (Number(wLatest.weight) - Number(wPrev.weight))
-  : null;
+  function weightDeltaForWeek(){
+    const entries = WeightEngine.listAsc();
+    if(entries.length < 2) return null;
 
-const wDeltaText = (wDelta === null || !Number.isFinite(wDelta))
-  ? "—"
-  : `${wDelta > 0 ? "+" : ""}${wDelta.toFixed(1)}`;
+    // last entry in (weekStart..weekStart+6)
+    const weekEndISO = Dates.addDaysISO(weekStartISO, 6);
 
-// Build cards so Protein can be conditionally included
-const cards = [];
+    let lastInWeek = null;
+    for(const e of entries){
+      if(e.dateISO >= weekStartISO && e.dateISO <= weekEndISO) lastInWeek = e;
+    }
+    if(!lastInWeek) return null;
 
-// ----------------------------
-// Today’s workout
-// ----------------------------
-cards.push(
-  el("div", { class:"card" }, [
-    el("h2", { text:"Today’s workout" }),
+    // previous entry before week start (latest before)
+    let prev = null;
+    for(const e of entries){
+      if(e.dateISO < weekStartISO) prev = e;
+      else break;
+    }
+    if(!prev) return null;
 
-    // ✅ KPI + action (Edit routine) on the same row
-    el("div", { class:"homeRow" }, [
-      el("div", { class:"kpi" }, [
-        el("div", { class:"big", text: workoutTitle }),
-        el("div", { class:"small", text: workoutSub })
-      ]),
-      el("button", {
-        class:"btn",
-        onClick: () => navigate("routine")
-      }, ["Edit routine"])
-    ]),
+    const d = Number(lastInWeek.weight) - Number(prev.weight);
+    return Number.isFinite(d) ? round2(d) : null;
+  }
 
-    el("div", { style:"height:10px" }),
+  const wDeltaWeek = weightDeltaForWeek();
+  const wDeltaText = (wDeltaWeek === null)
+    ? "—"
+    : `${wDeltaWeek < 0 ? "↓" : (wDeltaWeek > 0 ? "↑" : "•")} ${Math.abs(wDeltaWeek).toFixed(1)} lb`;
 
-    /* Planned exercises (unchanged) */
-    (workoutExercises.length === 0)
-      ? el("div", {
-          class:"note",
-          text: day?.isRest ? "Rest day is enabled." : "Add exercises in Routine Editor."
-        })
-      : el("div", { class:"list" }, workoutExercises.slice(0,6).map(n =>
-          el("div", { class:"item" }, [
-            el("div", { class:"left" }, [ el("div", { class:"name", text: n }) ]),
-            el("div", { class:"actions" }, [ el("div", { class:"meta", text:"Planned" }) ])
-          ])
-        ))
-  ])
-);
+  // Pace: compare completed workouts vs where you should be by today
+  const dayIdx = Dates.diffDaysISO(weekStartISO, todayISO); // 0..6
+  const expectedByNow = Math.ceil(workoutsGoal * ((Math.min(6, Math.max(0, dayIdx)) + 1) / 7));
+  const paceKey = (workoutsDone >= expectedByNow) ? "on" : "behind";
+  const paceLabel = (paceKey === "on") ? "Pace: On Track" : "Pace: Slightly Behind";
 
-// ----------------------------
-// Protein (ONLY if enabled)
-// Requires you to have proteinOn + left + ring + openProteinModal defined earlier
-// ----------------------------
-if(proteinOn){
+  const weekLabel = weekStartsOn === "sun" ? "This Week (Sun–Sat)" : "This Week (Mon–Sun)";
+
+  const openWeekDetails = () => {
+    Modal.open({
+      title: "This Week",
+      bodyNode: el("div", {}, [
+        el("div", { class:"note", text:"Details view is Phase 2. For now, jump into the existing pages:" }),
+        el("div", { style:"height:12px" }),
+        el("div", { class:"btnrow" }, [
+          el("button", { class:"btn", onClick: () => { Modal.close(); navigate("attendance"); } }, ["Attendance"]),
+          el("button", { class:"btn", onClick: () => { Modal.close(); navigate("weight"); } }, ["Weight"]),
+          el("button", {
+            class:"btn",
+            onClick: () => {
+              if(proteinOn){ Modal.close(); navigate("protein_history"); }
+              else { showToast("Protein tracking is disabled in Settings → Profile."); }
+            }
+          }, ["Protein"])
+        ])
+      ])
+    });
+  };
+
+  // ----------------------------
+  // Goals (Phase 1: manual list, stored in profile; automation later)
+  // ----------------------------
+  if(!Array.isArray(state.profile?.goals)) state.profile.goals = [];
+
+  const openGoalsEditor = () => {
+    const working = (state.profile.goals || []).map(g => ({
+      title: String(g?.title || ""),
+      sub: String(g?.sub || ""),
+      pct: (typeof g?.pct === "number" ? g.pct : null)
+    }));
+
+    function addRow(){
+      working.push({ title:"", sub:"", pct:null });
+      render();
+    }
+
+    function render(){
+      body.innerHTML = "";
+
+      if(working.length === 0){
+        body.appendChild(el("div", { class:"note", text:"No goals yet. Add one below." }));
+      }
+
+      working.forEach((g, idx) => {
+        const titleInput = el("input", { type:"text", value:g.title, placeholder:"Goal title (e.g., Bench 225 lb)" });
+        const subInput = el("input", { type:"text", value:g.sub, placeholder:"Subtext (e.g., Current: 205 lb • 20 lb to goal)" });
+        const pctInput = el("input", { type:"number", inputmode:"numeric", min:"0", max:"100", step:"1", value:(g.pct===null?"":String(g.pct)), placeholder:"%" });
+
+        titleInput.addEventListener("input", () => { g.title = titleInput.value; });
+        subInput.addEventListener("input", () => { g.sub = subInput.value; });
+        pctInput.addEventListener("input", () => {
+          const v = pctInput.value === "" ? null : Number(pctInput.value);
+          g.pct = (v===null) ? null : (Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : null);
+        });
+
+        body.appendChild(el("div", { class:"goalEditRow" }, [
+          el("div", { class:"goalEditCols" }, [
+            el("label", {}, [ el("span", { text:"Goal" }), titleInput ]),
+            el("label", {}, [ el("span", { text:"Subtext" }), subInput ]),
+            el("label", {}, [ el("span", { text:"%" }), pctInput ])
+          ]),
+          el("div", { style:"height:10px" }),
+          el("button", {
+            class:"btn danger",
+            onClick: () => { working.splice(idx,1); render(); }
+          }, ["Remove"])
+        ]));
+        body.appendChild(el("div", { style:"height:10px" }));
+      });
+
+      body.appendChild(el("div", { class:"btnrow" }, [
+        el("button", { class:"btn", onClick: addRow }, ["+ Add goal"])
+      ]));
+    }
+
+    const body = el("div", {}, []);
+    render();
+
+    Modal.open({
+      title: "Edit Goals",
+      bodyNode: el("div", {}, [
+        body,
+        el("div", { style:"height:12px" }),
+        el("div", { class:"note", text:"Phase 2 will auto-generate these values from your logs. For now, this is a manual list." }),
+        el("div", { style:"height:12px" }),
+        el("div", { class:"btnrow" }, [
+          el("button", { class:"btn", onClick: Modal.close }, ["Cancel"]),
+          el("button", {
+            class:"btn primary",
+            onClick: () => {
+              // sanitize + save
+              const cleaned = working
+                .map(x => ({
+                  title: (x.title || "").trim(),
+                  sub: (x.sub || "").trim(),
+                  pct: (x.pct===null ? null : Number(x.pct))
+                }))
+                .filter(x => x.title.length > 0)
+                .map(x => ({ title:x.title, sub:x.sub, pct: (Number.isFinite(x.pct) ? x.pct : null) }));
+
+              state.profile.goals = cleaned;
+              Storage.save(state);
+              Modal.close();
+              renderView();
+            }
+          }, ["Save"])
+        ])
+      ])
+    });
+  };
+
+  function goalsListNode(){
+    const goals = (state.profile.goals || []);
+    if(goals.length === 0){
+      return el("div", { class:"note", text:"No goals yet. Tap “Edit Goals” to add goals with auto-updating subtext." });
+    }
+
+    return el("div", { class:"goalsList" }, goals.map(g => {
+      const title = String(g?.title || "");
+      const sub = String(g?.sub || "");
+      const pct = (typeof g?.pct === "number" && Number.isFinite(g.pct)) ? Math.max(0, Math.min(100, Math.round(g.pct))) : null;
+
+      return el("div", { class:"goalItem" }, [
+        el("div", { class:"goalLeft" }, [
+          el("div", { class:"goalName", text: title }),
+          sub ? el("div", { class:"goalSubtext", text: sub }) : el("div", { class:"goalSubtext", text:"" })
+        ]),
+        el("div", { class:"goalPct", text: (pct===null ? "Active" : `${pct}%`) })
+      ]);
+    }));
+  }
+
+  // ----------------------------
+  // Render (Option A: Today, This Week, Goals)
+  // ----------------------------
+  const cards = [];
+
+  // Today
   cards.push(
     el("div", { class:"card" }, [
-      el("h2", { text:"Protein" }),
+      el("div", { class:"homeRow" }, [
+        el("div", {}, [
+          el("h2", { text:"Today" }),
+          el("div", { class:"note", text: workoutSub })
+        ]),
+        el("button", {
+          class:"btn primary",
+          onClick: () => navigate("routine")
+        }, ["Log workout"])
+      ]),
+
+      el("div", { class:"kpi", style:"margin-top:8px" }, [
+        el("div", { class:"big", text: workoutTitle })
+      ]),
+
+      el("div", { style:"height:10px" }),
+
+      // Top 3 planned exercises
+      (top3.length === 0)
+        ? el("div", { class:"note", text: (!routine ? "Select a routine to see planned exercises." : (day?.isRest ? "Rest day." : "Add exercises in Routine Editor.")) })
+        : el("div", { class:"exList" }, top3.map(n =>
+            el("div", { class:"exItem" }, [
+              el("div", { class:"left" }, [
+                el("div", { class:"name", text: n }),
+                el("div", { class:"meta", text:"Planned" })
+              ]),
+              el("div", { class:"chip", text:"Top" })
+            ])
+          )),
+
+      el("div", { style:"height:10px" }),
+
+      // Status row
       el("div", { class:"homeRow" }, [
         el("div", { class:"kpi" }, [
-          el("div", { class:"big", text: `${left}g left` }),
-          el("div", { class:"small", text:"Tap to log meals for today." })
+          el("div", { class:"big", text: status.label }),
+          el("div", { class:"small", text:"Status (auto from set logging)" })
         ]),
-        el("div", { onClick: openProteinModal }, [ ring ])
-      ]),
-      el("div", { style:"height:10px" }),
-      el("div", { class:"btnrow" }, [
-        el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
+        el("div", { class:"tag" + (status.kind ? ` ${status.kind}` : ""), text: status.tag })
       ])
     ])
   );
-}
 
-// ----------------------------
-// Attendance
-// ----------------------------
-cards.push(
-  el("div", { class:"card" }, [
-    // Header row + action buttons
-    el("div", { class:"homeRow" }, [
-      el("div", {}, [
-        el("h2", { text:"Attendance" }),
-        el("div", { class:"note", text: weekLabel })
+  // This Week (centered dots, aggregated metrics)
+  cards.push(
+    el("div", { class:"card" }, [
+      el("div", { class:"homeRow" }, [
+        el("div", {}, [
+          el("h2", { text:"This Week" }),
+          el("div", { class:"note", text: weekLabel })
+        ]),
+        el("button", { class:"btn", onClick: openWeekDetails }, ["View details"])
       ]),
 
-      // ✅ Stack actions: Check in ABOVE View calendar
-      el("div", {
-        style:"display:flex; flex-direction:column; gap:8px; align-items:flex-end;"
-      }, [
-        el("button", {
-          class:"btn primary",
-          onClick: openCheckIn
-        }, [isTrained(todayISO) ? "Undo check-in" : "Check in"]),
+      el("div", { style:"height:10px" }),
+      dots,
+      el("div", { style:"height:12px" }),
 
-        el("button", {
-          class:"btn",
-          onClick: () => navigate("attendance")
-        }, ["View calendar"])
+      el("div", { class:"homeWeekMetrics" }, [
+        el("div", { class:"homeMini" }, [
+          el("div", { class:"lab", text:"Workouts" }),
+          el("div", { class:"val", text:`${workoutsDone} / ${workoutsGoal}` })
+        ]),
+        el("div", { class:"homeMini" }, [
+          el("div", { class:"lab", text:"Protein Goal Days" }),
+          el("div", { class:"val", text: proteinOn ? `${proteinGoalDays} / 7` : "Off" })
+        ]),
+        el("div", { class:"homeMini" }, [
+          el("div", { class:"lab", text:"Weight Change" }),
+          el("div", { class:"val", text: wDeltaText })
+        ])
+      ]),
+
+      el("div", { style:"height:10px" }),
+      el("div", { class:"homeRow" }, [
+        el("div", { class:"tag", text:`Consistency: ${workoutsDone === 0 ? "Start small" : (workoutsDone >= 5 ? "Strong" : "Building")}` }),
+        el("div", { class:"tag " + (paceKey === "on" ? "good" : "warn"), text: paceLabel })
       ])
-    ]),
-
-    el("div", { style:"height:10px" }),
-
-    // Make the dots preview clickable too
-    el("div", {
-      onClick: () => navigate("attendance"),
-      style:"cursor:pointer;"
-    }, [ dots ]),
-
-    el("div", { style:"height:10px" }),
-    el("div", { class:"note", text:`This week: ${trainedThisWeek.filter(x => x.trained).length} sessions` })
-  ])
-);
-
-// ----------------------------
-// Weight
-// ----------------------------
-cards.push(
-  el("div", { class:"card" }, [
-    el("h2", { text:"Weight" }),
-    el("div", { class:"kpi" }, [
-      el("div", { class:"big", text: wLatest ? `${Number(wLatest.weight).toFixed(1)}` : "—" }),
-      el("div", { class:"small", text: wLatest ? `Latest • ${wLatest.dateISO}` : "No weight entries yet." }),
-      el("div", { class:"small", text: `Delta vs previous: ${wDeltaText}` })
-    ]),
-    el("div", { style:"height:10px" }),
-    el("div", { class:"btnrow" }, [
-      el("button", { class:"btn primary", onClick: () => navigate("weight") }, ["Log weight"])
     ])
-  ])
-);
+  );
 
-return el("div", { class:"grid cols2" }, cards);
-        },
+  // Goals
+  cards.push(
+    el("div", { class:"card" }, [
+      el("div", { class:"homeRow" }, [
+        el("div", {}, [
+          el("h2", { text:"Goals" }),
+          el("div", { class:"note", text:"Auto-updating from logs (Phase 2). Manual list for now." })
+        ]),
+        el("button", { class:"btn", onClick: openGoalsEditor }, ["Edit Goals"])
+      ]),
+      el("div", { style:"height:10px" }),
+      goalsListNode()
+    ])
+  );
+
+  return el("div", { class:"grid" }, cards);
+},
 
         ProteinHistory(){
         
