@@ -3098,11 +3098,21 @@ else root.appendChild(el("div", { class:"card" }, [
     trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
   }
 
-  const dots = el("div", { class:"homeWeekDots", style:"justify-content:center;" });
-  trainedThisWeek.forEach((d, idx) => {
-    const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
-    dots.appendChild(dot);
-  });
+  // Week labels + dots (aligned)
+const dotLabels = el("div", { class:"homeWeekDotLabels", style:"justify-content:center;" });
+const labels = (weekStartsOn === "sun")
+  ? ["S","M","T","W","T","F","S"]
+  : ["M","T","W","T","F","S","S"];
+
+labels.forEach(ch => {
+  dotLabels.appendChild(el("div", { class:"dotLbl", text: ch }));
+});
+
+const dots = el("div", { class:"homeWeekDots", style:"justify-content:center;" });
+trainedThisWeek.forEach((d) => {
+  const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
+  dots.appendChild(dot);
+});
 
   const workoutsDone = trainedThisWeek.filter(x => x.trained).length;
   const workoutsGoal = Math.max(0, Math.round(Number(state.profile?.workoutsPerWeekGoal || 4)));
@@ -3687,14 +3697,15 @@ cards.push(
     el("div", { class:"homeRow" }, [
       el("div", {}, [
         el("h2", { text:"This Week" }),
-        el("div", { class:"note", text: weekLabel })
       ]),
       el("button", { class:"btn", onClick: openWeekDetails }, ["View details"])
     ]),
 
     el("div", { style:"height:10px" }),
-    dots,
-    el("div", { style:"height:12px" }),
+     dotLabels,
+     el("div", { style:"height:6px" }),
+     dots,
+     el("div", { style:"height:12px" }),
 
     // ✅ NEW: 3 separate metric cards
     el("div", { class:"homeMetricCards" }, [
@@ -3742,10 +3753,10 @@ cards.push(
     ]),
 
     el("div", { style:"height:12px" }),
-    el("div", { class:"homeRow" }, [
-      el("div", { class:"tag", text:`Consistency: ${workoutsDone === 0 ? "Start small" : (workoutsDone >= 5 ? "Strong" : "Building")}` }),
-      el("div", { class:"tag " + (paceKey === "on" ? "good" : "warn"), text: paceLabel })
-    ])
+    el("div", { class:"coachInsight" }, [
+    el("div", { class:"coachTitle", text:"Coach Insight" }),
+    el("div", { class:"coachText", text: coachInsight })
+     ])
   ])
 );
 
