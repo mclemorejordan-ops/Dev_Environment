@@ -3152,22 +3152,18 @@ function getExplicitWorkoutsWeekGoal(){
 function getPlannedWorkoutsThisWeek(){
   if(!routine || !routine.days || !routine.days.length) return 0;
 
-  const startISO = state.profile?.startDateISO || Dates.todayISO();
-  const cycleLen = routine.days.length;
-
+  // ✅ Count ONLY inside the coaching window (coachStartClampedISO..weekEndISO)
+  // This prevents "past days" from inflating the weekly plan for mid-week starters.
   let planned = 0;
 
-  for(let i=0;i<7;i++){
+  for(let i = coachStartIdx; i < 7; i++){
     const dISO = Dates.addDaysISO(weekStartISO, i);
 
-    // Align routine day index to when the user started
-    const offset = Dates.diffDaysISO(startISO, dISO);
-    const idx = ((offset % cycleLen) + cycleLen) % cycleLen;
+    // Use anchored mapping so 7-day routines align to the user's week start rules
+    const dayObj = anchoredRoutineDayForDate(dISO);
+    if(!dayObj) continue;
 
-    const dayObj = routine.days[idx];
-    const isRest = !!dayObj?.isRest;
-
-    if(!isRest) planned++;
+    if(!dayObj.isRest) planned++;
   }
 
   return planned;
