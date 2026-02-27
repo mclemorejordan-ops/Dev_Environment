@@ -3047,7 +3047,7 @@ else root.appendChild(el("div", { class:"card" }, [
   ]);
 },
 
-        Home(){
+Home(){
   ExerciseLibrary.ensureSeeded();
   WeightEngine.ensure();
 
@@ -3060,10 +3060,10 @@ else root.appendChild(el("div", { class:"card" }, [
   // Coaching window start = later of (weekStartISO, user startDateISO)
   const userStartISO = state.profile?.startDateISO || todayISO;
   const coachStartISO = (String(userStartISO) > String(weekStartISO)) ? userStartISO : weekStartISO;
-  
+
   // Clamp: never start coaching after today
   const coachStartClampedISO = (String(coachStartISO) > String(todayISO)) ? todayISO : coachStartISO;
-    
+
   const { routine, day } = getTodayWorkout();
 
   // ----------------------------
@@ -3103,97 +3103,100 @@ else root.appendChild(el("div", { class:"card" }, [
   const status = workoutStatus();
 
   // ----------------------------
-// Anchored week window (respect startDateISO)
-// ----------------------------
-const startISO = state.profile?.startDateISO || Dates.todayISO();
-const coachStartClampedISO = (startISO > weekStartISO) ? startISO : weekStartISO;
-
-// Build week window ONLY inside [coachStartClampedISO .. weekEndISO]
-const trainedThisWeek = [];
-
-for(let i=0;i<7;i++){
-  const dISO = Dates.addDaysISO(weekStartISO, i);
-
-  // Skip days before user started
-  if(dISO < coachStartClampedISO) {
-    trainedThisWeek.push({ dateISO: dISO, trained: false, eligible:false });
-    continue;
-  }
-
-  trainedThisWeek.push({
-    dateISO: dISO,
-    trained: isTrained(dISO),
-    eligible:true
-  });
-}
-  
-
-  // Week labels + dots (aligned)
-const dotLabels = el("div", { class:"homeWeekDotLabels", style:"justify-content:center;" });
-const labels = (weekStartsOn === "sun")
-  ? ["S","M","T","W","T","F","S"]
-  : ["M","T","W","T","F","S","S"];
-
-labels.forEach(ch => dotLabels.appendChild(el("div", { class:"dotLbl", text: ch })));
-
-const dots = el("div", { class:"homeWeekDots", style:"justify-content:center;" });
-trainedThisWeek.forEach((d) => {
-  let cls = "dotDay";
-
-  if(!d.eligible){
-    cls += " disabled";   // add CSS if you want faded look
-  } else if(d.trained){
-    cls += " on";
-  }
-
-  const dot = el("div", { class: cls });
-  dots.appendChild(dot);
-});
-
-  // Count ONLY eligible trained days
-const workoutsDone = trainedThisWeek
-  .filter(x => x.eligible && x.trained)
-  .length;
-  
-// ----------------------------
-// Attendance target (NO default "workouts/week" goal)
-// - If user has an explicit workouts_week goal, use it.
-// - Otherwise derive from routine plan, aligned to user startDateISO.
-// ----------------------------
-function getExplicitWorkoutsWeekGoal(){
-  const goals = Array.isArray(state.profile?.goals) ? state.profile.goals : [];
-  const g = goals.find(x => (x?.type || "").toString() === "workouts_week");
-  const t = Number(g?.target);
-  return Number.isFinite(t) ? Math.max(0, Math.round(t)) : null;
-}
-
-  function getPlannedWorkoutsThisWeek(){
-  if(!routine || !routine.days || !routine.days.length) return 0;
-
-  const startISO = state.profile?.startDateISO || Dates.todayISO();
-  const cycleLen = routine.days.length;
-
-  let planned = 0;
+  // Anchored week window (respect startDateISO)
+  // NOTE: coachStartClampedISO already computed above (max(userStartISO, weekStartISO), clamped to today)
+  // ----------------------------
+  const trainedThisWeek = [];
 
   for(let i=0;i<7;i++){
     const dISO = Dates.addDaysISO(weekStartISO, i);
 
-    // Only count days inside user-aware window
-    if(dISO < coachStartClampedISO) continue;
-    if(dISO > weekEndISO) continue;
+    // Skip days before user started
+    if(dISO < coachStartClampedISO) {
+      trainedThisWeek.push({ dateISO: dISO, trained: false, eligible:false });
+      continue;
+    }
 
-    const offset = Dates.diffDaysISO(startISO, dISO);
-    const idx = ((offset % cycleLen) + cycleLen) % cycleLen;
-
-    const dayObj = routine.days[idx];
-    const isRest = !!dayObj?.isRest;
-
-    if(!isRest) planned++;
+    trainedThisWeek.push({
+      dateISO: dISO,
+      trained: isTrained(dISO),
+      eligible:true
+    });
   }
 
-  return planned;
+  // Week labels + dots (aligned)
+  const dotLabels = el("div", { class:"homeWeekDotLabels", style:"justify-content:center;" });
+  const labels = (weekStartsOn === "sun")
+    ? ["S","M","T","W","T","F","S"]
+    : ["M","T","W","T","F","S","S"];
+
+  labels.forEach(ch => dotLabels.appendChild(el("div", { class:"dotLbl", text: ch })));
+
+  const dots = el("div", { class:"homeWeekDots", style:"justify-content:center;" });
+  trainedThisWeek.forEach((d) => {
+    let cls = "dotDay";
+
+    if(!d.eligible){
+      cls += " disabled";
+    } else if(d.trained){
+      cls += " on";
+    }
+
+    const dot = el("div", { class: cls });
+    dots.appendChild(dot);
+  });
+
+  // Count ONLY eligible trained days
+  const workoutsDone = trainedThisWeek
+    .filter(x => x.eligible && x.trained)
+    .length;
+
+  // ----------------------------
+  // Attendance target (NO default "workouts/week" goal)
+  // - If user has an explicit workouts_week goal, use it.
+  // - Otherwise derive from routine plan, aligned to user startDateISO.
+  // ----------------------------
+  function getExplicitWorkoutsWeekGoal(){
+    const goals = Array.isArray(state.profile?.goals) ? state.profile.goals : [];
+    const g = goals.find(x => (x?.type || "").toString() === "workouts_week");
+    const t = Number(g?.target);
+    return Number.isFinite(t) ? Math.max(0, Math.round(t)) : null;
+  }
+
+  function getPlannedWorkoutsThisWeek(){
+    if(!routine || !routine.days || !routine.days.length) return 0;
+
+    const startISO = state.profile?.startDateISO || Dates.todayISO();
+    const cycleLen = routine.days.length;
+
+    let planned = 0;
+
+    for(let i=0;i<7;i++){
+      const dISO = Dates.addDaysISO(weekStartISO, i);
+
+      // Only count days inside user-aware window
+      if(dISO < coachStartClampedISO) continue;
+      if(dISO > weekEndISO) continue;
+
+      const offset = Dates.diffDaysISO(startISO, dISO);
+      const idx = ((offset % cycleLen) + cycleLen) % cycleLen;
+
+      const dayObj = routine.days[idx];
+      const isRest = !!dayObj?.isRest;
+
+      if(!isRest) planned++;
+    }
+
+    return planned;
+  }
+
+  const explicitWorkoutsGoal = getExplicitWorkoutsWeekGoal();
+  const plannedWorkoutsGoal = getPlannedWorkoutsThisWeek();
+
+  // Final target: explicit goal wins; otherwise planned routine days
+  const workoutsGoal = (explicitWorkoutsGoal !== null) ? explicitWorkoutsGoal : plannedWorkoutsGoal;
+
 }
-  
   
     // Align routine day index to when the user started
     const offset = Dates.diffDaysISO(startISO, dISO);
