@@ -2801,43 +2801,20 @@ else root.appendChild(el("div", { class:"card" }, [
     const Views = {
  Onboarding(){
   let hideRestDays = true;
+  let trackProtein = true;              // ✅ NEW
   let selectedTpl = "ppl";
-
-  // NEW: protein toggle + conditional goal input
-  let trackProtein = true;
 
   const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
+  // Hide rest days switch
   const hideRestSwitch = el("div", { class:"switch on" });
   hideRestSwitch.addEventListener("click", () => {
     hideRestDays = !hideRestDays;
     hideRestSwitch.classList.toggle("on", hideRestDays);
   });
 
-  let proteinGoalRow = null;
-
-    const trackProteinSwitch = el("div", {
-      class: "switch" + (trackProtein ? " on" : ""),
-      onClick: () => {
-        trackProtein = !trackProtein;
-        trackProteinSwitch.classList.toggle("on", trackProtein);
-    
-        // ✅ Live show/hide the goal row immediately (no save required)
-        if(proteinGoalRow){
-          proteinGoalRow.style.display = trackProtein ? "" : "none";
-        }
-    
-        // Optional: if turning ON and goal is 0/empty, seed a reasonable default
-        if(trackProtein){
-          const v = Number(proteinInput.value || 0);
-          if(!Number.isFinite(v) || v <= 0){
-            proteinInput.value = "150";
-          }
-          // Put cursor in the box
-          try{ proteinInput.focus(); }catch(_){}
-        }
-      }
-    });
+  // Track protein switch (NEW)
+  const trackProteinSwitch = el("div", { class:"switch on" });
 
   const tplCardsHost = el("div", { class:"tplGrid" });
   const renderTplCards = () => {
@@ -2861,19 +2838,45 @@ else root.appendChild(el("div", { class:"card" }, [
   weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
   weekSelect.value = "mon";
 
-  const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
+  const proteinInput = el("input", {
+    type:"number",
+    inputmode:"numeric",
+    placeholder:"180",
+    min:"0",
+    value:"180"
+  });
 
-  const proteinWrap = el("div", { class:"row2" }, [
-    el("label", {}, [ el("span", { text:"Daily protein goal (grams)" }), proteinInput ]),
-    el("div", { class:"note", text:"You can change this later in Settings." })
+  // Protein goal row wrapper so we can show/hide instantly
+  const proteinGoalRow = el("label", {}, [
+    el("span", { text:"Protein goal (grams/day)" }),
+    proteinInput
   ]);
+
+  // Wire toggle to live show/hide protein goal input
+  trackProteinSwitch.addEventListener("click", () => {
+    trackProtein = !trackProtein;
+    trackProteinSwitch.classList.toggle("on", trackProtein);
+    proteinGoalRow.style.display = trackProtein ? "" : "none";
+
+    // Optional UX: if turning ON and empty/0, seed a default + focus
+    if(trackProtein){
+      const v = Number(proteinInput.value || 0);
+      if(!Number.isFinite(v) || v <= 0){
+        proteinInput.value = "180";
+      }
+      try{ proteinInput.focus(); }catch(_){}
+    }
+  });
+
+  // Initial visibility
+  proteinGoalRow.style.display = trackProtein ? "" : "none";
 
   const finish = () => {
     errorBox.style.display = "none";
     errorBox.textContent = "";
 
     const cleanName = (nameInput.value || "").trim();
-    const weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
+    const weekStartsOn = weekSelect.value === "sun" ? "sun" : "mon";
 
     if(!cleanName){
       errorBox.textContent = "Please enter your name.";
@@ -2894,12 +2897,15 @@ else root.appendChild(el("div", { class:"card" }, [
 
     const profile = {
       name: cleanName,
+
+      // ✅ NEW: persisted feature flag
       trackProtein: !!trackProtein,
       proteinGoal: proteinGoal,
+
       weekStartsOn,
       hideRestDays: !!hideRestDays,
 
-      // ✅ NEW: 3D Preview default (ON)
+      // ✅ 3D Preview default (ON)
       show3DPreview: true
     };
 
@@ -2907,7 +2913,7 @@ else root.appendChild(el("div", { class:"card" }, [
     ExerciseLibrary.ensureSeeded();
 
     const routineName = RoutineTemplates.find(t => t.key === selectedTpl)?.name || "Routine";
-    const routine = createRoutineFromTemplate(selectedTpl, routineName, weekStartsOn);
+    const routine = createRoutineFromTemplate(selectedTpl, routineName);
 
     state.profile = profile;
     state.routines = [routine];
@@ -2923,46 +2929,56 @@ else root.appendChild(el("div", { class:"card" }, [
     checkForUpdates();
   };
 
-  return el("div", { class:"onbV1" }, [
-    el("div", { class:"card onbHero" }, [
+  return el("div", { class:"grid" }, [
+    el("div", { class:"card" }, [
+      el("h2", { text:"Welcome" }),
       el("div", { class:"kpi" }, [
-        el("div", { class:"big", text:"Welcome to Performance Coach" }),
-        el("div", { class:"small", text:"Create your profile and choose a template. You can change everything later." })
+        el("div", { class:"big", text:"Let’s set up your dashboard" }),
+        el("div", { class:"small", text:"Create your profile and choose a routine template. You can edit everything later." })
       ])
     ]),
 
     el("div", { class:"card" }, [
-      el("h2", { text:"Profile" }),
+      el("h2", { text:"Create profile" }),
       el("div", { class:"form" }, [
+
+        // Row 1: Name + Week start (Profile-only)
         el("div", { class:"row2" }, [
           el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
           el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ])
         ]),
 
+        // Row 2: Track protein toggle + Hide rest days toggle
         el("div", { class:"row2" }, [
           el("div", { class:"toggle" }, [
             el("div", { class:"ttext" }, [
               el("div", { class:"a", text:"Track protein" }),
-              el("div", { class:"b", text:"Turn this off to hide protein features across the app." })
+              el("div", { class:"b", text:"Turn this off to hide protein features across the app" })
             ]),
             trackProteinSwitch
           ]),
+
           el("div", { class:"toggle" }, [
             el("div", { class:"ttext" }, [
               el("div", { class:"a", text:"Hide rest days" }),
-              el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)." })
+              el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)" })
             ]),
             hideRestSwitch
           ])
         ]),
 
-        proteinWrap,
+        // Row 3: Protein goal (auto hides/shows instantly)
+        el("div", { class:"row2" }, [
+          proteinGoalRow,
+          el("div", { class:"note", text:"You can change this later in Settings." })
+        ]),
+
         errorBox
       ])
     ]),
 
     el("div", { class:"card" }, [
-      el("h2", { text:"Routine template" }),
+      el("h2", { text:"Choose a routine template" }),
       tplCardsHost,
       el("div", { style:"height:10px" }),
       el("div", { class:"btnrow" }, [
