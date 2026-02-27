@@ -3278,6 +3278,13 @@ function anchoredRoutineDayForDate(dateISO){
   return (routine.days || []).find(d => Number(d.order) === Number(idx)) || null;
 }
 
+// Returns true if the anchored routine says this date is a Rest day.
+// Safe: if no routine/day is found, treat as NOT a rest day (so we don't hide data accidentally).
+function isRoutineRestDayForISO(dateISO){
+  const dayObj = anchoredRoutineDayForDate(dateISO);
+  return !!(dayObj && dayObj.isRest);
+}
+
 // Planned training days remaining in the coaching window (coachStartClampedISO..weekEndISO)
 function plannedDaysRemainingThisWeek(){
   const routine = getActiveRoutineSafe();
