@@ -3579,7 +3579,7 @@ function getBestLiftWeight(exType, exId){
 }
 
 function computeGoalDisplay(goal){
-  // Backwards compatible with Phase 1 manual goals
+  // Backwards compatible fields (but we'll hide manual goals)
   const legacyTitle = (goal?.title ?? goal?.name ?? "").toString().trim();
   const legacySub   = (goal?.sub ?? "").toString().trim();
   const legacyPct   = (typeof goal?.pct === "number" && Number.isFinite(goal.pct))
@@ -3588,9 +3588,9 @@ function computeGoalDisplay(goal){
 
   const type = (goal?.type || "manual").toString();
 
-  // Manual goal
+  // ✅ Manual goals are removed from Home display
   if(type === "manual"){
-    return { title: legacyTitle || "Goal", sub: legacySub, pct: legacyPct };
+    return null;
   }
 
   // Workouts per week (auto)
@@ -3631,151 +3631,313 @@ function computeGoalDisplay(goal){
     };
   }
 
-  // Strength target (auto from best logged weight)
+  // ✅ Exercise target (Weightlifting / Cardio / Core)
+  // Uses LogEngine summaries so it matches how the app logs entries.
   if(type === "strength_target"){
     const exType = (goal?.exerciseType || "weightlifting").toString();
     const exId = goal?.exerciseId;
-    const target = Number(goal?.targetWeight);
 
     const exName = resolveExerciseName(exType, exId, goal?.exerciseName || "Exercise");
-    const best = (exId ? getBestLiftWeight(exType, exId) : null);
+    const entries = (exId ? (LogEngine.entriesForExercise(exType, exId) || []) : []);
+
+    // Determine metric + target based on exercise type
+    let metric = (goal?.metric || "").toString().trim();
+    let target = null;
+
+    if(exType === "weightlifting"){
+      // legacy: targetWeight
+      target = Number(goal?.targetWeight);
+      metric = "topWeight";
+    }else{
+      // cardio/core store targetValue
+      target = Number(goal?.targetValue);
+      if(!metric){
+        metric = (exType === "cardio") ? "distance" : "volume"; // defaults
+      }
+    }
+
+    // Compute best based on metric (from LogEngine summaries)
+    let best = null;
+
+    if(exType === "weightlifting"){
+      for(const e of entries){
+        const v = e?.summary?.bestWeight;
+        if(Number.isFinite(v)) best = Math.max(best ?? -Infinity, v);
+      }
+      if(best === -Infinity) best = null;
+    } else if(exType === "cardio"){
+      if(metric === "timeSec"){
+        for(const e of entries){
+          const v = e?.summary?.timeSec;
+          if(Number.isFinite(v)) best = Math.max(best ?? -Infinity, v);
+        }
+        if(best === -Infinity) best = null;
+      } else {
+        // distance
+        for(const e of entries){
+          const v = e?.summary?.distance;
+          if(Number.isFinite(v)) best = Math.max(best ?? -Infinity, v);
+        }
+        if(best === -Infinity) best = null;
+      }
+    } else {
+      // core:
+      // Your core summary uses totalVolume (reps/sets based volume OR time-based in some flows).
+      for(const e of entries){
+        const v = e?.summary?.totalVolume;
+        if(Number.isFinite(v)) best = Math.max(best ?? -Infinity, v);
+      }
+      if(best === -Infinity) best = null;
+    }
 
     if(!Number.isFinite(target) || !Number.isFinite(best)){
       return {
-        title: goal?.title?.trim() || `${exName} ${Number.isFinite(target) ? target : ""}`.trim(),
+        title: goal?.title?.trim() || `${exName}`.trim(),
         sub: "Log sets to track progress",
         pct: null
       };
     }
 
-    const toGo = Math.max(0, target - best);
     const pct = (target > 0) ? Math.max(0, Math.min(100, Math.round((best / target) * 100))) : null;
 
+    // Subtext formatting matching log style
+    if(exType === "cardio"){
+      if(metric === "timeSec"){
+        const toGo = Math.max(0, target - best);
+        return {
+          title: goal?.title?.trim() || `${exName} time`,
+          sub: `Best: ${formatTime(best)} • Target: ${formatTime(target)} • ${formatTime(toGo)} to go`,
+          pct
+        };
+      } else {
+        const toGo = Math.max(0, target - best);
+        return {
+          title: goal?.title?.trim() || `${exName} distance`,
+          sub: `Best: ${Math.round(best * 10) / 10} • Target: ${Math.round(target * 10) / 10} • ${Math.round(toGo * 10) / 10} to go`,
+          pct
+        };
+      }
+    }
+
+    if(exType === "core"){
+      const toGo = Math.max(0, target - best);
+      return {
+        title: goal?.title?.trim() || `${exName}`,
+        sub: `Best: ${Math.round(best)} • Target: ${Math.round(target)} • ${Math.round(toGo)} to go`,
+        pct
+      };
+    }
+
+    // weightlifting
+    const toGo = Math.max(0, target - best);
     return {
-      title: goal?.title?.trim() || `${exName} ${target} lb`,
-      sub: `Current: ${best.toFixed(0)} lb • ${toGo.toFixed(0)} lb to goal`,
+      title: goal?.title?.trim() || `${exName} ${Math.round(target)} lb`,
+      sub: `Current: ${Math.round(best)} lb • ${Math.round(toGo)} lb to goal`,
       pct
     };
   }
 
+  // Unknown types: keep legacy fallback (but avoids crashing)
   return { title: legacyTitle || "Goal", sub: legacySub, pct: legacyPct };
 }
 
 const openGoalsEditor = () => {
-  const working = (state.profile.goals || []).map(g => ({
-    type: (g?.type || "manual"),
-    title: String(g?.title || g?.name || ""),
-    sub: String(g?.sub || ""),
-    pct: (typeof g?.pct === "number" ? g.pct : null),
+  ExerciseLibrary.ensureSeeded();
+  LogEngine.ensure();
 
-    // workouts_week
-    target: (Number.isFinite(Number(g?.target)) ? Number(g.target) : null),
-
-    // weight_target
-    startWeight: (Number.isFinite(Number(g?.startWeight)) ? Number(g.startWeight) : null),
-    targetWeight: (Number.isFinite(Number(g?.targetWeight)) ? Number(g.targetWeight) : null),
-
-    // strength_target
-    exerciseType: String(g?.exerciseType || "weightlifting"),
-    exerciseId: g?.exerciseId || null,
-    targetLiftWeight: (Number.isFinite(Number(g?.targetWeight)) ? Number(g.targetWeight) : null)
-  }));
+  const existing = Array.isArray(state.profile?.goals) ? state.profile.goals : [];
+  // ✅ Drop manual goals from the editor completely
+  const working = existing
+    .filter(g => String(g?.type || "") !== "manual")
+    .map(g => ({ ...g }));
 
   function addRow(){
     working.push({
-      type:"manual", title:"", sub:"", pct:null,
-      target:null, startWeight:null, targetWeight:null,
-      exerciseType:"weightlifting", exerciseId:null, targetLiftWeight:null
+      type: "workouts_week",
+      title: ""
     });
     render();
   }
 
+  // helper: exercise options by type
+  function exerciseOptionsForType(t){
+    const list = (state.exerciseLibrary?.[t] || []).slice();
+    return list.map(x => ({ id: x.id, name: x.name }));
+  }
+
+  const body = el("div", {}, []);
+
   function render(){
     body.innerHTML = "";
 
-    if(working.length === 0){
-      body.appendChild(el("div", { class:"note", text:"No goals yet. Add one below." }));
-    }
-
-    const exerciseOptions = (state.exerciseLibrary?.weightlifting || [])
-      .slice()
-      .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
-
     working.forEach((g, idx) => {
+      // ----- Type select (manual removed) -----
       const typeSel = el("select", {}, [
-        el("option", { value:"manual", text:"Manual" }),
-        el("option", { value:"workouts_week", text:"Workouts per week" }),
-        el("option", { value:"weight_target", text:"Target weight" }),
-        el("option", { value:"strength_target", text:"Strength target" })
+        el("option", { value:"workouts_week", text:"Workouts / week" }),
+        el("option", { value:"weight_target", text:"Bodyweight target" }),
+        el("option", { value:"strength_target", text:"Exercise target (Weightlifting/Cardio/Core)" })
       ]);
-      typeSel.value = g.type;
-
+      typeSel.value = g.type || "workouts_week";
       typeSel.addEventListener("change", () => {
         g.type = typeSel.value;
-        if(g.type === "workouts_week" && !Number.isFinite(Number(g.target))) g.target = Number(state.profile?.workoutsPerWeekGoal || 4);
-        if(g.type === "weight_target"){
-          const cur = getLatestWeight();
-          if(!Number.isFinite(Number(g.startWeight)) && Number.isFinite(cur)) g.startWeight = cur;
-        }
         render();
       });
 
-      const titleInput = el("input", { type:"text", value:g.title, placeholder:"Title (optional — auto titles work too)" });
+      const titleInput = el("input", { value:(g.title || ""), placeholder:"Title (optional)" });
       titleInput.addEventListener("input", () => { g.title = titleInput.value; });
-
-      const subInput = el("input", { type:"text", value:g.sub, placeholder:"Subtext (manual only)" });
-      subInput.addEventListener("input", () => { g.sub = subInput.value; });
-
-      const pctInput = el("input", { type:"number", inputmode:"numeric", min:"0", max:"100", step:"1", value:(g.pct===null?"":String(g.pct)), placeholder:"%" });
-      pctInput.addEventListener("input", () => {
-        const v = pctInput.value === "" ? null : Number(pctInput.value);
-        g.pct = (v===null) ? null : (Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : null);
-      });
 
       const typeFields = [];
 
+      // workouts_week
       if(g.type === "workouts_week"){
-        const targetInput = el("input", { type:"number", min:"0", step:"1", value:(g.target===null?"":String(g.target)), placeholder:"Target workouts/week" });
-        targetInput.addEventListener("input", () => { g.target = targetInput.value === "" ? null : Number(targetInput.value); });
-        typeFields.push(el("label", {}, [ el("span", { text:"Target" }), targetInput ]));
+        const target = el("input", { type:"number", min:"0", step:"1", value:(g.target==null?"":String(g.target)), placeholder:"Target workouts/week" });
+        target.addEventListener("input", () => { g.target = target.value === "" ? null : Number(target.value); });
+        typeFields.push(el("label", {}, [ el("span", { text:"Target" }), target ]));
       }
 
+      // weight_target
       if(g.type === "weight_target"){
-        const targetW = el("input", { type:"number", min:"0", step:"0.1", value:(g.targetWeight===null?"":String(g.targetWeight)), placeholder:"Target weight" });
+        const targetW = el("input", { type:"number", min:"0", step:"0.1", value:(g.targetWeight==null?"":String(g.targetWeight)), placeholder:"Target weight" });
         targetW.addEventListener("input", () => { g.targetWeight = targetW.value === "" ? null : Number(targetW.value); });
 
-        const startW = el("input", { type:"number", min:"0", step:"0.1", value:(g.startWeight===null?"":String(g.startWeight)), placeholder:"Start weight" });
+        const startW = el("input", { type:"number", min:"0", step:"0.1", value:(g.startWeight==null?"":String(g.startWeight)), placeholder:"Start weight" });
         startW.addEventListener("input", () => { g.startWeight = startW.value === "" ? null : Number(startW.value); });
 
         typeFields.push(el("label", {}, [ el("span", { text:"Target weight" }), targetW ]));
         typeFields.push(el("label", {}, [ el("span", { text:"Start weight" }), startW ]));
       }
 
+      // strength_target (now supports weightlifting/cardio/core)
       if(g.type === "strength_target"){
+        // exercise type
+        const exTypeSel = el("select", {}, [
+          el("option", { value:"weightlifting", text:"Weightlifting" }),
+          el("option", { value:"cardio", text:"Cardio" }),
+          el("option", { value:"core", text:"Core" })
+        ]);
+        exTypeSel.value = g.exerciseType || "weightlifting";
+        exTypeSel.addEventListener("change", () => {
+          g.exerciseType = exTypeSel.value;
+          // defaults by type
+          if(g.exerciseType === "cardio"){
+            g.metric = g.metric || "distance"; // distance or timeSec
+          } else if(g.exerciseType === "core"){
+            g.metric = g.metric || "volume";   // volume or timeSec (both stored as totalVolume)
+          } else {
+            g.metric = "topWeight";
+          }
+          g.exerciseId = null;
+          render();
+        });
+
+        // exercise select
+        const exType = exTypeSel.value;
+        const options = exerciseOptionsForType(exType);
+
         const exSel = el("select", {}, [
           el("option", { value:"", text:"Select exercise" }),
-          ...exerciseOptions.map(ex => el("option", { value: ex.id, text: ex.name }))
+          ...options.map(ex => el("option", { value: ex.id, text: ex.name }))
         ]);
         exSel.value = g.exerciseId || "";
         exSel.addEventListener("change", () => { g.exerciseId = exSel.value || null; });
 
-        const targetLift = el("input", { type:"number", min:"0", step:"1", value:(g.targetLiftWeight===null?"":String(g.targetLiftWeight)), placeholder:"Target weight" });
-        targetLift.addEventListener("input", () => { g.targetLiftWeight = targetLift.value === "" ? null : Number(targetLift.value); });
-
+        typeFields.push(el("label", {}, [ el("span", { text:"Category" }), exTypeSel ]));
         typeFields.push(el("label", {}, [ el("span", { text:"Exercise" }), exSel ]));
-        typeFields.push(el("label", {}, [ el("span", { text:"Target weight" }), targetLift ]));
+
+        // ----- target inputs by type (match logging UI) -----
+        if(exType === "weightlifting"){
+          // legacy field: targetWeight
+          const targetLift = el("input", { type:"number", min:"0", step:"1", value:(g.targetWeight==null?"":String(g.targetWeight)), placeholder:"Target weight" });
+          targetLift.addEventListener("input", () => { g.targetWeight = targetLift.value === "" ? null : Number(targetLift.value); });
+
+          typeFields.push(el("label", {}, [ el("span", { text:"Target weight (lb)" }), targetLift ]));
+        }
+
+        if(exType === "cardio"){
+          // choose whether target is distance or time (same as how you log cardio)
+          const metricSel = el("select", {}, [
+            el("option", { value:"distance", text:"Distance" }),
+            el("option", { value:"timeSec", text:"Time" })
+          ]);
+          metricSel.value = g.metric || "distance";
+          metricSel.addEventListener("change", () => { g.metric = metricSel.value; render(); });
+
+          typeFields.push(el("label", {}, [ el("span", { text:"Track" }), metricSel ]));
+
+          if(metricSel.value === "timeSec"){
+            const minInput = el("input", { type:"number", min:"0", step:"1", value:"", placeholder:"Min" });
+            const secInput = el("input", { type:"number", min:"0", step:"1", value:"", placeholder:"Sec" });
+
+            // prefill from stored targetValue seconds
+            const t = Math.max(0, Math.floor(Number(g.targetValue) || 0));
+            minInput.value = String(Math.floor(t / 60) || "");
+            secInput.value = String((t % 60) || "");
+
+            const sync = () => {
+              const min = Math.max(0, Math.floor(Number(minInput.value) || 0));
+              const sec = Math.max(0, Math.floor(Number(secInput.value) || 0));
+              g.targetValue = (min * 60) + sec;
+            };
+            minInput.addEventListener("input", sync);
+            secInput.addEventListener("input", sync);
+
+            typeFields.push(el("div", { class:"row2" }, [
+              el("label", {}, [ el("span", { text:"Minutes" }), minInput ]),
+              el("label", {}, [ el("span", { text:"Seconds" }), secInput ])
+            ]));
+          } else {
+            const dist = el("input", { type:"number", min:"0", step:"0.1", value:(g.targetValue==null?"":String(g.targetValue)), placeholder:"Distance" });
+            dist.addEventListener("input", () => { g.targetValue = dist.value === "" ? null : Number(dist.value); });
+            typeFields.push(el("label", {}, [ el("span", { text:"Distance" }), dist ]));
+          }
+        }
+
+        if(exType === "core"){
+          // match logging: sets+reps OR time
+          const metricSel = el("select", {}, [
+            el("option", { value:"volume", text:"Sets + Reps" }),
+            el("option", { value:"timeSec", text:"Time" })
+          ]);
+          metricSel.value = g.metric || "volume";
+          metricSel.addEventListener("change", () => { g.metric = metricSel.value; render(); });
+
+          typeFields.push(el("label", {}, [ el("span", { text:"Track" }), metricSel ]));
+
+          if(metricSel.value === "timeSec"){
+            const minInput = el("input", { type:"number", min:"0", step:"1", value:"", placeholder:"Min" });
+            const secInput = el("input", { type:"number", min:"0", step:"1", value:"", placeholder:"Sec" });
+
+            const t = Math.max(0, Math.floor(Number(g.targetValue) || 0));
+            minInput.value = String(Math.floor(t / 60) || "");
+            secInput.value = String((t % 60) || "");
+
+            const sync = () => {
+              const min = Math.max(0, Math.floor(Number(minInput.value) || 0));
+              const sec = Math.max(0, Math.floor(Number(secInput.value) || 0));
+              g.targetValue = (min * 60) + sec;
+            };
+            minInput.addEventListener("input", sync);
+            secInput.addEventListener("input", sync);
+
+            typeFields.push(el("div", { class:"row2" }, [
+              el("label", {}, [ el("span", { text:"Minutes" }), minInput ]),
+              el("label", {}, [ el("span", { text:"Seconds" }), secInput ])
+            ]));
+          } else {
+            // For goals, we store a simple numeric targetValue for volume.
+            // Your core summary uses totalVolume (reps*sets*weight OR timeSec). This keeps it consistent.
+            const vol = el("input", { type:"number", min:"0", step:"1", value:(g.targetValue==null?"":String(g.targetValue)), placeholder:"Target volume" });
+            vol.addEventListener("input", () => { g.targetValue = vol.value === "" ? null : Number(vol.value); });
+            typeFields.push(el("label", {}, [ el("span", { text:"Target (Sets/Reps volume)" }), vol ]));
+          }
+        }
       }
 
       body.appendChild(el("div", { class:"goalEditRow" }, [
         el("div", { class:"goalEditCols" }, [
           el("label", {}, [ el("span", { text:"Type" }), typeSel ]),
           el("label", {}, [ el("span", { text:"Title" }), titleInput ]),
-          ...(g.type === "manual"
-            ? [
-                el("label", {}, [ el("span", { text:"Subtext" }), subInput ]),
-                el("label", {}, [ el("span", { text:"%" }), pctInput ])
-              ]
-            : typeFields)
+          ...typeFields
         ]),
         el("div", { style:"height:10px" }),
         el("button", { class:"btn danger", onClick: () => { working.splice(idx, 1); render(); } }, ["Remove"])
@@ -3789,7 +3951,6 @@ const openGoalsEditor = () => {
     ]));
   }
 
-  const body = el("div", {}, []);
   render();
 
   Modal.open({
@@ -3797,7 +3958,7 @@ const openGoalsEditor = () => {
     bodyNode: el("div", {}, [
       body,
       el("div", { style:"height:12px" }),
-      el("div", { class:"note", text:"Phase 2: Auto goals compute subtext + % from your logs. Manual goals still supported." }),
+      el("div", { class:"note", text:"Goals auto-update from your logs (Weightlifting, Cardio, Core)." }),
       el("div", { style:"height:12px" }),
       el("div", { class:"btnrow" }, [
         el("button", { class:"btn", onClick: Modal.close }, ["Cancel"]),
@@ -3805,13 +3966,7 @@ const openGoalsEditor = () => {
           class:"btn primary",
           onClick: () => {
             const cleaned = working.map(x => {
-              const base = { type: String(x.type || "manual"), title: (x.title || "").trim() };
-
-              if(base.type === "manual"){
-                base.sub = (x.sub || "").trim();
-                base.pct = (x.pct===null ? null : Number(x.pct));
-                return base;
-              }
+              const base = { type: String(x.type || "workouts_week"), title: (x.title || "").trim() };
 
               if(base.type === "workouts_week"){
                 base.target = Number.isFinite(Number(x.target))
@@ -3828,14 +3983,27 @@ const openGoalsEditor = () => {
               }
 
               if(base.type === "strength_target"){
-                base.exerciseType = "weightlifting";
+                base.exerciseType = String(x.exerciseType || "weightlifting");
                 base.exerciseId = x.exerciseId || null;
-                base.targetWeight = Number.isFinite(Number(x.targetLiftWeight)) ? Math.max(0, Math.round(Number(x.targetLiftWeight))) : null;
+
+                if(base.exerciseType === "weightlifting"){
+                  base.metric = "topWeight";
+                  base.targetWeight = Number.isFinite(Number(x.targetWeight)) ? Math.max(0, Math.round(Number(x.targetWeight))) : null;
+                } else if(base.exerciseType === "cardio"){
+                  base.metric = String(x.metric || "distance");
+                  base.targetValue = Number.isFinite(Number(x.targetValue)) ? Math.max(0, Number(x.targetValue)) : null;
+                } else {
+                  // core
+                  base.metric = String(x.metric || "volume");
+                  base.targetValue = Number.isFinite(Number(x.targetValue)) ? Math.max(0, Number(x.targetValue)) : null;
+                }
                 return base;
               }
 
               return base;
-            }).filter(g => (g.type !== "manual") || (g.title && g.title.length > 0));
+            })
+            // ✅ Safety filter: never persist manual goals again
+            .filter(g => String(g.type) !== "manual");
 
             state.profile.goals = cleaned;
             Storage.save(state);
@@ -3849,23 +4017,30 @@ const openGoalsEditor = () => {
 };
 
 function goalsListNode(){
-  const goals = (state.profile.goals || []);
+  const goals = (state.profile.goals || []).filter(g => String(g?.type || "") !== "manual");
+
   if(goals.length === 0){
     return el("div", { class:"note", text:"No goals yet. Tap “Edit Goals” to add goals with auto-updating progress." });
   }
 
   return el("div", { class:"goalsList" }, goals.map(g => {
     const display = computeGoalDisplay(g);
-    const pct = (typeof display.pct === "number" && Number.isFinite(display.pct)) ? Math.max(0, Math.min(100, Math.round(display.pct))) : null;
+    if(!display) return null;
+
+    const pct = (typeof display.pct === "number" && Number.isFinite(display.pct))
+      ? Math.max(0, Math.min(100, Math.round(display.pct)))
+      : null;
 
     return el("div", { class:"goalItem" }, [
-      el("div", { class:"goalLeft" }, [
-        el("div", { class:"goalName", text: display.title }),
-        display.sub ? el("div", { class:"goalSubtext", text: display.sub }) : el("div", { class:"goalSubtext", text:"" })
+      el("div", {}, [
+        el("div", { style:"font-weight:900;", text: display.title || "Goal" }),
+        el("div", { class:"note", text: display.sub || "" })
       ]),
-      el("div", { class:"goalPct", text: (pct===null ? "Active" : `${pct}%`) })
+      (pct === null)
+        ? el("div", { class:"tag", text:"—" })
+        : el("div", { class:"tag good", text:`${pct}%` })
     ]);
-  }));
+  }).filter(Boolean));
 }
   // ----------------------------
   // Render (Option A: Today, This Week, Goals)
