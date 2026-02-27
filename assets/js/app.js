@@ -3520,25 +3520,30 @@ const proteinMetCount = activeRows.filter(r => r.pMet).length;
   ]);
 
   const dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const list = el("div", { style:"margin-top:12px; display:flex; flex-direction:column; gap:10px;" });
+const list = el("div", { style:"margin-top:12px; display:flex; flex-direction:column; gap:10px;" });
 
-  rows.forEach((r, i) => {
-    const line =
-      `Workout: ${r.trained ? "✅" : "—"}`
-      + (proteinOn ? ` • Protein: ${Math.round(r.pTotal)}g${(proteinGoal>0 ? (r.pMet ? " ✅" : " —") : "")}` : "")
-      + ` • Weight: ${Number.isFinite(r.wVal) ? (r.wVal.toFixed(1) + " lb") : "—"}`;
+// ✅ Only show days inside the coaching window (coachStartClampedISO..weekEndISO)
+const visibleRows = rows.slice(coachStartIdx);
 
-    const left = el("div", {}, [
-      el("div", { style:"font-weight:900;", text: `${dow[i]} • ${r.dISO}` }),
-      el("div", { class:"note", text: line })
-    ]);
+visibleRows.forEach((r, j) => {
+  const i = coachStartIdx + j; // original weekday index (0..6)
 
-    const right = el("div", { class:"tag " + (r.trained ? "good" : ""), text: r.trained ? "Trained" : "Rest" });
+  const line =
+    `Workout: ${r.trained ? "✅" : "—"}`
+    + (proteinOn ? ` • Protein: ${Math.round(r.pTotal)}g${(proteinGoal>0 ? (r.pMet ? " ✅" : " —") : "")}` : "")
+    + ` • Weight: ${Number.isFinite(r.wVal) ? (r.wVal.toFixed(1) + " lb") : "—"}`;
 
-    list.appendChild(
-      el("div", { class:"goalItem" }, [ left, right ])
-    );
-  });
+  const left = el("div", {}, [
+    el("div", { style:"font-weight:900;", text: `${dow[i]} • ${r.dISO}` }),
+    el("div", { class:"note", text: line })
+  ]);
+
+  const right = el("div", { class:"tag " + (r.trained ? "good" : ""), text: r.trained ? "Trained" : "Rest" });
+
+  list.appendChild(
+    el("div", { class:"goalItem" }, [ left, right ])
+  );
+});
 
   Modal.open({
     title: "This Week — Details",
