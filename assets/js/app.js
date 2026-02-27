@@ -3055,6 +3055,22 @@ else root.appendChild(el("div", { class:"card" }, [
   const weekStartsOn = state.profile?.weekStartsOn || "mon";
   const weekStartISO = Dates.startOfWeekISO(todayISO, weekStartsOn);
 
+// ----------------------------
+// Coaching window (respects when user starts)
+// - User may start mid-week; insight + attendance should only consider start day → week end
+// ----------------------------
+const weekEndISO = Dates.addDaysISO(weekStartISO, 6);
+const userStartISO = state.profile?.startDateISO || todayISO;
+
+// Clamp start into this week window so math never goes weird
+const coachStartClampedISO =
+  (userStartISO < weekStartISO) ? weekStartISO :
+  (userStartISO > weekEndISO)   ? weekEndISO :
+  userStartISO;
+  
+  const startedMidWeek = (userStartISO > weekStartISO);
+const remainingDaysInWindow = Math.max(0, Dates.diffDaysISO(todayISO, weekEndISO));
+  
   const weekEndISO = Dates.addDaysISO(weekStartISO, 6);
 
   // Coaching window start = later of (weekStartISO, user startDateISO)
@@ -3125,12 +3141,13 @@ trainedThisWeek.forEach((d) => {
   dots.appendChild(dot);
 });
 
-  const workoutsDone = trainedThisWeek.filter(x => x.trained).length;
+// Full-week completion (used for the dots only)
+const workoutsDoneWeek = trainedThisWeek.filter(x => x.trained).length;
 
-     // ----------------------------
+// ----------------------------
 // Attendance target (NO default "workouts/week" goal)
-// - If user has an explicit workouts_week goal, use it.
-// - Otherwise derive from routine plan, aligned to user startDateISO.
+// - If user has an explicit workouts_week goal, use it (but prorate if they started mid-week).
+// - Otherwise derive from routine plan, aligned to user startDateISO, for the active window.
 // ----------------------------
 function getExplicitWorkoutsWeekGoal(){
   const goals = Array.isArray(state.profile?.goals) ? state.profile.goals : [];
@@ -3139,16 +3156,19 @@ function getExplicitWorkoutsWeekGoal(){
   return Number.isFinite(t) ? Math.max(0, Math.round(t)) : null;
 }
 
-function getPlannedWorkoutsThisWeek(){
+// Planned workouts in a date range (inclusive), aligned to the user's start date.
+// This makes a PPL started on Thursday map correctly (Thu=Push, Fri=Pull, etc.)
+function getPlannedWorkoutsForRange(rangeStartISO, rangeEndISO){
   if(!routine || !routine.days || !routine.days.length) return 0;
 
   const startISO = state.profile?.startDateISO || Dates.todayISO();
   const cycleLen = routine.days.length;
 
+  const daysTotal = Math.max(0, Dates.diffDaysISO(rangeStartISO, rangeEndISO) + 1);
   let planned = 0;
 
-  for(let i=0;i<7;i++){
-    const dISO = Dates.addDaysISO(weekStartISO, i);
+  for(let i=0;i<daysTotal;i++){
+    const dISO = Dates.addDaysISO(rangeStartISO, i);
 
     // Align routine day index to when the user started
     const offset = Dates.diffDaysISO(startISO, dISO);
@@ -3163,61 +3183,38 @@ function getPlannedWorkoutsThisWeek(){
   return planned;
 }
 
-const explicitWorkoutsGoal = getExplicitWorkoutsWeekGoal();
-const plannedWorkoutsGoal = getPlannedWorkoutsThisWeek();
+// Active window: coachStart → week end (ONLY the days the coach should talk about)
+const activeDaysTotal = Math.max(1, Dates.diffDaysISO(coachStartClampedISO, weekEndISO) + 1);
 
-// Final target: explicit goal wins; otherwise planned routine days
-const workoutsGoal = (explicitWorkoutsGoal !== null) ? explicitWorkoutsGoal : plannedWorkoutsGoal;
+// Workouts DONE in the active window (not the whole week)
+const workoutsDoneActive = trainedThisWeek.filter(x =>
+  x.trained &&
+  x.dateISO >= coachStartClampedISO &&
+  x.dateISO <= todayISO
+).length;
 
-  const proteinOn = (state.profile?.trackProtein !== false);
-  const proteinGoal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
+// Goals
+const explicitWorkoutsGoalWeek = getExplicitWorkoutsWeekGoal();
 
-  let proteinGoalDays = 0;
-  if(proteinOn && proteinGoal > 0){
-    for(let i=0;i<7;i++){
-      const dISO = Dates.addDaysISO(weekStartISO, i);
-      const total = totalProtein(dISO); // read-only (does not create entries)
-      if(total >= proteinGoal) proteinGoalDays++;
-    }
-  }
+// If explicit goal exists (e.g., 4/week), prorate it to the active window.
+// Example: start Thu in a Mon–Sun week => 4 * (4/7) => ceil(2.29) => 3
+const explicitWorkoutsGoalActive =
+  (explicitWorkoutsGoalWeek === null)
+    ? null
+    : Math.max(0, Math.ceil(explicitWorkoutsGoalWeek * (activeDaysTotal / 7)));
 
-  function weightDeltaForWeek(){
-    const entries = WeightEngine.listAsc();
-    if(entries.length < 2) return null;
+// If no explicit goal, derive from routine plan for the active window.
+const plannedWorkoutsGoalActive = getPlannedWorkoutsForRange(coachStartClampedISO, weekEndISO);
 
-    // last entry in (weekStart..weekStart+6)
-    const weekEndISO = Dates.addDaysISO(weekStartISO, 6);
+// Final target displayed on Home (active window)
+const workoutsGoal = (explicitWorkoutsGoalActive !== null) ? explicitWorkoutsGoalActive : plannedWorkoutsGoalActive;
 
-    let lastInWeek = null;
-    for(const e of entries){
-      if(e.dateISO >= weekStartISO && e.dateISO <= weekEndISO) lastInWeek = e;
-    }
-    if(!lastInWeek) return null;
+// Final done displayed on Home (active window)
+const workoutsDone = workoutsDoneActive;
 
-    // previous entry before week start (latest before)
-    let prev = null;
-    for(const e of entries){
-      if(e.dateISO < weekStartISO) prev = e;
-      else break;
-    }
-    if(!prev) return null;
-
-    const d = Number(lastInWeek.weight) - Number(prev.weight);
-    return Number.isFinite(d) ? round2(d) : null;
-  }
-
-  const wDeltaWeek = weightDeltaForWeek();
-  const wDeltaText = (wDeltaWeek === null)
-    ? "—"
-    : `${wDeltaWeek < 0 ? "↓" : (wDeltaWeek > 0 ? "↑" : "•")} ${Math.abs(wDeltaWeek).toFixed(1)} lb`;
-
-// Pace should respect when the user started.
-// If user started mid-week, expectation is based only on coachStart..weekEnd.
+// Pace (within active window): compare completed vs where you should be by today
 const activeDayIdx = Dates.diffDaysISO(coachStartClampedISO, todayISO); // 0..N
-const activeDaysTotal = Math.max(1, Dates.diffDaysISO(coachStartClampedISO, weekEndISO) + 1); // include today & end
 const activeDaysElapsed = Math.min(activeDaysTotal, Math.max(1, activeDayIdx + 1)); // include today
-
-// Expected workouts by now within the active window
 const expectedByNow = Math.ceil(workoutsGoal * (activeDaysElapsed / activeDaysTotal));
 
 const paceKey = (workoutsDone >= expectedByNow) ? "on" : "behind";
