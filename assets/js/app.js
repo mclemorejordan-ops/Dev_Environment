@@ -3306,9 +3306,6 @@ function plannedDaysRemainingThisWeek(){
   return out;
 }
 
-const todayPlan = anchoredRoutineDayForDate(todayISO);     // {label,isRest,...} or null
-const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},...]
-
 
 // ----------------------------
 // Coach Insight (dual-layer: Weekly Execution + Primary Goal)
@@ -3349,23 +3346,43 @@ function buildCoachInsight(){
     };
   }
 
-  // ✅ Coaching-window remaining time (today → week end)
-const remainingDays = Math.max(1, Dates.diffDaysISO(todayISO, weekEndISO) + 1);
+  // User-start-aware remaining window (calendar week end, but ignoring days before coachStartClampedISO)
+  const remainingDays = Math.max(1, Dates.diffDaysISO(todayISO, weekEndISO) + 1);
+  const remainingWorkouts = Math.max(0, workoutsGoal - workoutsDone);
 
-// ✅ Coaching-window remaining WORKOUTS = planned non-rest days remaining (today → week end)
-const plannedRemainingWorkouts = remainingPlans
-  .filter(x => x.dateISO >= todayISO)
-  .length;
+  const startedMidWeek = (String(coachStartClampedISO) > String(weekStartISO));
 
-const startedMidWeek = (String(coachStartClampedISO) > String(weekStartISO));
+  // ✅ Compute these INSIDE the function to avoid TDZ / init-order issues
+  const __todayPlan = anchoredRoutineDayForDate(todayISO);        // {label,isRest,...} or null
+  const __remainingPlans = plannedDaysRemainingThisWeek();        // [{dateISO,label},...]
 
   // Today / remaining plan (anchored to profile.startDateISO)
-  const todayLabel = todayPlan ? String(todayPlan.label || "Workout") : "Workout";
-  const todayIsRest = !!(todayPlan && todayPlan.isRest);
+  const todayLabel = __todayPlan ? String(__todayPlan.label || "Workout") : "Workout";
+  const todayIsRest = !!(__todayPlan && __todayPlan.isRest);
 
-  const remainingLabels = remainingPlans
+  const remainingLabels = __remainingPlans
     .filter(x => x.dateISO >= todayISO)        // from today forward
     .map(x => x.label);
+
+  // Reliability signals
+  const hasProteinData = !!(proteinOn && proteinGoal > 0);
+  const hasWeightData = (wDeltaWeek !== null);
+
+  // Weekly execution layer
+  const weeklyBehind = (paceKey === "behind");
+  const weeklyOnTrack = (paceKey === "on");
+
+  // --- If today is a rest day, coach recovery + small action
+  if(todayIsRest){
+    const nextUp = remainingLabels[0] ? `Next up: ${remainingLabels[0]}.` : "Next up: your next training day.";
+    return {
+      line1: `Today is a rest day — recovery is part of the plan.`,
+      line2: `${nextUp}`,
+      action: "Next: do 10 minutes of mobility or an easy walk to stay in rhythm."
+    };
+  }
+
+  // (the rest of your buildCoachInsight() stays the same below this)
 
   // Reliability signals
   const hasProteinData = !!(proteinOn && proteinGoal > 0);
@@ -3477,22 +3494,27 @@ const coach = buildCoachInsight();
 
 
 
-  // Build per-day rows (Mon..Sun)
-  const rows = [];
-  for(let i=0;i<7;i++){
-    const dISO = Dates.addDaysISO(weekStartISO, i);
-    const trained = isTrained(dISO);
+  // Build per-day rows (ONLY days inside coaching window)
+const rows = [];
+for(let i=0;i<7;i++){
+  const dISO = Dates.addDaysISO(weekStartISO, i);
 
-    // Protein
-    const pTotal = proteinOn ? totalProtein(dISO) : 0;
-    const pMet = (proteinOn && proteinGoal > 0) ? (pTotal >= proteinGoal) : false;
+  // ✅ Align modal day list to coaching window
+  if(dISO < coachStartClampedISO) continue;
+  if(dISO > weekEndISO) continue;
 
-    // Weight entry for the day (if any)
-    const wEntry = (state.logs?.weight || []).find(x => x.dateISO === dISO);
-    const wVal = wEntry ? Number(wEntry.weight) : null;
+  const trained = isTrained(dISO);
 
-    rows.push({ dISO, trained, pTotal, pMet, wVal });
-  }
+  // Protein
+  const pTotal = proteinOn ? totalProtein(dISO) : 0;
+  const pMet = (proteinOn && proteinGoal > 0) ? (pTotal >= proteinGoal) : false;
+
+  // Weight entry for the day (if any)
+  const wEntry = (state.logs?.weight || []).find(x => x.dateISO === dISO);
+  const wVal = wEntry ? Number(wEntry.weight) : null;
+
+  rows.push({ dISO, trained, pTotal, pMet, wVal });
+}
 
   // ✅ Only count days inside the coaching window for summary numerators/denominators
 const activeRows = rows.slice(coachStartIdx);
