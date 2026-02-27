@@ -5151,13 +5151,18 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           trackProteinSwitch
         ]),
         
-        (proteinGoalRow = el("div", { class:"setRow", style: trackProtein ? "" : "display:none;" }, [
+        // BEGIN: proteinGoalRow
+        (proteinGoalRow = el("div", {
+          class:"setRow",
+          style: trackProtein ? "" : "display:none;"
+        }, [
           el("div", {}, [
             el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
             el("div", { class:"meta", text:"grams/day" })
           ]),
           proteinInput
         ])),
+        // END: proteinGoalRow
           el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"Week starts on" }),
