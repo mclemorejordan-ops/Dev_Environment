@@ -48,17 +48,15 @@ function migrateState(saved){
   // Profile hard guards (future-proof Home/Goals)
   if(merged.profile && typeof merged.profile === "object"){
     if(!Array.isArray(merged.profile.goals)) merged.profile.goals = [];
-    if(!Number.isFinite(Number(merged.profile.workoutsPerWeekGoal))) merged.profile.workoutsPerWeekGoal = 4;
+
+    // ✅ NEW: used to align routine days to when the user starts
+    if(!merged.profile.startDateISO) merged.profile.startDateISO = Dates.todayISO();
   }
 
   // Always stamp latest schema
   merged.schemaVersion = SCHEMA_VERSION;
 
   return merged;
-}
-
-if(merged.profile && typeof merged.profile === "object"){
-  if(!merged.profile.startDateISO) merged.profile.startDateISO = Dates.todayISO();
 }
 
 // Version metadata only (does NOT affect user profile/state)
