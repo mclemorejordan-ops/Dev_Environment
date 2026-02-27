@@ -2110,3 +2110,72 @@ button.mini.added{
 @media (min-width: 720px){
   .goalEditCols{ grid-template-columns: 2fr 3fr 1fr; }
 }
+/* ─────────────────────────────
+   Home: Metric Cards (Phase 3/4)
+   ───────────────────────────── */
+
+.homeMetricCards{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap:10px;
+}
+
+.homeMetricCard{
+  width:100%;
+  text-align:left;
+  border:0;
+  cursor:pointer;
+  padding:12px;
+  border-radius:16px;
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 10px 26px rgba(0,0,0,.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.homeMetricCard:active{
+  transform: translateY(1px);
+}
+
+.homeMetricCard.disabled{
+  opacity:.55;
+}
+
+.homeMetricTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.homeMetricTitle{
+  font-weight:900;
+  letter-spacing:.2px;
+}
+
+.homeMetricPill{
+  font-size:12px;
+  font-weight:850;
+  padding:6px 10px;
+  border-radius:999px;
+  background: rgba(0,0,0,.22);
+}
+
+.homeMetricSub{
+  margin-top:6px;
+  font-size:12px;
+  opacity:.75;
+}
+
+.homeMetricVal{
+  margin-top:10px;
+  font-size:20px;
+  font-weight:950;
+  letter-spacing:.2px;
+}
+
+@media (min-width: 640px){
+  .homeMetricCards{
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
