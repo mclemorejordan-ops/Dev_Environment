@@ -3488,7 +3488,17 @@ const coach = buildCoachInsight();
   }
 
   // ✅ Only count days inside the coaching window for summary numerators/denominators
+// ✅ Only count days inside the coaching window AND exclude routine rest days
 const activeRows = rows.slice(coachStartIdx);
+
+const plannedRows = activeRows.filter(r => !isRoutineRestDayForISO(r.dISO));
+const restRows    = activeRows.filter(r =>  isRoutineRestDayForISO(r.dISO));
+
+const trainedPlannedCount = plannedRows.filter(r => r.trained).length;
+const proteinMetPlannedCount = plannedRows.filter(r => r.pMet).length;
+
+// Denominator = planned workout days in the active window
+const thisWeekDenom = Math.max(1, plannedRows.length);
 const trainedCount = activeRows.filter(r => r.trained).length;
 const proteinMetCount = activeRows.filter(r => r.pMet).length;
 
@@ -3505,15 +3515,15 @@ const proteinMetCount = activeRows.filter(r => r.pMet).length;
     el("div", { class:"homeWeekMetrics" }, [
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Workouts" }),
-        el("div", { class:"val", text:`${workoutsDone} / ${activeDaysTotal}` })
+        el("div", { class:"val", text:`${workoutsDone} / ${thisWeekDenom}` })
       ]),
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Trained Days" }),
-        el("div", { class:"val", text:`${trainedCount} / ${activeDaysTotal}` })
+        el("div", { class:"val", text:`${trainedPlannedCount} / ${thisWeekDenom}` })
       ]),
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Protein Goal Days" }),
-        el("div", { class:"val", text: proteinOn ? `${proteinMetCount} / ${activeDaysTotal}` : "Off" })
+        el("div", { class:"val", text: proteinOn ? `${proteinMetPlannedCount} / ${thisWeekDenom}` : "Off" })
       ])
     ]),
     el("div", { style:"height:10px" }),
@@ -3539,8 +3549,13 @@ visibleRows.forEach((r, j) => {
     el("div", { class:"note", text: line })
   ]);
 
-  const right = el("div", { class:"tag " + (r.trained ? "good" : ""), text: r.trained ? "Trained" : "Rest" });
+const dayObj = anchoredRoutineDayForDate(r.dISO);
+const isRestDay = !!dayObj?.isRest;
 
+const tagText = r.trained ? "Trained" : (isRestDay ? "Rest" : "Planned");
+const tagClass = "tag " + (r.trained ? "good" : "");
+
+const right = el("div", { class: tagClass, text: tagText });
   list.appendChild(
     el("div", { class:"goalItem" }, [ left, right ])
   );
