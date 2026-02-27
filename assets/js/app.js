@@ -4977,8 +4977,10 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           return item;
         };
 
-                // --- Profile controls ---
+        // --- Profile controls ---
         const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
+        let proteinGoalRow = null; // ✅ used for live show/hide when toggling Track protein
+             
 
         // ✅ NEW: Track Protein toggle (default ON)
         let trackProtein = (state.profile?.trackProtein !== false);
@@ -5003,7 +5005,20 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           onClick: () => {
             trackProtein = !trackProtein;
             trackProteinSwitch.classList.toggle("on", trackProtein);
-            proteinRow.style.display = trackProtein ? "" : "none";
+        
+            // ✅ Live show/hide the goal row immediately (no save required)
+            if(proteinGoalRow){
+              proteinGoalRow.style.display = trackProtein ? "" : "none";
+            }
+        
+            // Optional: if turning ON and goal is 0/empty, seed a reasonable default
+            if(trackProtein){
+              const v = Number(proteinInput.value || 0);
+              if(!Number.isFinite(v) || v <= 0){
+                proteinInput.value = "150";
+              }
+              try{ proteinInput.focus(); }catch(_){}
+            }
           }
         });
 
