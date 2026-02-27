@@ -3112,12 +3112,6 @@ trainedThisWeek.forEach((d) => {
   dots.appendChild(dot);
 });
 
-const dots = el("div", { class:"homeWeekDots", style:"justify-content:center;" });
-trainedThisWeek.forEach((d) => {
-  const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
-  dots.appendChild(dot);
-});
-
   const workoutsDone = trainedThisWeek.filter(x => x.trained).length;
   const workoutsGoal = Math.max(0, Math.round(Number(state.profile?.workoutsPerWeekGoal || 4)));
 
