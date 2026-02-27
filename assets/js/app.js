@@ -3335,7 +3335,7 @@ function inferGoalType(goal){
   return "manual";
 }
 
-function buildCoachInsight(){
+function buildCoachInsight(proteinGoalDays){
   const primary = pickPrimaryGoal();
   const primaryTitle = (primary?.title || primary?.name || "").toString().trim();
   const primaryType = inferGoalType(primary);
@@ -3465,7 +3465,7 @@ function buildCoachInsight(){
   };
 }
 
-const coach = buildCoachInsight();
+const coach = buildCoachInsight(proteinGoalDays);
 
   const weekLabel = weekStartsOn === "sun" ? "This Week (Sun–Sat)" : "This Week (Mon–Sun)";
 
