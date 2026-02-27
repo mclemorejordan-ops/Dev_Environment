@@ -1994,3 +1994,119 @@ button.mini.added{
     grid-column: 1 / -1;
   }
 }
+/* =========================
+   Home (Option A) additions
+   ========================= */
+
+.homeWeekDots{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: nowrap;
+}
+
+.tag{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.86);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tag.good{
+  border-color: rgba(80, 255, 170, .22);
+  background: rgba(80, 255, 170, .10);
+}
+.tag.warn{
+  border-color: rgba(255, 205, 92, .22);
+  background: rgba(255, 205, 92, .10);
+}
+
+.exList{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+.exItem{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0,0,0,.14);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.exItem .name{ font-weight: 850; }
+.exItem .meta{ color: rgba(255,255,255,.55); font-size: 12px; margin-top: 2px; }
+.exItem .left{ display:flex; flex-direction:column; gap:2px; }
+
+.exItem .chip{
+  padding: 6px 10px;
+  font-size: 11px;
+  opacity: .92;
+}
+
+.homeWeekMetrics{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.homeMini{
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.14);
+  padding: 10px 12px;
+  min-height: 64px;
+}
+.homeMini .lab{ font-size: 11px; color: rgba(255,255,255,.55); }
+.homeMini .val{ margin-top: 4px; font-size: 18px; font-weight: 900; letter-spacing: -.2px; }
+
+.goalsList{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+.goalItem{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.14);
+}
+.goalLeft{ display:flex; flex-direction:column; gap:6px; min-width: 0; }
+.goalName{ font-weight: 900; letter-spacing: .15px; }
+.goalSubtext{ color: rgba(255,255,255,.55); font-size: 12px; line-height: 1.25; }
+.goalPct{
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.80);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Simple editor blocks inside Modal (Home -> Edit Goals) */
+.goalEditRow{
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.14);
+}
+.goalEditCols{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 720px){
+  .goalEditCols{ grid-template-columns: 2fr 3fr 1fr; }
+}
