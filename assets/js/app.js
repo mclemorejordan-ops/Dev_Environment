@@ -3504,7 +3504,7 @@ const proteinMetCount = activeRows.filter(r => r.pMet).length;
     el("div", { class:"homeWeekMetrics" }, [
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Workouts" }),
-        el("div", { class:"val", text:`${workoutsDone} / ${workoutsGoal}` })
+        el("div", { class:"val", text:`${workoutsDone} / ${activeDaysTotal}` })
       ]),
       el("div", { class:"homeMini" }, [
         el("div", { class:"lab", text:"Trained Days" }),
