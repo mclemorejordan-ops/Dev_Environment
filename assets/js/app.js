@@ -57,6 +57,10 @@ function migrateState(saved){
   return merged;
 }
 
+if(merged.profile && typeof merged.profile === "object"){
+  if(!merged.profile.startDateISO) merged.profile.startDateISO = Dates.todayISO();
+}
+
 // Version metadata only (does NOT affect user profile/state)
 const VERSION_LATEST_KEY   = "gymdash:latestVersion";     // last fetched version.json value
 const VERSION_APPLIED_KEY  = "gymdash:appliedVersion";    // last version applied on this device
@@ -2931,6 +2935,8 @@ else root.appendChild(el("div", { class:"card" }, [
        // Goals + weekly target (Phase 1)
        workoutsPerWeekGoal: 4,
        goals: [],
+
+       startDateISO: Dates.todayISO(),
      
        weekStartsOn,
        hideRestDays: !!hideRestDays,
@@ -3113,7 +3119,48 @@ trainedThisWeek.forEach((d) => {
 });
 
   const workoutsDone = trainedThisWeek.filter(x => x.trained).length;
-  const workoutsGoal = Math.max(0, Math.round(Number(state.profile?.workoutsPerWeekGoal || 4)));
+
+     // ----------------------------
+// Attendance target (NO default "workouts/week" goal)
+// - If user has an explicit workouts_week goal, use it.
+// - Otherwise derive from routine plan, aligned to user startDateISO.
+// ----------------------------
+function getExplicitWorkoutsWeekGoal(){
+  const goals = Array.isArray(state.profile?.goals) ? state.profile.goals : [];
+  const g = goals.find(x => (x?.type || "").toString() === "workouts_week");
+  const t = Number(g?.target);
+  return Number.isFinite(t) ? Math.max(0, Math.round(t)) : null;
+}
+
+function getPlannedWorkoutsThisWeek(){
+  if(!routine || !routine.days || !routine.days.length) return 0;
+
+  const startISO = state.profile?.startDateISO || Dates.todayISO();
+  const cycleLen = routine.days.length;
+
+  let planned = 0;
+
+  for(let i=0;i<7;i++){
+    const dISO = Dates.addDaysISO(weekStartISO, i);
+
+    // Align routine day index to when the user started
+    const offset = Dates.diffDaysISO(startISO, dISO);
+    const idx = ((offset % cycleLen) + cycleLen) % cycleLen;
+
+    const dayObj = routine.days[idx];
+    const isRest = !!dayObj?.isRest;
+
+    if(!isRest) planned++;
+  }
+
+  return planned;
+}
+
+const explicitWorkoutsGoal = getExplicitWorkoutsWeekGoal();
+const plannedWorkoutsGoal = getPlannedWorkoutsThisWeek();
+
+// Final target: explicit goal wins; otherwise planned routine days
+const workoutsGoal = (explicitWorkoutsGoal !== null) ? explicitWorkoutsGoal : plannedWorkoutsGoal;
 
   const proteinOn = (state.profile?.trackProtein !== false);
   const proteinGoal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
@@ -3163,7 +3210,7 @@ trainedThisWeek.forEach((d) => {
   const paceKey = (workoutsDone >= expectedByNow) ? "on" : "behind";
   const paceLabel = (paceKey === "on") ? "Pace: On Track" : "Pace: Slightly Behind";
 
-     // ----------------------------
+// ----------------------------
 // Coach Insight (dual-layer: Weekly Execution + Primary Goal)
 // Always includes one next action.
 // ----------------------------
@@ -3200,6 +3247,14 @@ function buildCoachInsight(){
 
   const remainingDays = Math.max(0, 6 - Math.min(6, Math.max(0, dayIdx)));
   const remainingWorkouts = Math.max(0, workoutsGoal - workoutsDone);
+
+if(!workoutsGoal || workoutsGoal <= 0){
+  return {
+    line1: "Pick a routine so I can coach your week.",
+    line2: "Once your plan is set, I’ll track pace automatically.",
+    action: "Next: go to Routine and select your program."
+  };
+}
 
   // Weekly execution layer
   const weeklyBehind = (paceKey === "behind");
