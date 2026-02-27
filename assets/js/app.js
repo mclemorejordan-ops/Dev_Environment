@@ -3175,6 +3175,11 @@ const plannedWorkoutsGoal = getPlannedWorkoutsThisWeek();
 // Final target: explicit goal wins; otherwise planned routine days
 const workoutsGoal = (explicitWorkoutsGoal !== null) ? explicitWorkoutsGoal : plannedWorkoutsGoal;
 
+// ✅ This Week denominator should exclude routine rest days.
+// If we have a workoutsGoal (explicit or planned), use it as the denominator.
+// Otherwise fall back to activeDaysTotal (calendar days in coaching window).
+const thisWeekDenom = (workoutsGoal && workoutsGoal > 0) ? workoutsGoal : activeDaysTotal;
+            
   const proteinOn = (state.profile?.trackProtein !== false);
   const proteinGoal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
 
@@ -4310,13 +4315,13 @@ cards.push(
     el("div", { class:"homeMetricTitle", text:"Attendance" }),
 
     // ✅ Use coaching-window denominator so mid-week starters never see 0/6, 0/7, etc.
-    el("div", { class:"homeMetricPill", text:`${workoutsDone}/${activeDaysTotal}` })
+    el("div", { class:"homeMetricPill", text:`${workoutsDone}/${thisWeekDenom}` })
   ]),
 
   // ✅ Copy matches what we’re actually measuring (days trained in the active window)
   el("div", { class:"homeMetricSub", text:"Days trained this week" }),
 
-  el("div", { class:"homeMetricVal", text:`${workoutsDone} / ${activeDaysTotal}` })
+  el("div", { class:"homeMetricVal", text:`${workoutsDone} / ${thisWeekDenom}` })
 ]),
 
       el("button", {
