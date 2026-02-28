@@ -5442,17 +5442,15 @@ Progress(){
   LogEngine.ensure();
 
   // Defaults (persisted per-user)
-let type = (state.profile ? ProgressUIEngine.getLastType() : "weightlifting");
-if(type !== "weightlifting" && type !== "cardio" && type !== "core") type = "weightlifting";
+  let type = (state.profile ? ProgressUIEngine.getLastType() : "weightlifting");
+  if(type !== "weightlifting" && type !== "cardio" && type !== "core") type = "weightlifting";
 
-// Selected exercise per type (fallback to first in library)
-let exerciseId =
-  (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
-  (state.exerciseLibrary?.[type]?.[0]?.id) ||
-  null;
+  // Selected exercise per type (fallback to first in library)
+  let exerciseId =
+    (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
+    (state.exerciseLibrary?.[type]?.[0]?.id) ||
+    null;
 
-  // Filters
-  let routineId = ""; // "" = All routines
   const todayISO = Dates.todayISO();
 
   // ✅ If you logged sets with a manual date override (including future dates),
@@ -5462,8 +5460,7 @@ let exerciseId =
     let max = "";
     for(const e of arr){
       const d = String(e?.dateISO || "");
-      // ISO YYYY-MM-DD strings compare correctly lexicographically
-      if(d && d > max) max = d;
+      if(d && d > max) max = d; // ISO compares lexicographically
     }
     return max || null;
   }
@@ -5474,23 +5471,19 @@ let exerciseId =
   let toISO = defaultToISO;
   let fromISO = Dates.addDaysISO(toISO, -30);
 
-
   // Metric default per type
   let metric = defaultMetricForType(type);
-
-  // Search state
-  let query = "";
 
   const root = el("div", { class:"grid" });
 
   // Header
   root.appendChild(el("div", { class:"card" }, [
     el("h2", { text:"Progress" }),
-    el("div", { class:"note", text:"Search an exercise, then view trends + history. Keep the graph front-and-center." })
+    el("div", { class:"note", text:"Pick an exercise to view trends + history. (Weightlifting/Core uses A layout • Cardio uses D layout.)" })
   ]));
 
   // ────────────────────────────
-  // Compact Controls + Overview (single card)
+  // Controls + Overview
   // ────────────────────────────
   const topCard = el("div", { class:"card" }, [
     el("h2", { text:"Find exercise" })
@@ -5507,83 +5500,48 @@ let exerciseId =
   typeRow.appendChild(typeBtns.cardio);
   typeRow.appendChild(typeBtns.core);
 
+  // Exercise picker (primary)
+  const pickBtn = el("button", {
+    class:"progPickBtn",
+    onClick: () => {
+      const picker =
+        (window.GymDash && window.GymDash.modals && window.GymDash.modals.openProgressExercisePicker)
+          ? window.GymDash.modals.openProgressExercisePicker
+          : null;
 
-    // Exercise picker (primary)
-const pickBtn = el("button", {
-  class:"progPickBtn",
-  onClick: () => {
-    const picker =
-      (window.GymDash && window.GymDash.modals && window.GymDash.modals.openProgressExercisePicker)
-        ? window.GymDash.modals.openProgressExercisePicker
-        : null;
+      if(typeof picker !== "function"){
+        Modal.open({
+          title: "Picker unavailable",
+          bodyNode: el("div", {}, [
+            el("div", { class:"note", text:"The exercise picker modal script is not loaded." }),
+            el("div", { style:"height:12px" }),
+            el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
+          ]),
+          size: "sm"
+        });
+        return;
+      }
 
-    if(typeof picker !== "function"){
-      Modal.open({
-        title: "Picker unavailable",
-        bodyNode: el("div", {}, [
-          el("div", { class:"note", text:"The exercise picker modal script is not loaded." }),
-          el("div", { style:"height:12px" }),
-          el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-        ]),
-        size: "sm"
+      picker({
+        type,
+        currentId: exerciseId,
+        onSelect: (nextId) => {
+          exerciseId = nextId;
+
+          // Persist selection + recents (profile-only)
+          if(state.profile) ProgressUIEngine.setSelectedExerciseId(type, nextId);
+
+          repaint(true);
+        }
       });
-      return;
     }
-
-    picker({
-      type,
-      currentId: exerciseId,
-      onSelect: (nextId) => {
-        exerciseId = nextId;
-        query = "";
-        searchWrap.querySelector("input").value = "";
-        // Persist selection + recents (profile-only)
-        ProgressUIEngine.setSelectedExerciseId(type, nextId);
-        repaint(true);
-      }
-    });
-  }
-}, [
-  el("div", { class:"k", text:"Exercise" }),
-  el("div", { class:"v", text:"Select…" }),
-  el("div", { class:"chev", text:"▾" })
-]);
-    
-
-    // Search bar + selected pill
-  const searchWrap = el("div", { class:"progSearch" }, [
-    el("div", { class:"ico", text:"🔎" }),
-    el("input", {
-      type:"text",
-      value:"",
-      placeholder:"Search exercise (e.g., Bench, Squat, Treadmill)…",
-      onInput: (e) => {
-        query = String(e.target.value || "");
-        repaint(false);
-      }
-    })
+  }, [
+    el("div", { class:"k", text:"Exercise" }),
+    el("div", { class:"v", text:"Select…" }),
+    el("div", { class:"chev", text:"▾" })
   ]);
 
-  const selectedRow = el("div", { class:"pillRow" });
-  const resultsHost = el("div", { class:"progResults" });
-
-  // Routine select (kept, but compact)
-  const routineSelect = el("select", {});
-  routineSelect.appendChild(el("option", { value:"", text:"All routines" }));
-  routineSelect.addEventListener("change", () => {
-    routineId = routineSelect.value || "";
-    repaint(true);
-  });
-
-  // Date range chips
-  const rangeRow = el("div", { class:"segRow" });
-  const r7  = el("button", { class:"seg", onClick: () => { setRange(7); } }, ["7D"]);
-  const r30 = el("button", { class:"seg", onClick: () => { setRange(30); } }, ["30D"]);
-  const r90 = el("button", { class:"seg", onClick: () => { setRange(90); } }, ["90D"]);
-  const r1y = el("button", { class:"seg", onClick: () => { setRange(365); } }, ["1Y"]);
-  rangeRow.appendChild(r7); rangeRow.appendChild(r30); rangeRow.appendChild(r90); rangeRow.appendChild(r1y);
-
-  // Custom date inputs (still available, compact)
+  // Custom date inputs
   const fromInput = el("input", { type:"date", value: fromISO });
   const toInput   = el("input", { type:"date", value: toISO });
 
@@ -5608,29 +5566,23 @@ const pickBtn = el("button", {
   // Metric segmented
   const metricRow = el("div", { class:"segRow" });
 
-  // Overview host (compact KPIs)
-const statsHost = el("div", { class:"pillRow", style:"margin-top:8px;" });
+  // Overview host
+  const statsHost = el("div", { class:"pillRow", style:"margin-top:8px;" });
 
-  topCard.appendChild(el("div", { class:"note", text:"Type + search to select an exercise." }));
   topCard.appendChild(typeRow);
   topCard.appendChild(pickBtn);
   topCard.appendChild(el("div", { style:"height:10px" }));
-  topCard.appendChild(searchWrap);
-  topCard.appendChild(selectedRow);
-  topCard.appendChild(resultsHost);
 
-  topCard.appendChild(el("div", { style:"height:10px" }));
-
-// Dates (single-line)
-topCard.appendChild(el("div", {
-  style:"display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:2px;"
-}, [
-  el("div", { class:"note", text:"From:" }),
-  fromInput,
-  el("div", { class:"note", text:"|" }),
-  el("div", { class:"note", text:"To:" }),
-  toInput
-]));
+  // Dates (single-line)
+  topCard.appendChild(el("div", {
+    style:"display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:2px;"
+  }, [
+    el("div", { class:"note", text:"From:" }),
+    fromInput,
+    el("div", { class:"note", text:"|" }),
+    el("div", { class:"note", text:"To:" }),
+    toInput
+  ]));
 
   topCard.appendChild(el("div", { style:"height:8px" }));
   topCard.appendChild(el("div", { class:"note", text:"Metric" }));
@@ -5685,9 +5637,6 @@ topCard.appendChild(el("div", {
   const tableHost = tableCard.querySelector("#progressHistoryHost");
   root.appendChild(tableCard);
 
-  // Populate routine dropdown
-  repaintRoutineSelect();
-
   // Initial paint
   repaint(true);
   return root;
@@ -5700,41 +5649,21 @@ topCard.appendChild(el("div", {
   }
 
   function setType(next){
-  type = next;
+    type = next;
 
-  // Clear search
-  query = "";
-  searchWrap.querySelector("input").value = "";
+    // Persist last type
+    if(state.profile) ProgressUIEngine.setLastType(type);
 
-  // Persist last type (even before a pick)
-  if(state.profile) ProgressUIEngine.setLastType(type);
+    // Restore selected exercise for this type (or fallback to first)
+    exerciseId =
+      (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
+      (state.exerciseLibrary?.[type]?.[0]?.id) ||
+      null;
 
-  // Restore selected exercise for this type (or fallback to first)
-  exerciseId =
-    (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
-    (state.exerciseLibrary?.[type]?.[0]?.id) ||
-    null;
+    // Reset metric for the type
+    metric = defaultMetricForType(type);
 
-  // Reset metric for the type (keep your existing behavior)
-  metric = defaultMetricForType(type);
-
-  repaint(true);
-}
-
-  function setRange(days){
-    fromISO = Dates.addDaysISO(todayISO, -Math.max(1, Number(days) || 30));
-    toISO = todayISO;
-    fromInput.value = fromISO;
-    toInput.value = toISO;
     repaint(true);
-  }
-
-  function repaintRoutineSelect(){
-    routineSelect.innerHTML = "";
-    routineSelect.appendChild(el("option", { value:"", text:"All routines" }));
-    const all = Routines.getAll?.() || [];
-    all.forEach(r => routineSelect.appendChild(el("option", { value:r.id, text:r.name })));
-    routineSelect.value = routineId || "";
   }
 
   function setMetric(next){
@@ -5757,7 +5686,7 @@ topCard.appendChild(el("div", {
       metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("volume") }, ["Volume"]));
     }
 
-    // active styles
+    // Active styles
     [...metricRow.querySelectorAll(".seg")].forEach(btn => {
       const v = (btn.textContent || "").toLowerCase();
       const isActive =
@@ -5814,51 +5743,12 @@ topCard.appendChild(el("div", {
       if(!exerciseId || !lib.some(x => x.id === exerciseId)) exerciseId = lib[0].id;
     }
 
-    // Search results
-    resultsHost.innerHTML = "";
-    selectedRow.innerHTML = "";
-
-    const selectedName = exerciseId ? resolveExerciseName(type, exerciseId, "Exercise") : null;
-
-    if(selectedName){
-      selectedRow.appendChild(el("div", { class:"pill" }, [
-        el("div", { class:"t", text:selectedName }),
-        el("button", {
-          class:"x",
-          onClick: () => {
-            exerciseId = null;
-            repaint(true);
-          }
-        }, ["×"])
-      ]));
-    } else {
-      selectedRow.appendChild(el("div", { class:"note", text:"No exercise selected." }));
-    }
-
-    const q = normName(query);
-    if(query && lib.length){
-      const hits = lib.filter(x => normName(x.name).includes(q)).slice(0, 10);
-      if(hits.length){
-        const list = el("div", { class:"list", style:"margin-top:8px;" }, hits.map(x => {
-          return el("div", {
-            class:"item",
-            onClick: () => {
-              exerciseId = x.id;
-              query = "";
-              searchWrap.querySelector("input").value = "";
-              repaint(true);
-            }
-          }, [
-            el("div", { class:"left" }, [
-              el("div", { class:"name", text:x.name }),
-              el("div", { class:"meta", text: typeLabel(type) })
-            ])
-          ]);
-        }));
-        resultsHost.appendChild(list);
-      } else {
-        resultsHost.appendChild(el("div", { class:"note", text:"No matches. Try a different keyword." }));
-      }
+    // Update picker button label
+    const pickLabel = pickBtn.querySelector(".v");
+    if(pickLabel){
+      pickLabel.textContent = exerciseId
+        ? resolveExerciseName(type, exerciseId, "Exercise")
+        : "Select…";
     }
 
     // Stats + chart + table only if exercise selected
@@ -5873,28 +5763,27 @@ topCard.appendChild(el("div", {
       return;
     }
 
-    // Filter entries for selected exercise
-const all = (state.logs?.workouts || []).filter(e =>
-  e.type === type &&
-  e.exerciseId === exerciseId &&
-  (e.dateISO >= fromISO && e.dateISO <= toISO)
-);
-
+    // Filter entries for selected exercise + date range
+    const all = (state.logs?.workouts || []).filter(e =>
+      e &&
+      e.type === type &&
+      e.exerciseId === exerciseId &&
+      (e.dateISO >= fromISO && e.dateISO <= toISO)
+    );
 
     // Overview KPIs
     const desc = all.slice().sort((a,b) => (b.dateISO||"").localeCompare(a.dateISO||"") || (b.createdAt||0)-(a.createdAt||0));
     const latest = desc[0] || null;
 
     const bests = LogEngine.lifetimeBests(type, exerciseId);
-    const bestText = bestsText(type, bests);
 
     // Overview (single pill): { PR: xxx | Last: xxx }
-const prVal = formatMetricValue(type, metric, prForMetric(type, metric, bests));
-const lastVal = latest ? formatMetricValue(type, metric, metricValue(type, metric, latest)) : "—";
+    const prVal = formatMetricValue(type, metric, prForMetric(type, metric, bests));
+    const lastVal = latest ? formatMetricValue(type, metric, metricValue(type, metric, latest)) : "—";
 
-statsHost.appendChild(el("div", { class:"pill" }, [
-  el("div", { class:"t", text:`{ PR: ${prVal} | Last: ${lastVal} }` })
-]));
+    statsHost.appendChild(el("div", { class:"pill" }, [
+      el("div", { class:"t", text:`{ PR: ${prVal} | Last: ${lastVal} }` })
+    ]));
 
     // Chart (ascending for series builder)
     const asc = all.slice().sort((a,b) => (a.dateISO||"").localeCompare(b.dateISO||"") || (a.createdAt||0)-(b.createdAt||0));
@@ -5925,12 +5814,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
     }
   }
 
-  function typeLabel(t){
-    if(t === "weightlifting") return "Weightlifting";
-    if(t === "cardio") return "Cardio";
-    return "Core";
-  }
-
   function bestsText(t, bests){
     if(!bests) return "";
     if(t === "weightlifting"){
@@ -5947,7 +5830,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
     return bv || "";
   }
 
-  // ✅ helpers must stay INSIDE Progress() (not inside Views object root)
+  // Helpers must stay INSIDE Progress()
   function metricValue(type, metric, entry){
     try{
       if(!entry) return null;
@@ -6015,11 +5898,11 @@ statsHost.appendChild(el("div", { class:"pill" }, [
     return String(v);
   }
 
-  // ✅ FIX: was referenced but missing — caused Progress to crash
+  // FIX: tableLine used by history + delete confirm
   function tableLine(entry){
     try{
       if(!entry) return "—";
-      const t = entry.type || type;           // fall back to current Progress tab type
+      const t = entry.type || type;
       const s = entry.summary || {};
 
       if(t === "weightlifting"){
@@ -6043,8 +5926,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
       return "—";
     }
   }
-
-},  // ✅ end Progress()
+},
   Weight(){
   WeightEngine.ensure();
 
@@ -7971,9 +7853,6 @@ const addMultiBtn = el("button", {
       (day?.exercises || []).forEach(rx => s.add(`${rx.type}:${rx.exerciseId}`));
       return s;
     }
-
-    // Search state
-    let query = "";
 
     // Collapsed/expanded groups (session only)
     const openGroups = new Set();
