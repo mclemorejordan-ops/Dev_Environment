@@ -2060,6 +2060,37 @@ button.mini.added{
   padding-top: 8px;
 }
  /* Progress — search + pills */
+.progPickBtn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 12px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  cursor:pointer;
+}
+.progPickBtn .k{
+  flex:0 0 auto;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .16px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.55);
+}
+.progPickBtn .v{
+  flex:1 1 auto;
+  font-size: 13px;
+  font-weight: 900;
+  color: rgba(255,255,255,.92);
+}
+.progPickBtn .chev{
+  flex:0 0 auto;
+  opacity: .7;
+  font-weight: 900;
+}
 .progSearch{
   display:flex;
   align-items:center;
