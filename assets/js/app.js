@@ -5791,162 +5791,213 @@ Progress(){
   }
 
   function buildOverviewPanel(){
-    const stats = PD.overviewLast7Days();
-    const win = PD.topWinLast30Days();
+  const stats = PD.overviewLast7Days();
+  const win = PD.topWinLast30Days();
 
-    return el("div", { class:"grid" }, [
-      el("div", { class:"card" }, [
-        el("div", { class:"kicker", text:"Last 7 days" }),
-        el("div", { class:"big", text:`Workouts: ${stats.workouts}` }),
-        el("div", { class:"meta", text:`PRs: ${stats.prs} • Protein goal: ${stats.proteinHit}/${stats.proteinTotal}` }),
-        el("div", { class:"btnrow" }, [
-          el("button", { class:"btn primary", onClick: () => { Routes.go("weight"); } }, ["Add Weight"]),
-          el("button", { class:"btn", onClick: () => { Routes.go("home"); } }, ["Log Workout"]),
-          el("button", { class:"btn", onClick: () => { Routes.go("settings"); } }, ["Set Goal"])
-        ])
-      ]),
+  return el("div", { class:"grid" }, [
+    el("div", { class:"card" }, [
+      el("div", { class:"kicker", text:"Last 7 days" }),
+      el("div", { class:"big", text:`Workouts: ${stats.workouts}` }),
+      el("div", { class:"meta", text:`PRs: ${stats.prs} • Protein goal: ${stats.proteinHit}/${stats.proteinTotal}` }),
+      el("div", { class:"btnrow" }, [
+        el("button", { class:"btn primary", onClick: () => { Routes.go("weight"); } }, ["Add Weight"]),
+        el("button", { class:"btn", onClick: () => { Routes.go("home"); } }, ["Log Workout"]),
+        el("button", { class:"btn", onClick: () => { Routes.go("settings"); } }, ["Set Goal"])
+      ])
+    ]),
 
-      el("div", { class:"card" }, [
-        el("div", { class:"kicker", text:"Top win" }),
-        win
-          ? el("div", { class:"row" }, [
-              el("div", {}, [
-                el("div", { class:"name", text: win.title }),
-                el("div", { class:"meta", text: win.sub })
-              ]),
-              el("div", { class:"progBadge wl", text:"PR" })
-            ])
-          : el("div", { class:"note", text:"No recent PRs yet. Log a few sessions and this will populate." })
-      ]),
-
-      el("div", { class:"card" }, [
-        el("div", { class:"kicker", text:"Watchlist" }),
-        el("div", { class:"list", style:"border-top:none; margin-top:8px;" }, [
-          el("div", { class:"item" }, [
-            el("div", { class:"left" }, [
-              el("div", { class:"name", text:"Leg volume" }),
-              el("div", { class:"small", text:"Missed day this week" })
+    el("div", { class:"card" }, [
+      el("div", { class:"kicker", text:"Top win" }),
+      win
+        ? el("div", { class:"row" }, [
+            el("div", {}, [
+              el("div", { class:"name", text: win.title }),
+              el("div", { class:"meta", text: win.sub })
             ]),
-            el("div", { class:"right", text:"▼" })
-          ]),
-          el("div", { class:"item" }, [
-            el("div", { class:"left" }, [
-              el("div", { class:"name", text:"Sleep" }),
-              el("div", { class:"small", text:"Future metric — not tracked" })
-            ]),
-            el("div", { class:"right", text:"—" })
+            el("div", { class:"progBadge wl", text:"PR" })
           ])
+        : el("div", { class:"note", text:"No recent PRs yet. Log a few sessions and this will populate." })
+    ]),
+
+    el("div", { class:"card" }, [
+      el("div", { class:"kicker", text:"Watchlist" }),
+      el("div", { class:"list", style:"border-top:none; margin-top:8px;" }, [
+        el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text:"Leg volume" }),
+            el("div", { class:"small", text:"Missed day this week" })
+          ]),
+          el("div", { class:"right", text:"▼" })
         ])
       ])
-    ]);
-  }
+    ])
+  ]);
+}
 
   function buildSearchPanel(cfg){
-    const type = cfg.type;
+  const type = cfg.type;
 
-    const searchCard = el("div", { class:"card" }, [
-      el("div", { class:"kicker", text: cfg.label }),
-      el("div", { class:"progSearchV2", style:"margin-top:8px" }, [
-        el("div", { class:"ico", text:"⌕" }),
-        (() => {
-          const input = el("input", {
-            type:"text",
-            value: cfg.query,
-            placeholder: (type === "cardio") ? "Search activity…" : "Search exercise…",
-            autocomplete:"off"
-          });
-          input.addEventListener("input", () => {
-            cfg.setQuery(input.value || "");
-            repaint();
-          });
-          return input;
-        })(),
-        el("button", {
-          class:"progClearBtn",
-          onClick: () => { cfg.setQuery(""); repaint(); }
-        }, ["✕"])
-      ]),
-      el("div", { class:"meta", style:"margin-top:8px", text: cfg.tips })
-    ]);
+  // --- Search UI (stable input: no repaint on each keypress) ---
+  const input = el("input", {
+    type:"text",
+    value: cfg.query,
+    placeholder: (type === "cardio") ? "Search activity…" : "Search exercise…",
+    autocomplete:"off"
+  });
 
-    const recent = PD.recentCards(type, 8);
-    const results = PD.searchCards(type, cfg.query, 50);
+  const searchCard = el("div", { class:"card" }, [
+    el("div", { class:"kicker", text: cfg.label }),
+    el("div", { class:"progSearchV2", style:"margin-top:8px" }, [
+      el("div", { class:"ico", text:"⌕" }),
+      input,
+      el("button", {
+        class:"progClearBtn",
+        onClick: () => {
+          cfg.setQuery("");
+          input.value = "";
+          updateResults();
+        }
+      }, ["✕"])
+    ]),
+    el("div", { class:"meta", style:"margin-top:8px", text: cfg.tips })
+  ]);
 
-    const recentCard = el("div", { class:"card" }, [
-      el("div", { class:"progSectionHead" }, [
-        el("div", { class:"kicker", text:"Recent" }),
-        el("div", { class:"progCountPill", text:String(recent.length) })
-      ]),
-      (recent.length === 0)
-        ? el("div", { class:"note", text:"No recent picks yet. Tap an item below to pin it here next time." })
-        : el("div", { class:"progHScroll" },
-            recent.map(c => buildMiniCard(type, c)))
-    ]);
+  // --- Recent (CSS-aligned: horizontal mini cards) ---
+  const recent = PD.recentCards(type, 8);
 
-    const resultsCard = el("div", { class:"card" }, [
-      el("div", { class:"progSectionHead" }, [
-        el("div", { class:"kicker", text:"Results" }),
-        el("div", { class:"progCountPill", text:String(results.length) })
-      ]),
-      (cfg.query && results.length === 0)
-        ? el("div", { class:"note", style:"margin-top:10px", text:"No matches. Try another name." })
-        : el("div", { class:"progResultsV2" },
-            results.map(c => buildResultCard(type, c)))
-    ]);
+  const recentCard = el("div", { class:"card" }, [
+    el("div", { class:"progSectionHead" }, [
+      el("div", { class:"kicker", text:"Recent" }),
+      el("div", { class:"progCountPill", text:String(recent.length) })
+    ]),
+    (recent.length === 0)
+      ? el("div", { class:"note", text:"No recent picks yet. Tap a result to pin it here next time." })
+      : el("div", { class:"progRecentScroll" }, recent.map(c => buildMiniCard(type, c)))
+  ]);
 
-    return el("div", { class:"grid" }, [searchCard, recentCard, resultsCard]);
+  // --- Results (collapsed until user types) ---
+  const resultCountEl = el("div", { class:"progCountPill", text:"0" });
+  const resultsHost = el("div", { class:"progResultsV2" });
+  const collapsedNote = el("div", {
+    class:"note",
+    style:"margin-top:10px",
+    text:"Start typing to search exercises."
+  });
+  const emptyNote = el("div", {
+    class:"note",
+    style:"margin-top:10px; display:none",
+    text:"No matches. Try another name."
+  });
+
+  const resultsCard = el("div", { class:"card" }, [
+    el("div", { class:"progSectionHead" }, [
+      el("div", { class:"kicker", text:"Results" }),
+      resultCountEl
+    ]),
+    collapsedNote,
+    emptyNote,
+    resultsHost
+  ]);
+
+  // Update only results (no full repaint)
+  function updateResults(){
+    const q = (cfg.query || "").trim();
+
+    // Collapsed mode
+    if(!q){
+      resultCountEl.textContent = "0";
+      resultsHost.innerHTML = "";
+      resultsHost.style.display = "none";
+      emptyNote.style.display = "none";
+      collapsedNote.style.display = "block";
+      return;
+    }
+
+    const results = PD.searchCards(type, q, 50);
+
+    resultCountEl.textContent = String(results.length);
+    collapsedNote.style.display = "none";
+
+    if(results.length === 0){
+      resultsHost.innerHTML = "";
+      resultsHost.style.display = "none";
+      emptyNote.style.display = "block";
+      return;
+    }
+
+    emptyNote.style.display = "none";
+    resultsHost.style.display = "block";
+    resultsHost.innerHTML = "";
+    results.forEach(c => resultsHost.appendChild(buildResultCard(type, c)));
   }
+
+  // Input handler: update query + updateResults only
+  input.addEventListener("input", () => {
+    cfg.setQuery(input.value || "");
+    updateResults();
+  });
+
+  // Initial paint
+  updateResults();
+
+  return el("div", { class:"grid" }, [searchCard, recentCard, resultsCard]);
+}
 
   function buildMiniCard(type, card){
-    const deltaCls = card.deltaTone || "flat";
-    const badgeCls = (type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio";
+  const deltaCls = card.deltaTone || "flat";
 
-    const node = el("div", { class:"progMiniCard", onClick: () => openDetails(type, card.id) }, [
-      el("div", { class:"progMiniTop" }, [
-        el("div", { class:"progMiniName", text: card.name }),
-        el("div", { class:`progBadge ${badgeCls}`, text: card.badgeText || (type === "cardio" ? "Cardio" : type === "core" ? "Core" : "Weight") })
-      ]),
-      el("div", { class:"progMiniBig", text: card.latest || "—" }),
-      el("div", { class:"progMiniMeta", text: `Best: ${card.best || "—"}${card.avg ? ` • 30D avg: ${card.avg}` : ""}` }),
-      el("div", { class:`progMiniDelta ${deltaCls}`, text: card.delta || "—" })
-    ]);
-    return node;
-  }
+  // Match your CSS naming: progRecentCard, progRecentTitle, progRecentBig, etc.
+  const node = el("div", { class:"progRecentCard", onClick: () => openDetails(type, card.id) }, [
+    el("div", { class:"miniTop" }, [
+      el("div", { class:"progRecentTitle", text: card.name }),
+      // keep your badge class system
+      el("div", { class:"progBadge " + ((type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio"),
+        text: card.badgeText || ((type === "cardio") ? "Cardio" : (type === "core") ? "Core" : "Weight")
+      })
+    ]),
+    el("div", { class:"progRecentBig", text: card.latest || "—" }),
+    el("div", { class:"progRecentMeta", text: `Best: ${card.best || "—"}${card.avg ? ` • 30D avg: ${card.avg}` : ""}` }),
+    el("div", { class:`progRecentDelta ${deltaCls}`, text: card.delta || "—" })
+  ]);
+
+  return node;
+}
 
   function buildResultCard(type, card){
-    const badgeCls = (type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio";
-    const trendCls = card.trend || "flat";
+  const badgeCls = (type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio";
+  const trendCls = card.trend || "flat";
 
-    return el("div", { class:"progResultCard", onClick: () => openDetails(type, card.id) }, [
-      el("div", { class:"progResultTop" }, [
-        el("div", {}, [
-          el("div", { class:"progResultTitle", text: card.name }),
-          el("div", { class:"progResultSub", text: `${card.sub || ""}` })
-        ]),
-        el("div", { class:`progBadge ${badgeCls}`, text: (card.isPR ? "PR" : "Best") })
+  return el("div", { class:"progResultCard", onClick: () => openDetails(type, card.id) }, [
+    el("div", { class:"progResultTop" }, [
+      el("div", {}, [
+        el("div", { class:"progResultTitle", text: card.name }),
+        el("div", { class:"progResultSub", text: `${card.sub || ""}` })
       ]),
+      el("div", { class:`progBadge ${badgeCls}`, text: (card.isPR ? "PR" : "Best") })
+    ]),
 
-      el("div", { class:"progResultMid" }, [
-        el("div", { class:"progStat" }, [
-          el("div", { class:"progStatLabel", text:"Best" }),
-          el("div", { class:"progStatVal", text: card.best || "—" })
-        ]),
-        el("div", { class:"progStat" }, [
-          el("div", { class:"progStatLabel", text:"Latest" }),
-          el("div", { class:"progStatVal", text: card.latest || "—" })
-        ]),
-        el("div", { class:`progTrend ${trendCls}`, text: card.trendText || "—" })
+    // Match CSS: progResultStats + progTrend
+    el("div", { class:"progResultStats" }, [
+      el("div", { class:"progStat" }, [
+        el("div", { class:"progStatLabel", text:"Best" }),
+        el("div", { class:"progStatVal", text: card.best || "—" })
       ]),
+      el("div", { class:"progStat" }, [
+        el("div", { class:"progStatLabel", text:"Latest" }),
+        el("div", { class:"progStatVal", text: card.latest || "—" })
+      ]),
+      el("div", { class:`progTrend ${trendCls}`, text: card.trendText || "—" })
+    ]),
 
-      el("div", { class:"progResultBottom" }, [
-        el("div", { class:"progQuick" }, [
-          el("button", { class:"progQuickBtn", onClick: (e)=>{ e.stopPropagation(); Routes.go("home"); } }, ["Log"]),
-          el("button", { class:"progQuickBtn", onClick: (e)=>{ e.stopPropagation(); openDetails(type, card.id); } }, ["Details"])
-        ]),
-        el("div", { class:"progChev", text:"›" })
-      ])
-    ]);
-  }
+    el("div", { class:"progResultBottom" }, [
+      el("div", { class:"progQuickBtns" }, [
+        el("button", { class:"progQuickBtn", onClick: (e)=>{ e.stopPropagation(); Routes.go("home"); } }, ["Log"]),
+        el("button", { class:"progQuickBtn", onClick: (e)=>{ e.stopPropagation(); openDetails(type, card.id); } }, ["Details"])
+      ]),
+      el("div", { class:"progChev", text:"›" })
+    ])
+  ]);
+}
 
   function openDetails(type, exerciseId){
     // Persist "recent" selection (profile-only)
