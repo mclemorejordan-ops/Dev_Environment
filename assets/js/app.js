@@ -3501,47 +3501,59 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
   // UI construction (match your v3/v4 mock)
   // -----------------------------
   function badgeEl(b){
-    const cls = "tag" + (b?.kind ? (" " + b.kind) : "");
-    return el("div", { class: cls, text: b?.text || "—" });
-  }
+  const kind = (b?.kind || "").trim(); // good | warn | bad | accent | ""
+  const cls = "pill" + (kind ? (" " + kind) : "");
+  return el("span", { class: cls, text: b?.text || "—" });
+}
 
-  const chips = el("div", { class:"weekDetailsChips" }, [
-    el("div", { class:"tag accent", text:`${coachStartClampedISO} → ${weekEndISO}` }),
-    el("div", { class:"tag", text: (weekStartsOn === "sun") ? "Sun-start" : "Mon-start" }),
-    el("div", { class:"tag", text: (coachStartIdx > 0) ? "Mid-week start" : "Full week" })
-  ]);
+  const chips = el("div", { class:"chipRow" }, [
+  el("span", { class:"chip accent", text:`${coachStartClampedISO} → ${weekEndISO}` }),
+  el("span", { class:"chip muted", text: (weekStartsOn === "sun") ? "Sun-start" : "Mon-start" }),
+  el("span", { class:"chip muted", text: (coachStartIdx > 0) ? "Mid-week start" : "Full week" })
+]);
 
-   const weeklyPerfBox = el("div", { class:"weekDetailsCard" }, [
-    el("div", { class:"homeTodayKicker", text:"Weekly Performance" }),
+   const weeklyPerfBox = el("div", { class:"perfCard" }, [
+  el("div", { class:"perfHead", text:"Weekly Performance" }),
 
     el("div", { style:"height:10px" }),
 
-    el("div", { class:"weekDetailsLine" }, [
-      el("div", { class:"weekDetailsLineText", text: bestLeft }),
-      badgeEl(bestBadge)
-    ]),
+    el("div", { class:"perfLine" }, [
+  el("div", {}, [
+    el("span", { class:"k", text:"Best:" }), " ",
+    el("span", { class:"v", text: bestLeft.replace(/^Best:\\s*/,"") })
+  ]),
+  badgeEl(bestBadge)
+]),
 
     el("div", { style:"height:8px" }),
 
-    el("div", { class:"weekDetailsLine" }, [
-      el("div", { class:"weekDetailsLineText", text: improvedLeft }),
-      badgeEl(improvedBadge)
-    ]),
+   el("div", { class:"perfLine" }, [
+  el("div", {}, [
+    el("span", { class:"k", text:"Improved:" }), " ",
+    el("span", { class:"v", text: improvedLeft.replace(/^Improved:\\s*/,"") })
+  ]),
+  badgeEl(improvedBadge)
+]),
 
     el("div", { style:"height:8px" }),
 
-    el("div", { class:"weekDetailsLine" }, [
-      el("div", { class:"weekDetailsLineText", text: consistencyLeft }),
-      badgeEl(consistencyBadge)
-    ]),
+    el("div", { class:"perfLine" }, [
+  el("div", {}, [
+    el("span", { class:"k", text:"Consistency:" }), " ",
+    el("span", { class:"v", text: consistencyLeft.replace(/^Consistency:\\s*/,"") })
+  ]),
+  badgeEl(consistencyBadge)
+]),
 
     el("div", { style:"height:8px" }),
 
-    el("div", { class:"weekDetailsLine" }, [
-      el("div", { class:"weekDetailsLineText", text: improveLeft }),
-      badgeEl(improveBadge)
-    ])
-  ]);
+    el("div", { class:"perfLine" }, [
+  el("div", {}, [
+    el("span", { class:"k", text:"Improve:" }), " ",
+    el("span", { class:"v", text: improveLeft.replace(/^Improve:\\s*/,"") })
+  ]),
+  badgeEl(improveBadge)
+]),
 
   // Days in window list + micro metric: sets logged / planned sets
   const dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -3573,9 +3585,9 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
     return total;
   }
 
-    const daysBox = el("div", { class:"weekDetailsCard soft" }, [
-    el("div", { class:"homeTodayKicker", text:"Days in window" })
-  ]);
+    const daysBox = el("div", { class:"daysCard" }, [
+  el("div", { class:"sectionKicker", text:"Days in window" })
+]);
 
   visibleRows.forEach((r, j) => {
     const weekdayIdx = coachStartIdx + j;
@@ -3587,25 +3599,24 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
     const loggedSets = r.trained ? loggedSetsForISO(r.dISO) : 0;
     const micro = isRestDay ? "—" : `Sets: ${loggedSets} / ${plannedSets === null ? "—" : plannedSets}`;
 
-        const left = el("div", { class:"weekDetailsLeft" }, [
-      el("div", { class:"weekDetailsTitle", text: `${dow[weekdayIdx]} — ${dayLabel}` }),
-      el("div", { class:"note", text: isRestDay ? "Recovery day" : `Planned • ${(Array.isArray(dayObj?.exercises) ? dayObj.exercises.length : 0)} exercises` })
-    ]);
+        const exCount = Array.isArray(dayObj?.exercises) ? dayObj.exercises.length : 0;
+const meta = isRestDay ? "Recovery day" : `Planned • ${exCount} exercises`;
 
-    const mid = el("div", { class:"note", style:"font-weight:850; white-space:nowrap;", text: micro });
+const tagText = r.trained ? "Trained" : (isRestDay ? "Rest" : "Upcoming");
+const tagCls  = r.trained ? "tag on" : (isRestDay ? "tag rest" : "tag up");
 
-    const tagText = r.trained ? "Trained" : (isRestDay ? "Rest" : "Upcoming");
-    const tagCls = "tag " + (r.trained ? "good" : (isRestDay ? "" : "accent"));
+const row = el("div", { class:"dayRow" }, [
+  el("div", { class:"dayLeft" }, [
+    el("div", { class:"dayTop" }, [
+      el("div", { class:"dayName", text: `${dow[weekdayIdx]} — ${dayLabel}` }),
+      el("div", { class:"dayMicro", text: micro })
+    ]),
+    el("div", { class:"dayMeta", text: meta })
+  ]),
+  el("span", { class: tagCls, text: tagText })
+]);
 
-    const right = el("div", { class: tagCls.trim(), text: tagText });
-
-       const row = el("div", { class:"weekDetailsRow" }, [
-      el("div", { style:"flex:1 1 auto; min-width:0;" }, [left]),
-      mid,
-      right
-    ]);
-
-    daysBox.appendChild(row);
+daysBox.appendChild(row);
   });
 
   Modal.open({
