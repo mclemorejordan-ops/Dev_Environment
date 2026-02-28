@@ -5943,6 +5943,26 @@ Progress(){
   return el("div", { class:"grid" }, [searchCard, recentCard, resultsCard]);
 }
 
+  function buildMiniCard(type, card){
+  const deltaCls = card.deltaTone || "flat";
+
+  // Match your CSS naming: progRecentCard, progRecentTitle, progRecentBig, etc.
+  const node = el("div", { class:"progRecentCard", onClick: () => openDetails(type, card.id) }, [
+    el("div", { class:"miniTop" }, [
+      el("div", { class:"progRecentTitle", text: card.name }),
+      // keep your badge class system
+      el("div", { class:"progBadge " + ((type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio"),
+        text: card.badgeText || ((type === "cardio") ? "Cardio" : (type === "core") ? "Core" : "Weight")
+      })
+    ]),
+    el("div", { class:"progRecentBig", text: card.latest || "—" }),
+    el("div", { class:"progRecentMeta", text: `Best: ${card.best || "—"}${card.avg ? ` • 30D avg: ${card.avg}` : ""}` }),
+    el("div", { class:`progRecentDelta ${deltaCls}`, text: card.delta || "—" })
+  ]);
+
+  return node;
+}
+
   function buildResultCard(type, card){
   const badgeCls = (type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio";
   const trendCls = card.trend || "flat";
