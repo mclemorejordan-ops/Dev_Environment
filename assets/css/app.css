@@ -2591,3 +2591,176 @@ button.mini.added{
   font-size:10px;
   color: rgba(255,255,255,.55);
 }
+/* =========================================================
+   This Week — Details (Sandbox v3 match)
+   Scoped to .weekDetailsWrap to avoid overriding other UI
+   ========================================================= */
+
+.weekDetailsWrap .chipRow{ display:flex; gap: 8px; flex-wrap: wrap; }
+.weekDetailsWrap .chip{
+  display:inline-flex;
+  align-items:center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  font-size: 12px;
+  font-weight: 850;
+  color: rgba(255,255,255,.84);
+  letter-spacing: .1px;
+  white-space:nowrap;
+}
+.weekDetailsWrap .chip.muted{ color: rgba(255,255,255,.70); }
+.weekDetailsWrap .chip.accent{
+  border-color: rgba(124,92,255,.30);
+  background: rgba(124,92,255,.12);
+}
+
+/* Weekly Performance (v3) */
+.weekDetailsWrap .perfCard{
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  padding: 12px;
+}
+.weekDetailsWrap .perfHead{
+  font-size: 11px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  font-weight: 900;
+  color: rgba(255,255,255,.70);
+  margin-bottom: 8px;
+}
+.weekDetailsWrap .perfLine{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap: 12px;
+  font-size: 13.5px;
+  line-height: 1.25;
+  color: rgba(255,255,255,.86);
+  padding: 4px 0;
+}
+.weekDetailsWrap .perfLine .k{ color: rgba(255,255,255,.70); font-weight: 750; }
+.weekDetailsWrap .perfLine .v{ font-weight: 900; }
+.weekDetailsWrap .perfLine .s{ color: rgba(255,255,255,.62); font-weight: 750; }
+
+.weekDetailsWrap .pill{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .1px;
+  color: rgba(255,255,255,.86);
+  white-space:nowrap;
+  flex: 0 0 auto;
+}
+.weekDetailsWrap .pill.good{ border-color: rgba(55,214,122,.25); background: rgba(55,214,122,.10); }
+.weekDetailsWrap .pill.warn{ border-color: rgba(255,209,102,.25); background: rgba(255,209,102,.10); }
+.weekDetailsWrap .pill.bad{  border-color: rgba(255,92,122,.25); background: rgba(255,92,122,.10); }
+.weekDetailsWrap .pill.accent{ border-color: rgba(124,92,255,.30); background: rgba(124,92,255,.12); }
+
+/* Days list */
+.weekDetailsWrap .daysCard{
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  padding: 10px;
+}
+.weekDetailsWrap .sectionKicker{
+  font-size: 11px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  font-weight: 900;
+  color: rgba(255,255,255,.70);
+  padding: 2px 6px 10px 6px;
+}
+.weekDetailsWrap .dayRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.03);
+}
+.weekDetailsWrap .dayRow + .dayRow{ margin-top: 10px; }
+.weekDetailsWrap .dayLeft{
+  display:flex;
+  flex-direction:column;
+  gap: 4px;
+  min-width:0;
+  flex: 1 1 auto;
+}
+.weekDetailsWrap .dayTop{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap: 10px;
+  min-width:0;
+}
+.weekDetailsWrap .dayName{
+  font-weight: 900;
+  letter-spacing: .2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.weekDetailsWrap .dayMicro{
+  font-size: 12px;
+  font-weight: 850;
+  color: rgba(255,255,255,.62);
+  white-space:nowrap;
+  flex: 0 0 auto;
+}
+.weekDetailsWrap .dayMeta{
+  font-size: 12.5px;
+  color: rgba(255,255,255,.62);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+}
+.weekDetailsWrap .tag{
+  display:inline-flex;
+  align-items:center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(255,255,255,.86);
+  white-space:nowrap;
+  flex: 0 0 auto;
+}
+.weekDetailsWrap .tag.on{ border-color: rgba(55,214,122,.25); background: rgba(55,214,122,.10); }
+.weekDetailsWrap .tag.rest{ border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.06); }
+.weekDetailsWrap .tag.up{ border-color: rgba(124,92,255,.30); background: rgba(124,92,255,.12); }
+
+/* Modal close: match sandbox icon button even if Modal core uses text */
+#modalClose{
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.90);
+  font-weight: 900;
+  user-select:none;
+  font-size: 0; /* hide text */
+}
+#modalClose::before{
+  content:"×";
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 900;
+}
