@@ -5438,479 +5438,64 @@ scrollHost.appendChild(el("div", { class:"card" }, [
 },
 
 Progress(){
-  ExerciseLibrary.ensureSeeded();
-  LogEngine.ensure();
-
-  // Defaults (persisted per-user)
-  let type = (state.profile ? ProgressUIEngine.getLastType() : "weightlifting");
-  if(type !== "weightlifting" && type !== "cardio" && type !== "core") type = "weightlifting";
-
-  // Selected exercise per type (fallback to first in library)
-  let exerciseId =
-    (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
-    (state.exerciseLibrary?.[type]?.[0]?.id) ||
-    null;
-
-  const todayISO = Dates.todayISO();
-
-  // If you logged sets with a manual date override (including future dates),
-  // default Progress "To" to the latest logged date so the chart/history populate.
-  function latestWorkoutDateISO(){
-    const arr = (state.logs?.workouts || []);
-    let max = "";
-    for(const e of arr){
-      const d = String(e?.dateISO || "");
-      if(d && d > max) max = d; // ISO compares lexicographically
-    }
-    return max || null;
-  }
-
-  const latestISO = latestWorkoutDateISO();
-  const defaultToISO = (latestISO && latestISO > todayISO) ? latestISO : todayISO;
-
-  let toISO = defaultToISO;
-  let fromISO = Dates.addDaysISO(toISO, -30);
-
-  // Metric default per type
-  let metric = defaultMetricForType(type);
-
+  // Rebuilt from scratch (v0 scaffold)
+  // This page is intentionally UI-only and contains no chart/history logic yet.
   const root = el("div", { class:"grid" });
 
-  // Header
   root.appendChild(el("div", { class:"card" }, [
     el("h2", { text:"Progress" }),
-    el("div", { class:"note", text:"Pick an exercise to view trends + history. (Weightlifting/Core uses A layout • Cardio uses D layout.)" })
+    el("div", { class:"note", text:"This page is being redesigned from scratch. The new Progress experience will roll out in phases." })
   ]));
 
-  // ────────────────────────────
-  // Controls + Overview
-  // ────────────────────────────
-  const topCard = el("div", { class:"card" }, [
-    el("h2", { text:"Find exercise" })
-  ]);
-
-  // Type segmented
-  const typeRow = el("div", { class:"segRow" });
-  const typeBtns = {
-    weightlifting: el("button", { class:"seg", onClick: () => setType("weightlifting") }, ["Weightlifting"]),
-    cardio:        el("button", { class:"seg", onClick: () => setType("cardio") }, ["Cardio"]),
-    core:          el("button", { class:"seg", onClick: () => setType("core") }, ["Core"])
-  };
-  typeRow.appendChild(typeBtns.weightlifting);
-  typeRow.appendChild(typeBtns.cardio);
-  typeRow.appendChild(typeBtns.core);
-
-  // Exercise picker (primary)
-  const pickBtn = el("button", {
-    class:"progPickBtn",
-    onClick: () => {
-      const picker =
-        (window.GymDash && window.GymDash.modals && window.GymDash.modals.openProgressExercisePicker)
-          ? window.GymDash.modals.openProgressExercisePicker
-          : null;
-
-      if(typeof picker !== "function"){
-        Modal.open({
-          title: "Picker unavailable",
-          bodyNode: el("div", {}, [
-            el("div", { class:"note", text:"The exercise picker modal script is not loaded." }),
-            el("div", { style:"height:12px" }),
-            el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-          ]),
-          size: "sm"
-        });
-        return;
-      }
-
-      picker({
-        type,
-        currentId: exerciseId,
-        onSelect: (nextId) => {
-          exerciseId = nextId || null;
-
-          // Persist selection (profile-only)
-          if(state.profile) ProgressUIEngine.setSelectedExerciseId(type, exerciseId);
-
-          repaint(true);
-        }
-      });
-    }
-  }, [
-    el("div", { class:"k", text:"Exercise" }),
-    el("div", { class:"v", text:"Select…" }),
-    el("div", { class:"chev", text:"▾" })
-  ]);
-
-  // Date inputs
-  const fromInput = el("input", { type:"date", value: fromISO });
-  const toInput   = el("input", { type:"date", value: toISO });
-
-  fromInput.addEventListener("change", () => {
-    fromISO = fromInput.value || fromISO;
-    if(fromISO > toISO){
-      toISO = fromISO;
-      toInput.value = toISO;
-    }
-    repaint(true);
-  });
-
-  toInput.addEventListener("change", () => {
-    toISO = toInput.value || toISO;
-    if(toISO < fromISO){
-      fromISO = toISO;
-      fromInput.value = fromISO;
-    }
-    repaint(true);
-  });
-
-  // Metric segmented
-  const metricRow = el("div", { class:"segRow" });
-
-  // Overview host
-  const statsHost = el("div", { class:"pillRow", style:"margin-top:8px;" });
-
-  topCard.appendChild(typeRow);
-  topCard.appendChild(pickBtn);
-  topCard.appendChild(el("div", { style:"height:10px" }));
-
-  // Dates (single-line)
-  topCard.appendChild(el("div", {
-    style:"display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:2px;"
-  }, [
-    el("div", { class:"note", text:"From:" }),
-    fromInput,
-    el("div", { class:"note", text:"|" }),
-    el("div", { class:"note", text:"To:" }),
-    toInput
-  ]));
-
-  topCard.appendChild(el("div", { style:"height:8px" }));
-  topCard.appendChild(el("div", { class:"note", text:"Metric" }));
-  topCard.appendChild(metricRow);
-
-  topCard.appendChild(el("div", { style:"height:10px" }));
-  topCard.appendChild(el("div", { class:"note", text:"Overview" }));
-  topCard.appendChild(statsHost);
-
-  root.appendChild(topCard);
-
-  // ────────────────────────────
-  // Graph (primary focus)
-  // ────────────────────────────
-  const chartCard = el("div", { class:"card" }, [
-    el("h2", { text:"Trend" })
-  ]);
-  const chartWrap = el("div", { class:"chartWrap" });
-  const canvas = el("canvas", {});
-  chartWrap.appendChild(canvas);
-  const chartNote = el("div", { class:"note", style:"margin-top:10px;" });
-
-  chartCard.appendChild(chartWrap);
-  chartCard.appendChild(chartNote);
-  root.appendChild(chartCard);
-
-  // ────────────────────────────
-  // History (collapsible)
-  // ────────────────────────────
-  const tableCard = el("div", { class:"card" }, [
-    el("div", { class:"accItem" }, [
-      el("div", {
-        class:"accHead",
-        onClick: () => {
-          const body = tableCard.querySelector(".accBody");
-          const caret = tableCard.querySelector(".accCaret");
-          const isOpen = body.style.display === "block";
-          body.style.display = isOpen ? "none" : "block";
-          caret.textContent = isOpen ? "▾" : "▴";
-        }
-      }, [
-        el("div", { class:"accTitle", text:"History" }),
-        el("div", { class:"accCaret", text:"▾" })
-      ]),
-      el("div", { class:"accBody" }, [
-        el("div", { class:"note", text:"Most recent logs for the selected exercise." }),
-        el("div", { style:"height:8px" }),
-        el("div", { class:"list", id:"progressHistoryHost" })
-      ])
+  // Quick links (keeps the app useful while Progress v2 ships)
+  root.appendChild(el("div", { class:"card" }, [
+    el("h2", { text:"Quick actions" }),
+    el("div", { class:"note", text:"In the meantime, use these pages to track trends:" }),
+    el("div", { style:"height:10px" }),
+    el("div", { class:"btnrow" }, [
+      el("button", { class:"btn primary", onClick: () => navigate("weight") }, ["Weight trend"]),
+      el("button", { class:"btn", onClick: () => navigate("goals") }, ["Goals"]),
+      el("button", { class:"btn", onClick: () => navigate("attendance") }, ["Attendance"])
     ])
-  ]);
-  const tableHost = tableCard.querySelector("#progressHistoryHost");
-  root.appendChild(tableCard);
+  ]));
 
-  // Initial paint
-  repaint(true);
-  return root;
-
-  // ---- helpers ----
-  function defaultMetricForType(t){
-    if(t === "weightlifting") return "topWeight";
-    if(t === "cardio") return "pace";
-    return "volume";
-  }
-
-  function setType(next){
-    type = next;
-
-    // Persist last type
-    if(state.profile) ProgressUIEngine.setLastType(type);
-
-    // Restore selected exercise for this type (or fallback to first)
-    exerciseId =
-      (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
-      (state.exerciseLibrary?.[type]?.[0]?.id) ||
-      null;
-
-    // Reset metric for the type
-    metric = defaultMetricForType(type);
-
-    repaint(true);
-  }
-
-  function setMetric(next){
-    metric = next;
-    repaint(true);
-  }
-
-  function repaintMetricRow(){
-    metricRow.innerHTML = "";
-
-    if(type === "weightlifting"){
-      metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("topWeight") }, ["Top Weight"]));
-      metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("est1RM") }, ["Est 1RM"]));
-      metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("volume") }, ["Volume"]));
-    } else if(type === "cardio"){
-      metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("pace") }, ["Pace"]));
-      metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("distance") }, ["Distance"]));
-      metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("timeSec") }, ["Time"]));
-    } else {
-      metricRow.appendChild(el("button", { class:"seg", onClick: () => setMetric("volume") }, ["Volume"]));
-    }
-
-    // Active styles
-    [...metricRow.querySelectorAll(".seg")].forEach(btn => {
-      const v = (btn.textContent || "").toLowerCase();
-      const isActive =
-        (metric === "topWeight" && v.includes("top")) ||
-        (metric === "est1RM" && v.includes("1rm")) ||
-        (metric === "volume" && v.includes("volume")) ||
-        (metric === "pace" && v.includes("pace")) ||
-        (metric === "distance" && v.includes("distance")) ||
-        (metric === "timeSec" && v.includes("time"));
-      btn.classList.toggle("active", isActive);
-    });
-  }
-
-  function repaintTypeRow(){
-    Object.entries(typeBtns).forEach(([k,btn]) => btn.classList.toggle("active", k === type));
-  }
-
-  function confirmDeleteLog(entry){
-    Modal.open({
-      title: "Delete log?",
-      bodyNode: el("div", { class:"grid" }, [
-        el("div", { class:"note", text:`This will permanently delete this log entry:` }),
-        el("div", { class:"note", text:`${entry.dateISO} • ${tableLine(entry)}` }),
-        el("div", { style:"height:10px" }),
-        el("div", { class:"btnrow" }, [
-          el("button", {
-            class:"btn danger",
-            onClick: () => {
-              removeWorkoutEntryById(entry.id);
-              Modal.close();
-              repaint(true);
-              showToast("Deleted");
-            }
-          }, ["Delete"]),
-          el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
+  // Roadmap / empty-state
+  root.appendChild(el("div", { class:"card" }, [
+    el("h2", { text:"Progress v2 — coming soon" }),
+    el("div", { class:"note", text:"Planned modules for the new Progress page:" }),
+    el("div", { style:"height:10px" }),
+    el("div", { class:"list" }, [
+      el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text:"Exercise PRs" }),
+          el("div", { class:"meta", text:"Lifetime bests + recent PR highlights" })
         ])
       ]),
-      size: "sm"
-    });
-  }
+      el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text:"Strength trend" }),
+          el("div", { class:"meta", text:"Top set / estimated 1RM trend by lift (Phase 1)" })
+        ])
+      ]),
+      el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text:"Volume & consistency" }),
+          el("div", { class:"meta", text:"Weekly volume, streaks, and adherence (Phase 2)" })
+        ])
+      ]),
+      el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text:"Cardio engine" }),
+          el("div", { class:"meta", text:"Pace, time, and distance trends (Phase 3)" })
+        ])
+      ])
+    ]),
+    el("div", { style:"height:12px" }),
+    el("div", { class:"note", text:"Nothing is deleted from your data — this is just a UI reset." })
+  ]));
 
-  function repaint(forceChart){
-    repaintTypeRow();
-    repaintMetricRow();
-
-    // Exercise library for current type
-    const lib = (state.exerciseLibrary?.[type] || []).slice()
-      .sort((a,b) => (a.name||"").localeCompare(b.name||""));
-
-    // Ensure exerciseId is valid
-    if(lib.length === 0){
-      exerciseId = null;
-    }else{
-      if(!exerciseId || !lib.some(x => x.id === exerciseId)) exerciseId = lib[0].id;
-    }
-
-    // Update picker button label
-    const pickLabel = pickBtn.querySelector(".v");
-    if(pickLabel){
-      pickLabel.textContent = exerciseId
-        ? resolveExerciseName(type, exerciseId, "Exercise")
-        : "Select…";
-    }
-
-    // Clear outputs
-    statsHost.innerHTML = "";
-    tableHost.innerHTML = "";
-    chartNote.textContent = "";
-
-    if(!exerciseId){
-      destroyProgressChart();
-      chartNote.textContent = "Select an exercise to see your trend.";
-      tableHost.appendChild(el("div", { class:"note", text:"Select an exercise to see history." }));
-      return;
-    }
-
-    // Filter entries for selected exercise + date range
-    const all = (state.logs?.workouts || []).filter(e =>
-      e &&
-      e.type === type &&
-      e.exerciseId === exerciseId &&
-      (e.dateISO >= fromISO && e.dateISO <= toISO)
-    );
-
-    // Overview KPIs
-    const desc = all.slice().sort((a,b) => (b.dateISO||"").localeCompare(a.dateISO||"") || (b.createdAt||0)-(a.createdAt||0));
-    const latest = desc[0] || null;
-
-    const bests = LogEngine.lifetimeBests(type, exerciseId);
-
-    // Overview (single pill): { PR: xxx | Last: xxx }
-    const prVal = formatMetricValue(type, metric, prForMetric(type, metric, bests));
-    const lastVal = latest ? formatMetricValue(type, metric, metricValue(type, metric, latest)) : "—";
-
-    statsHost.appendChild(el("div", { class:"pill" }, [
-      el("div", { class:"t", text:`{ PR: ${prVal} | Last: ${lastVal} }` })
-    ]));
-
-    // Chart (ascending for series builder)
-    const asc = all.slice().sort((a,b) => (a.dateISO||"").localeCompare(b.dateISO||"") || (a.createdAt||0)-(b.createdAt||0));
-    if(asc.length < 2){
-      destroyProgressChart();
-      chartNote.textContent = `Not enough data in this range (${fromISO} to ${toISO}). Log at least 2 sessions.`;
-    }else{
-      const series = buildSeries(type, asc);
-      renderProgressChart(canvas, type, metric, series);
-      chartNote.textContent = `${asc.length} points • ${fromISO} → ${toISO}`;
-    }
-
-    // History table
-    if(desc.length === 0){
-      tableHost.appendChild(el("div", { class:"note", text:"No logs in this range." }));
-    }else{
-      desc.slice(0, 40).forEach(entry => {
-        tableHost.appendChild(el("div", { class:"item" }, [
-          el("div", { class:"left" }, [
-            el("div", { class:"name", text: entry.dateISO }),
-            el("div", { class:"meta", text: tableLine(entry) })
-          ]),
-          el("div", { class:"actions" }, [
-            el("button", { class:"mini danger", onClick: () => confirmDeleteLog(entry) }, ["Delete"])
-          ])
-        ]));
-      });
-    }
-  }
-
-  // Helpers must stay INSIDE Progress()
-  function metricValue(type, metric, entry){
-    try{
-      if(!entry) return null;
-
-      if(type === "weightlifting"){
-        if(metric === "topWeight") return entry.summary?.bestWeight ?? entry.summary?.topWeight ?? null;
-        if(metric === "est1RM")    return entry.summary?.est1RM ?? null;
-        if(metric === "volume")    return entry.summary?.totalVolume ?? null;
-        return entry.summary?.bestWeight ?? null;
-      }
-
-      if(type === "cardio"){
-        if(metric === "pace")     return entry.summary?.paceSecPerUnit ?? null;
-        if(metric === "distance") return entry.summary?.distance ?? null;
-        if(metric === "timeSec")  return entry.summary?.timeSec ?? null;
-        return entry.summary?.paceSecPerUnit ?? null;
-      }
-
-      // core
-      if(metric === "volume") return entry.summary?.totalVolume ?? null;
-      return entry.summary?.totalVolume ?? null;
-    }catch(e){
-      return null;
-    }
-  }
-
-  function prForMetric(type, metric, bests){
-    try{
-      if(!bests) return null;
-
-      if(type === "weightlifting"){
-        if(metric === "topWeight") return bests.bestWeight ?? null;
-        if(metric === "est1RM")    return bests.best1RM ?? null;
-        if(metric === "volume")    return bests.bestVolume ?? null;
-        return bests.bestWeight ?? null;
-      }
-
-      if(type === "cardio"){
-        if(metric === "pace")     return bests.bestPace ?? null;
-        if(metric === "distance") return bests.bestDistance ?? null;
-        if(metric === "timeSec")  return bests.bestTime ?? null;
-        return bests.bestPace ?? null;
-      }
-
-      // core
-      if(metric === "volume") return bests.bestVolume ?? null;
-      return bests.bestVolume ?? null;
-    }catch(e){
-      return null;
-    }
-  }
-
-  function formatMetricValue(type, metric, v){
-    if(v == null) return "—";
-
-    // cardio formatting
-    if(type === "cardio" && metric === "pace") return formatPace(v);
-    if(type === "cardio" && metric === "timeSec") return formatTime(v);
-
-    // numeric formatting
-    if(typeof v === "number"){
-      const n = Math.round(v * 10) / 10;
-      return String(n);
-    }
-    return String(v);
-  }
-
-  // tableLine used by history + delete confirm
-  function tableLine(entry){
-    try{
-      if(!entry) return "—";
-      const t = entry.type || type;
-      const s = entry.summary || {};
-
-      if(t === "weightlifting"){
-        const bw  = (s.bestWeight != null) ? `${formatMetricValue("weightlifting","topWeight", s.bestWeight)} top` : "";
-        const brm = (s.best1RM != null)    ? `${formatMetricValue("weightlifting","est1RM",    s.best1RM)} est1RM` : "";
-        const bv  = (s.totalVolume != null)? `${formatMetricValue("weightlifting","volume",   s.totalVolume)} vol` : "";
-        return [bw, brm, bv].filter(Boolean).join(" • ") || "—";
-      }
-
-      if(t === "cardio"){
-        const pace = (s.paceSecPerUnit != null) ? `${formatMetricValue("cardio","pace", s.paceSecPerUnit)} pace` : "";
-        const dist = (s.distance != null)       ? `${formatMetricValue("cardio","distance", s.distance)} dist` : "";
-        const time = (s.timeSec != null)        ? `${formatMetricValue("cardio","timeSec", s.timeSec)} time` : "";
-        return [pace, dist, time].filter(Boolean).join(" • ") || "—";
-      }
-
-      // core
-      const vol = (s.totalVolume != null) ? `${formatMetricValue("core","volume", s.totalVolume)} vol` : "";
-      return vol || "—";
-    }catch(_){
-      return "—";
-    }
-  }
-},
+  return root;
+},  // ✅ end Progress()
   Weight(){
   WeightEngine.ensure();
 
