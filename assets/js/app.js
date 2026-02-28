@@ -1844,6 +1844,260 @@ const ProgressUIEngine = {
   GymDash.engines.ProgressUI = ProgressUIEngine;
 })();
 
+// ─────────────────────────────
+// ProgressData (read-only helpers)
+// - No DOM access
+// - No state mutation
+// - Exposed via window.GymDash.helpers.ProgressData (single namespace)
+// ─────────────────────────────
+(function(){
+  const GymDash = window.GymDash = window.GymDash || {};
+  GymDash.helpers = GymDash.helpers || {};
+
+  GymDash.helpers.ProgressData = {
+    // Simple ISO window helper
+    _sinceDays(days){
+      const end = Dates.todayISO();
+      const start = Dates.addDaysISO(end, -Math.max(0, Math.floor(Number(days)||0)));
+      return { start, end };
+    },
+
+    // Overview (lightweight, consistent)
+    overviewLast7Days(){
+      LogEngine.ensure();
+      const { start, end } = this._sinceDays(6); // inclusive window: today + 6 days back => 7 days
+      const w = (state.logs?.workouts || []).filter(e => e && e.dateISO >= start && e.dateISO <= end);
+      const workouts = w.length;
+
+      // PRs: any entry where any PR flag is true
+      let prs = 0;
+      for(const e of w){
+        const pr = e?.pr || {};
+        if(pr.isPRWeight || pr.isPR1RM || pr.isPRVolume || pr.isPRPace) prs++;
+      }
+
+      // Protein goal hit (best-effort; uses existing totalProtein + profile goal)
+      const goal = Math.max(0, Math.round(Number(state.profile?.proteinGoal || 0)));
+      let proteinHit = 0;
+      let proteinTotal = 7;
+
+      if(goal > 0){
+        // Count each day in window (start..end)
+        let d = start;
+        for(let i=0;i<7;i++){
+          const grams = totalProtein(d);
+          if(grams >= goal) proteinHit++;
+          d = Dates.addDaysISO(d, 1);
+        }
+      }else{
+        proteinHit = 0;
+        proteinTotal = 0;
+      }
+
+      return { workouts, prs, proteinHit, proteinTotal };
+    },
+
+    topWinLast30Days(){
+      LogEngine.ensure();
+      const { start, end } = this._sinceDays(29);
+
+      // Prefer a weightlifting PR (clear win). Fallback: cardio pace PR.
+      const w = (state.logs?.workouts || [])
+        .filter(e => e && e.dateISO >= start && e.dateISO <= end)
+        .sort((a,b)=> (b.dateISO||"").localeCompare(a.dateISO||"") || (b.createdAt||0)-(a.createdAt||0));
+
+      for(const e of w){
+        const pr = e?.pr || {};
+        if(e.type === "weightlifting" && (pr.isPRWeight || pr.isPR1RM || pr.isPRVolume)){
+          const name = resolveExerciseName("weightlifting", e.exerciseId, "Exercise");
+          return {
+            title: `${name} PR`,
+            sub: this.latestDisplay("weightlifting", e)
+          };
+        }
+      }
+      for(const e of w){
+        const pr = e?.pr || {};
+        if(e.type === "cardio" && pr.isPRPace){
+          const name = resolveExerciseName("cardio", e.exerciseId, "Cardio");
+          return {
+            title: `${name} PR`,
+            sub: this.latestDisplay("cardio", e)
+          };
+        }
+      }
+      return null;
+    },
+
+    // Recent cards use ProgressUIEngine recents (if available)
+    recentCards(type, cap){
+      const t = String(type || "weightlifting");
+      const ids = (state.profile ? ProgressUIEngine.getRecentExerciseIds(t) : []).slice(0, cap || 8);
+
+      const out = [];
+      for(const id of ids){
+        const card = this.exerciseCard(t, id);
+        if(card) out.push(card);
+      }
+      return out;
+    },
+
+    // Search cards: library-scoped, deterministic sort
+    searchCards(type, query, cap){
+      ExerciseLibrary.ensureSeeded();
+      const t = String(type || "weightlifting");
+      const q = (query || "").trim().toLowerCase();
+
+      const lib = (state.exerciseLibrary?.[t] || []).slice();
+      lib.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+
+      const filtered = q
+        ? lib.filter(x => (x?.name || "").toLowerCase().includes(q))
+        : lib;
+
+      const out = [];
+      for(const ex of filtered.slice(0, cap || 50)){
+        const card = this.exerciseCard(t, ex.id);
+        if(card) out.push(card);
+      }
+      return out;
+    },
+
+    // Build a single card model for an exercise
+    exerciseCard(type, exerciseId){
+      const t = String(type || "weightlifting");
+      const id = String(exerciseId || "");
+      if(!id) return null;
+
+      const name = resolveExerciseName(t, id, "Exercise");
+
+      const entries = LogEngine.entriesForExercise(t, id);
+      const latest = entries[0] || null;
+      const prev = entries[1] || null;
+
+      const best = this.bestDisplay(t, id);
+      const latestDisp = latest ? this.latestDisplay(t, latest) : "—";
+
+      const tr = this.trend(t, latest, prev); // { cls, text, delta, deltaTone }
+      const isPR = !!(latest && latest.pr && (latest.pr.isPRWeight || latest.pr.isPR1RM || latest.pr.isPRVolume || latest.pr.isPRPace));
+
+      return {
+        id,
+        name,
+        sub: (latest ? `Latest: ${latestDisp}` : "No logs yet"),
+        best,
+        latest: latestDisp,
+        trend: tr.cls,
+        trendText: tr.text,
+        delta: tr.delta,
+        deltaTone: tr.deltaTone,
+        isPR,
+        badgeText: (t === "cardio") ? "Cardio" : (t === "core") ? "Core" : "Weight",
+        avg: null // reserved for Phase 2
+      };
+    },
+
+    // Best display per type
+    bestDisplay(type, exerciseId){
+      const t = String(type || "weightlifting");
+      const id = String(exerciseId || "");
+      if(!id) return "—";
+
+      if(t === "weightlifting"){
+        const max = lifetimeMaxSet("weightlifting", id);
+        if(max && (Number(max.weight)||0) > 0 && (Number(max.reps)||0) > 0){
+          return `${Math.round(max.weight*10)/10}×${Math.round(max.reps)}`;
+        }
+        const bests = LogEngine.lifetimeBests("weightlifting", id);
+        return (bests.bestWeight != null) ? `${Math.round(bests.bestWeight*10)/10}` : "—";
+      }
+
+      if(t === "cardio"){
+        const bests = LogEngine.lifetimeBests("cardio", id);
+        return (bests.bestPace != null) ? formatPace(bests.bestPace) : "—";
+      }
+
+      // core
+      const bests = LogEngine.lifetimeBests("core", id);
+      return (bests.bestVolume != null) ? `${Math.round(bests.bestVolume*10)/10}` : "—";
+    },
+
+    // Latest display for a specific entry
+    latestDisplay(type, entry){
+      const t = String(type || "weightlifting");
+      const e = entry || null;
+      if(!e) return "—";
+
+      if(t === "weightlifting"){
+        // Prefer best set text if sets are present, else fall back to summary
+        const sets = (e.sets || []);
+        let bestW = 0, bestR = 0;
+        for(const s of sets){
+          const w = Number(s.weight) || 0;
+          const r = Math.max(0, Math.floor(Number(s.reps) || 0));
+          if(w > bestW || (w === bestW && r > bestR)){
+            bestW = w; bestR = r;
+          }
+        }
+        if(bestW > 0 && bestR > 0) return `${Math.round(bestW*10)/10}×${bestR}`;
+        if(e.summary && Number.isFinite(e.summary.bestWeight)) return `${Math.round(e.summary.bestWeight*10)/10}`;
+        return "—";
+      }
+
+      if(t === "cardio"){
+        const s = e.summary || {};
+        const pace = (s.paceSecPerUnit != null) ? formatPace(s.paceSecPerUnit) : "—";
+        const dist = (Number.isFinite(s.distance) && s.distance > 0) ? `${Math.round(s.distance*10)/10} dist` : "";
+        const time = (Number.isFinite(s.timeSec) && s.timeSec > 0) ? `${formatTime(s.timeSec)} time` : "";
+        return [pace, dist, time].filter(Boolean).join(" • ") || "—";
+      }
+
+      // core
+      const v = e.summary?.totalVolume;
+      return (v != null && Number.isFinite(Number(v))) ? `${Math.round(Number(v)*10)/10}` : "—";
+    },
+
+    // Trend + delta between latest and previous for the key metric
+    trend(type, latest, prev){
+      const t = String(type || "weightlifting");
+      const a = latest || null;
+      const b = prev || null;
+
+      // Default if we don't have enough data
+      if(!a || !b) return { cls:"flat", text:"—", delta:"—", deltaTone:"flat" };
+
+      if(t === "weightlifting"){
+        const av = Number(a.summary?.bestWeight) || 0;
+        const bv = Number(b.summary?.bestWeight) || 0;
+        const d = Math.round((av - bv) * 10) / 10;
+        if(d > 0) return { cls:"up", text:"▲ Up", delta:`+${d} lb vs last`, deltaTone:"good" };
+        if(d < 0) return { cls:"down", text:"▼ Down", delta:`${d} lb vs last`, deltaTone:"warn" };
+        return { cls:"flat", text:"▬ Flat", delta:"0 vs last", deltaTone:"flat" };
+      }
+
+      if(t === "cardio"){
+        const av = (a.summary?.paceSecPerUnit == null) ? null : Number(a.summary.paceSecPerUnit);
+        const bv = (b.summary?.paceSecPerUnit == null) ? null : Number(b.summary.paceSecPerUnit);
+        if(av == null || bv == null) return { cls:"flat", text:"—", delta:"—", deltaTone:"flat" };
+
+        // Lower pace is better: improvement when av < bv
+        const d = Math.round((bv - av) * 10) / 10; // positive means improved
+        if(d > 0) return { cls:"up", text:"▲ Up", delta:`−${formatTime(d)} / unit vs last`, deltaTone:"good" };
+        if(d < 0) return { cls:"down", text:"▼ Down", delta:`+${formatTime(Math.abs(d))} / unit vs last`, deltaTone:"warn" };
+        return { cls:"flat", text:"▬ Flat", delta:"0 vs last", deltaTone:"flat" };
+      }
+
+      // core (volume up is better)
+      const av = Number(a.summary?.totalVolume) || 0;
+      const bv = Number(b.summary?.totalVolume) || 0;
+      const d = Math.round((av - bv) * 10) / 10;
+      if(d > 0) return { cls:"up", text:"▲ Up", delta:`+${d} vs last`, deltaTone:"good" };
+      if(d < 0) return { cls:"down", text:"▼ Down", delta:`${d} vs last`, deltaTone:"warn" };
+      return { cls:"flat", text:"▬ Flat", delta:"0 vs last", deltaTone:"flat" };
+    }
+  };
+})();
+
     function renderProgressChart(canvas, type, metricKey, series){
       destroyProgressChart();
 
@@ -5438,64 +5692,299 @@ scrollHost.appendChild(el("div", { class:"card" }, [
 },
 
 Progress(){
-  // Rebuilt from scratch (v0 scaffold)
-  // This page is intentionally UI-only and contains no chart/history logic yet.
+  ExerciseLibrary.ensureSeeded();
+  LogEngine.ensure();
+
+  const PD = (window.GymDash && window.GymDash.helpers && window.GymDash.helpers.ProgressData) ? window.GymDash.helpers.ProgressData : null;
+
+  // Local UI state (view-owned only)
+  let tab = "overview"; // overview | wl | core | cardio
+  let qWL = "";
+  let qCore = "";
+  let qCardio = "";
+
   const root = el("div", { class:"grid" });
 
+  // Header
   root.appendChild(el("div", { class:"card" }, [
     el("h2", { text:"Progress" }),
-    el("div", { class:"note", text:"This page is being redesigned from scratch. The new Progress experience will roll out in phases." })
+    el("div", { class:"note", text:"Overview + searchable progress by category." })
   ]));
 
-  // Quick links (keeps the app useful while Progress v2 ships)
-  root.appendChild(el("div", { class:"card" }, [
-    el("h2", { text:"Quick actions" }),
-    el("div", { class:"note", text:"In the meantime, use these pages to track trends:" }),
-    el("div", { style:"height:10px" }),
-    el("div", { class:"btnrow" }, [
-      el("button", { class:"btn primary", onClick: () => navigate("weight") }, ["Weight trend"]),
-      el("button", { class:"btn", onClick: () => navigate("goals") }, ["Goals"]),
-      el("button", { class:"btn", onClick: () => navigate("attendance") }, ["Attendance"])
-    ])
-  ]));
+  // Tabs (View-only)
+  const tabRow = el("div", { class:"progTabs" }, [
+    el("button", { class:"progTabBtn", onClick: () => setTab("overview") }, ["Overview"]),
+    el("button", { class:"progTabBtn", onClick: () => setTab("wl") }, ["Weightlifting"]),
+    el("button", { class:"progTabBtn", onClick: () => setTab("core") }, ["Core"]),
+    el("button", { class:"progTabBtn", onClick: () => setTab("cardio") }, ["Cardio"])
+  ]);
+  root.appendChild(tabRow);
 
-  // Roadmap / empty-state
-  root.appendChild(el("div", { class:"card" }, [
-    el("h2", { text:"Progress v2 — coming soon" }),
-    el("div", { class:"note", text:"Planned modules for the new Progress page:" }),
-    el("div", { style:"height:10px" }),
-    el("div", { class:"list" }, [
-      el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text:"Exercise PRs" }),
-          el("div", { class:"meta", text:"Lifetime bests + recent PR highlights" })
+  // Panels host
+  const panelHost = el("div", { class:"grid" });
+  root.appendChild(panelHost);
+
+  repaint();
+  return root;
+
+  // ─────────────────────────────
+  // View helpers (UI-only)
+  // ─────────────────────────────
+  function setTab(next){
+    tab = next;
+    repaint();
+  }
+
+  function setActiveTabs(){
+    const btns = tabRow.querySelectorAll(".progTabBtn");
+    const keys = ["overview","wl","core","cardio"];
+    btns.forEach((b,i) => b.classList.toggle("active", keys[i] === tab));
+  }
+
+  function repaint(){
+    setActiveTabs();
+    panelHost.innerHTML = "";
+
+    if(!PD){
+      panelHost.appendChild(el("div", { class:"card" }, [
+        el("h2", { text:"Progress unavailable" }),
+        el("div", { class:"note", text:"Progress helpers not loaded. (ProgressData missing)" })
+      ]));
+      return;
+    }
+
+    if(tab === "overview"){
+      panelHost.appendChild(buildOverviewPanel());
+      return;
+    }
+
+    if(tab === "wl"){
+      panelHost.appendChild(buildSearchPanel({
+        type: "weightlifting",
+        label: "Search weightlifting",
+        query: qWL,
+        setQuery: (v)=>{ qWL = v; },
+        tips: "Try: bench, squat, deadlift, row…"
+      }));
+      return;
+    }
+
+    if(tab === "core"){
+      panelHost.appendChild(buildSearchPanel({
+        type: "core",
+        label: "Search core",
+        query: qCore,
+        setQuery: (v)=>{ qCore = v; },
+        tips: "Try: leg raise, plank, cable crunch…"
+      }));
+      return;
+    }
+
+    // cardio
+    panelHost.appendChild(buildSearchPanel({
+      type: "cardio",
+      label: "Search cardio",
+      query: qCardio,
+      setQuery: (v)=>{ qCardio = v; },
+      tips: "Try: run, bike, rower, walk…"
+    }));
+  }
+
+  function buildOverviewPanel(){
+    const stats = PD.overviewLast7Days();
+    const win = PD.topWinLast30Days();
+
+    return el("div", { class:"grid" }, [
+      el("div", { class:"card" }, [
+        el("div", { class:"kicker", text:"Last 7 days" }),
+        el("div", { class:"big", text:`Workouts: ${stats.workouts}` }),
+        el("div", { class:"meta", text:`PRs: ${stats.prs} • Protein goal: ${stats.proteinHit}/${stats.proteinTotal}` }),
+        el("div", { class:"btnrow" }, [
+          el("button", { class:"btn primary", onClick: () => { Routes.go("weight"); } }, ["Add Weight"]),
+          el("button", { class:"btn", onClick: () => { Routes.go("home"); } }, ["Log Workout"]),
+          el("button", { class:"btn", onClick: () => { Routes.go("settings"); } }, ["Set Goal"])
         ])
       ]),
-      el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text:"Strength trend" }),
-          el("div", { class:"meta", text:"Top set / estimated 1RM trend by lift (Phase 1)" })
-        ])
+
+      el("div", { class:"card" }, [
+        el("div", { class:"kicker", text:"Top win" }),
+        win
+          ? el("div", { class:"row" }, [
+              el("div", {}, [
+                el("div", { class:"name", text: win.title }),
+                el("div", { class:"meta", text: win.sub })
+              ]),
+              el("div", { class:"progBadge wl", text:"PR" })
+            ])
+          : el("div", { class:"note", text:"No recent PRs yet. Log a few sessions and this will populate." })
       ]),
-      el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text:"Volume & consistency" }),
-          el("div", { class:"meta", text:"Weekly volume, streaks, and adherence (Phase 2)" })
-        ])
-      ]),
-      el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text:"Cardio engine" }),
-          el("div", { class:"meta", text:"Pace, time, and distance trends (Phase 3)" })
+
+      el("div", { class:"card" }, [
+        el("div", { class:"kicker", text:"Watchlist" }),
+        el("div", { class:"list", style:"border-top:none; margin-top:8px;" }, [
+          el("div", { class:"item" }, [
+            el("div", { class:"left" }, [
+              el("div", { class:"name", text:"Leg volume" }),
+              el("div", { class:"small", text:"Missed day this week" })
+            ]),
+            el("div", { class:"right", text:"▼" })
+          ]),
+          el("div", { class:"item" }, [
+            el("div", { class:"left" }, [
+              el("div", { class:"name", text:"Sleep" }),
+              el("div", { class:"small", text:"Future metric — not tracked" })
+            ]),
+            el("div", { class:"right", text:"—" })
+          ])
         ])
       ])
-    ]),
-    el("div", { style:"height:12px" }),
-    el("div", { class:"note", text:"Nothing is deleted from your data — this is just a UI reset." })
-  ]));
+    ]);
+  }
 
-  return root;
-},  // ✅ end Progress()
+  function buildSearchPanel(cfg){
+    const type = cfg.type;
+
+    const searchCard = el("div", { class:"card" }, [
+      el("div", { class:"kicker", text: cfg.label }),
+      el("div", { class:"progSearchV2", style:"margin-top:8px" }, [
+        el("div", { class:"ico", text:"⌕" }),
+        (() => {
+          const input = el("input", {
+            type:"text",
+            value: cfg.query,
+            placeholder: (type === "cardio") ? "Search activity…" : "Search exercise…",
+            autocomplete:"off"
+          });
+          input.addEventListener("input", () => {
+            cfg.setQuery(input.value || "");
+            repaint();
+          });
+          return input;
+        })(),
+        el("button", {
+          class:"progClearBtn",
+          onClick: () => { cfg.setQuery(""); repaint(); }
+        }, ["✕"])
+      ]),
+      el("div", { class:"meta", style:"margin-top:8px", text: cfg.tips })
+    ]);
+
+    const recent = PD.recentCards(type, 8);
+    const results = PD.searchCards(type, cfg.query, 50);
+
+    const recentCard = el("div", { class:"card" }, [
+      el("div", { class:"progSectionHead" }, [
+        el("div", { class:"kicker", text:"Recent" }),
+        el("div", { class:"progCountPill", text:String(recent.length) })
+      ]),
+      (recent.length === 0)
+        ? el("div", { class:"note", text:"No recent picks yet. Tap an item below to pin it here next time." })
+        : el("div", { class:"progHScroll" },
+            recent.map(c => buildMiniCard(type, c)))
+    ]);
+
+    const resultsCard = el("div", { class:"card" }, [
+      el("div", { class:"progSectionHead" }, [
+        el("div", { class:"kicker", text:"Results" }),
+        el("div", { class:"progCountPill", text:String(results.length) })
+      ]),
+      (cfg.query && results.length === 0)
+        ? el("div", { class:"note", style:"margin-top:10px", text:"No matches. Try another name." })
+        : el("div", { class:"progResultsV2" },
+            results.map(c => buildResultCard(type, c)))
+    ]);
+
+    return el("div", { class:"grid" }, [searchCard, recentCard, resultsCard]);
+  }
+
+  function buildMiniCard(type, card){
+    const deltaCls = card.deltaTone || "flat";
+    const badgeCls = (type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio";
+
+    const node = el("div", { class:"progMiniCard", onClick: () => openDetails(type, card.id) }, [
+      el("div", { class:"progMiniTop" }, [
+        el("div", { class:"progMiniName", text: card.name }),
+        el("div", { class:`progBadge ${badgeCls}`, text: card.badgeText || (type === "cardio" ? "Cardio" : type === "core" ? "Core" : "Weight") })
+      ]),
+      el("div", { class:"progMiniBig", text: card.latest || "—" }),
+      el("div", { class:"progMiniMeta", text: `Best: ${card.best || "—"}${card.avg ? ` • 30D avg: ${card.avg}` : ""}` }),
+      el("div", { class:`progMiniDelta ${deltaCls}`, text: card.delta || "—" })
+    ]);
+    return node;
+  }
+
+  function buildResultCard(type, card){
+    const badgeCls = (type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio";
+    const trendCls = card.trend || "flat";
+
+    return el("div", { class:"progResultCard", onClick: () => openDetails(type, card.id) }, [
+      el("div", { class:"progResultTop" }, [
+        el("div", {}, [
+          el("div", { class:"progResultTitle", text: card.name }),
+          el("div", { class:"progResultSub", text: `${card.sub || ""}` })
+        ]),
+        el("div", { class:`progBadge ${badgeCls}`, text: (card.isPR ? "PR" : "Best") })
+      ]),
+
+      el("div", { class:"progResultMid" }, [
+        el("div", { class:"progStat" }, [
+          el("div", { class:"progStatLabel", text:"Best" }),
+          el("div", { class:"progStatVal", text: card.best || "—" })
+        ]),
+        el("div", { class:"progStat" }, [
+          el("div", { class:"progStatLabel", text:"Latest" }),
+          el("div", { class:"progStatVal", text: card.latest || "—" })
+        ]),
+        el("div", { class:`progTrend ${trendCls}`, text: card.trendText || "—" })
+      ]),
+
+      el("div", { class:"progResultBottom" }, [
+        el("div", { class:"progQuick" }, [
+          el("button", { class:"progQuickBtn", onClick: (e)=>{ e.stopPropagation(); Routes.go("home"); } }, ["Log"]),
+          el("button", { class:"progQuickBtn", onClick: (e)=>{ e.stopPropagation(); openDetails(type, card.id); } }, ["Details"])
+        ]),
+        el("div", { class:"progChev", text:"›" })
+      ])
+    ]);
+  }
+
+  function openDetails(type, exerciseId){
+    // Persist "recent" selection (profile-only)
+    if(state.profile) ProgressUIEngine.setSelectedExerciseId(type, exerciseId);
+
+    const name = resolveExerciseName(type, exerciseId, "Exercise");
+    const entries = LogEngine.entriesForExercise(type, exerciseId);
+    const latest = entries[0] || null;
+
+    const bestTxt = PD.bestDisplay(type, exerciseId);
+    const latestTxt = latest ? PD.latestDisplay(type, latest) : "—";
+
+    const badgeCls = (type === "weightlifting") ? "wl" : (type === "core") ? "core" : "cardio";
+
+    const body = el("div", { class:"grid" }, [
+      el("div", { class:"row" }, [
+        el("div", { class:"note", text:`Latest: ${latestTxt} • Best: ${bestTxt}` }),
+        el("div", { class:`progBadge ${badgeCls}`, text: (latest && latest.pr && (latest.pr.isPRWeight || latest.pr.isPR1RM || latest.pr.isPRVolume || latest.pr.isPRPace)) ? "PR" : (type === "weightlifting" ? "Weight" : type === "core" ? "Core" : "Cardio") })
+      ]),
+      el("div", { class:"note", text:"Chart (Phase 2)" }),
+      el("div", { class:"chartWrap", style:"height:180px" }, [
+        el("div", { class:"note", text:"(Chart placeholder — wired later)" })
+      ]),
+      el("div", { class:"note", text:"Last 5 sessions" }),
+      el("div", { class:"list" }, entries.slice(0,5).map(en => {
+        return el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text: en.dateISO || "—" }),
+            el("div", { class:"meta", text: PD.latestDisplay(type, en) })
+          ]),
+          el("div", { class:"right", text:"" })
+        ]);
+      }))
+    ]);
+
+    Modal.open({ title: name, bodyNode: body, size: "md" });
+  }
+},
   Weight(){
   WeightEngine.ensure();
 
