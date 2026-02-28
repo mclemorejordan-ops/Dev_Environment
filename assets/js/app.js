@@ -3501,60 +3501,49 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
   // UI construction (match your v3/v4 mock)
   // -----------------------------
   function badgeEl(b){
-  const kind = (b?.kind || "").trim(); // good | warn | bad | accent | ""
-  const cls = "pill" + (kind ? (" " + kind) : "");
-  return el("span", { class: cls, text: b?.text || "—" });
-}
+    const cls = "tag" + (b?.kind ? (" " + b.kind) : "");
+    return el("div", { class: cls, text: b?.text || "—" });
+  }
 
-  const chips = el("div", { class:"chipRow" }, [
-  el("span", { class:"chip accent", text:`${coachStartClampedISO} → ${weekEndISO}` }),
-  el("span", { class:"chip muted", text: (weekStartsOn === "sun") ? "Sun-start" : "Mon-start" }),
-  el("span", { class:"chip muted", text: (coachStartIdx > 0) ? "Mid-week start" : "Full week" })
-]);
+  const chips = el("div", { style:"display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;" }, [
+    el("div", { class:"tag accent", text:`${coachStartClampedISO} → ${weekEndISO}` }),
+    el("div", { class:"tag", text: (weekStartsOn === "sun") ? "Sun-start" : "Mon-start" }),
+    el("div", { class:"tag", text: (coachStartIdx > 0) ? "Mid-week start" : "Full week" })
+  ]);
 
-     const weeklyPerfBox = el("div", { class:"perfCard" }, [
-  el("div", { class:"perfHead", text:"Weekly Performance" }),
+  const weeklyPerfBox = el("div", {
+    style:"margin-top:12px; border:1px solid rgba(255,255,255,.10); border-radius:18px; background:rgba(255,255,255,.05); padding:12px;"
+  }, [
+    el("div", { class:"homeTodayKicker", text:"Weekly Performance" }),
 
-  el("div", { style:"height:10px" }),
+    el("div", { style:"height:10px" }),
 
-  el("div", { class:"perfLine" }, [
-    el("div", {}, [
-      el("span", { class:"k", text:"Best:" }), " ",
-      el("span", { class:"v", text: String(bestLeft || "").replace(/^Best:\s*/,"") })
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: bestLeft }),
+      badgeEl(bestBadge)
     ]),
-    badgeEl(bestBadge)
-  ]),
 
-  el("div", { style:"height:8px" }),
+    el("div", { style:"height:8px" }),
 
-  el("div", { class:"perfLine" }, [
-    el("div", {}, [
-      el("span", { class:"k", text:"Improved:" }), " ",
-      el("span", { class:"v", text: String(improvedLeft || "").replace(/^Improved:\s*/,"") })
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: improvedLeft }),
+      badgeEl(improvedBadge)
     ]),
-    badgeEl(improvedBadge)
-  ]),
 
-  el("div", { style:"height:8px" }),
+    el("div", { style:"height:8px" }),
 
-  el("div", { class:"perfLine" }, [
-    el("div", {}, [
-      el("span", { class:"k", text:"Consistency:" }), " ",
-      el("span", { class:"v", text: String(consistencyLeft || "").replace(/^Consistency:\s*/,"") })
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: consistencyLeft }),
+      badgeEl(consistencyBadge)
     ]),
-    badgeEl(consistencyBadge)
-  ]),
 
-  el("div", { style:"height:8px" }),
+    el("div", { style:"height:8px" }),
 
-  el("div", { class:"perfLine" }, [
-    el("div", {}, [
-      el("span", { class:"k", text:"Improve:" }), " ",
-      el("span", { class:"v", text: String(improveLeft || "").replace(/^Improve:\s*/,"") })
-    ]),
-    badgeEl(improveBadge)
-  ])
-]);
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: improveLeft }),
+      badgeEl(improveBadge)
+    ])
+  ]);
 
   // Days in window list + micro metric: sets logged / planned sets
   const dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -3586,9 +3575,11 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
     return total;
   }
 
-    const daysBox = el("div", { class:"daysCard" }, [
-  el("div", { class:"sectionKicker", text:"Days in window" })
-]);
+  const daysBox = el("div", {
+    style:"margin-top:12px; border:1px solid rgba(255,255,255,.10); border-radius:18px; background:rgba(255,255,255,.04); padding:10px;"
+  }, [
+    el("div", { class:"homeTodayKicker", text:"Days in window" })
+  ]);
 
   visibleRows.forEach((r, j) => {
     const weekdayIdx = coachStartIdx + j;
@@ -3600,24 +3591,27 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
     const loggedSets = r.trained ? loggedSetsForISO(r.dISO) : 0;
     const micro = isRestDay ? "—" : `Sets: ${loggedSets} / ${plannedSets === null ? "—" : plannedSets}`;
 
-        const exCount = Array.isArray(dayObj?.exercises) ? dayObj.exercises.length : 0;
-const meta = isRestDay ? "Recovery day" : `Planned • ${exCount} exercises`;
+    const left = el("div", { style:"display:flex; flex-direction:column; gap:2px; min-width:0;" }, [
+      el("div", { style:"font-weight:920; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;", text: `${dow[weekdayIdx]} — ${dayLabel}` }),
+      el("div", { class:"note", text: isRestDay ? "Recovery day" : `Planned • ${(Array.isArray(dayObj?.exercises) ? dayObj.exercises.length : 0)} exercises` })
+    ]);
 
-const tagText = r.trained ? "Trained" : (isRestDay ? "Rest" : "Upcoming");
-const tagCls  = r.trained ? "tag on" : (isRestDay ? "tag rest" : "tag up");
+    const mid = el("div", { class:"note", style:"font-weight:850; white-space:nowrap;", text: micro });
 
-const row = el("div", { class:"dayRow" }, [
-  el("div", { class:"dayLeft" }, [
-    el("div", { class:"dayTop" }, [
-      el("div", { class:"dayName", text: `${dow[weekdayIdx]} — ${dayLabel}` }),
-      el("div", { class:"dayMicro", text: micro })
-    ]),
-    el("div", { class:"dayMeta", text: meta })
-  ]),
-  el("span", { class: tagCls, text: tagText })
-]);
+    const tagText = r.trained ? "Trained" : (isRestDay ? "Rest" : "Upcoming");
+    const tagCls = "tag " + (r.trained ? "good" : (isRestDay ? "" : "accent"));
 
-daysBox.appendChild(row);
+    const right = el("div", { class: tagCls.trim(), text: tagText });
+
+    const row = el("div", {
+      style:"display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.03); border-radius:16px; margin-top:10px;"
+    }, [
+      el("div", { style:"flex:1 1 auto; min-width:0;" }, [left]),
+      mid,
+      right
+    ]);
+
+    daysBox.appendChild(row);
   });
 
   Modal.open({
