@@ -3493,8 +3493,6 @@ const coach = buildCoachInsight();
   const openWeekDetails = () => {
   const weekEndISO = Dates.addDaysISO(weekStartISO, 6);
 
-
-
   // Build per-day rows (Mon..Sun)
   const rows = [];
   for(let i=0;i<7;i++){
@@ -3512,124 +3510,273 @@ const coach = buildCoachInsight();
     rows.push({ dISO, trained, pTotal, pMet, wVal });
   }
 
-  // ✅ Only count days inside the coaching window for summary numerators/denominators
-// ✅ Only count days inside the coaching window AND exclude routine rest days
-const activeRows = rows.slice(coachStartIdx);
+  // ✅ Only count days inside the coaching window AND exclude routine rest days
+  const activeRows = rows.slice(coachStartIdx);
+  const plannedRows = activeRows.filter(r => !isRoutineRestDayForISO(r.dISO));
+  const trainedPlannedCount = plannedRows.filter(r => r.trained).length;
+  const proteinMetPlannedCount = plannedRows.filter(r => r.pMet).length;
 
-const plannedRows = activeRows.filter(r => !isRoutineRestDayForISO(r.dISO));
-const restRows    = activeRows.filter(r =>  isRoutineRestDayForISO(r.dISO));
+  // Denominator = planned workout days in the active window
+  const thisWeekDenom = Math.max(1, plannedRows.length);
 
-const trainedPlannedCount = plannedRows.filter(r => r.trained).length;
-const proteinMetPlannedCount = plannedRows.filter(r => r.pMet).length;
+  // -----------------------------
+  // Weekly Performance (Best / Improved / Consistency / Improve)
+  // -----------------------------
+  LogEngine.ensure();
 
-// Denominator = planned workout days in the active window
-const thisWeekDenom = Math.max(1, plannedRows.length);
-const trainedCount = activeRows.filter(r => r.trained).length;
-const proteinMetCount = activeRows.filter(r => r.pMet).length;
+  const todayISO = Dates.todayISO();
 
-  // Weight delta within week: first available vs last available
-  const weightsInWeek = rows.filter(r => Number.isFinite(r.wVal)).map(r=>r.wVal);
-  let deltaInWeek = null;
-  if(weightsInWeek.length >= 2){
-    deltaInWeek = round2(weightsInWeek[weightsInWeek.length-1] - weightsInWeek[0]);
+  const weekEntries = (state.logs?.workouts || [])
+    .filter(e => e && e.dateISO && e.dateISO >= coachStartClampedISO && e.dateISO <= weekEndISO);
+
+  function bestSetForEntry(entry){
+    const sets = Array.isArray(entry?.sets) ? entry.sets : [];
+    let best = null;
+    for(const s of sets){
+      const w = Number(s?.weight) || 0;
+      const r = Math.max(0, Math.floor(Number(s?.reps) || 0));
+      if(!best){ best = { weight:w, reps:r }; continue; }
+      if(w > best.weight) best = { weight:w, reps:r };
+      else if(w === best.weight && r > best.reps) best = { weight:w, reps:r };
+    }
+    return best;
   }
 
-    // Weekly Performance (analytical, deterministic)
-  const remainingPlanned = Math.max(0, plannedRows.length - trainedPlannedCount);
-  const remainingProtein = Math.max(0, plannedRows.length - proteinMetPlannedCount);
+  function hasAnyPR(pr){
+    if(!pr) return false;
+    return !!(pr.isPRWeight || pr.isPR1RM || pr.isPRVolume || pr.isPRPace);
+  }
 
-  const bestLine =
-    (trainedPlannedCount > 0)
-      ? `Best: ${trainedPlannedCount} planned workout${trainedPlannedCount === 1 ? "" : "s"} completed`
-      : (proteinOn && proteinMetPlannedCount > 0)
-        ? `Best: Protein goal hit ${proteinMetPlannedCount} day${proteinMetPlannedCount === 1 ? "" : "s"}`
-        : "Best: Week in motion — build momentum";
+  // (1) Best lift this week (weight first, reps tie-break)
+  let best = null; // { entry, set }
+  for(const e of weekEntries){
+    if(e?.type !== "weightlifting") continue;
+    const bs = bestSetForEntry(e);
+    if(!bs) continue;
+    if(!best){ best = { entry:e, set:bs }; continue; }
+    if(bs.weight > best.set.weight) best = { entry:e, set:bs };
+    else if(bs.weight === best.set.weight && bs.reps > best.set.reps) best = { entry:e, set:bs };
+  }
 
-  const improveLine =
-    (deltaInWeek === null)
-      ? "Improvement: Add a weigh-in this week to track trend"
-      : `Improvement: Weight trend ${deltaInWeek < 0 ? "↓" : (deltaInWeek > 0 ? "↑" : "•")} ${Math.abs(deltaInWeek).toFixed(1)} lb (in-week)`;
+  let bestLeft = "Best: Week in motion — build momentum";
+  let bestBadge = { text:"—", kind:"" };
 
-  const needLine =
-    (remainingPlanned > 0)
-      ? `Need: ${remainingPlanned} planned day${remainingPlanned === 1 ? "" : "s"} left in this window`
-      : "Need: Recovery + consistency (you’ve hit the plan)";
+  if(best){
+    const exName = resolveExerciseName(best.entry.type, best.entry.exerciseId, "Exercise");
+    const isPR = hasAnyPR(best.entry.pr);
+    bestLeft = `Best: ${exName} ${Number(best.set.weight) || 0}×${Number(best.set.reps) || 0}${isPR ? " (PR)" : ""}`;
+    bestBadge = { text: isPR ? "PR" : "BEST", kind: isPR ? "good" : "" };
+  }
 
-  const nextLine = (() => {
-    // Next planned day inside the visible window that is not rest (and ideally not already trained)
-    const nextPlanned = plannedRows.find(r => !r.trained) || plannedRows[0] || null;
-    if(nextPlanned){
-      const obj = anchoredRoutineDayForDate(nextPlanned.dISO);
-      const lbl = (obj && obj.label) ? String(obj.label) : "your next workout";
-      return `Next: ${lbl} — log your first set`;
+  // (2) Biggest improvement vs last week (same exercise, best weight delta)
+  const lastWeekStartISO = Dates.addDaysISO(weekStartISO, -7);
+  const lastWeekEndISO   = Dates.addDaysISO(weekEndISO, -7);
+  const lastWeekEntries = (state.logs?.workouts || [])
+    .filter(e => e && e.dateISO && e.dateISO >= lastWeekStartISO && e.dateISO <= lastWeekEndISO);
+
+  function bestWeightForExercise(entries, type, exerciseId){
+    let bw = null;
+    for(const e of entries){
+      if(!e || e.type !== type || e.exerciseId !== exerciseId) continue;
+      if(e.type !== "weightlifting") continue;
+      const bs = bestSetForEntry(e);
+      if(!bs) continue;
+      if(bw === null || bs.weight > bw) bw = bs.weight;
     }
-    return "Next: Log your first set — momentum beats perfect";
-  })();
+    return bw;
+  }
 
-  const wChip = (deltaInWeek === null)
-    ? "Weight: —"
-    : `Weight: ${deltaInWeek < 0 ? "↓" : (deltaInWeek > 0 ? "↑" : "•")} ${Math.abs(deltaInWeek).toFixed(1)} lb`;
+  const exKeySet = new Set();
+  for(const e of weekEntries){
+    if(e?.type === "weightlifting" && e.exerciseId) exKeySet.add(`${e.type}::${e.exerciseId}`);
+  }
 
-  const weeklyPerf = el("div", {}, [
-    el("div", { class:"note", text:`${weekLabel} • ${weekStartISO} → ${weekEndISO}` }),
+  let improved = null; // { type, exerciseId, delta }
+  let hadCompare = false;
+  for(const key of exKeySet){
+    const parts = key.split("::");
+    const type = parts[0];
+    const exId = parts[1];
+    const thisBW = bestWeightForExercise(weekEntries, type, exId);
+    const lastBW = bestWeightForExercise(lastWeekEntries, type, exId);
+    if(thisBW === null || lastBW === null) continue;
+    hadCompare = true;
+    const delta = round2(thisBW - lastBW);
+    if(delta <= 0) continue;
+    if(!improved || delta > improved.delta) improved = { type, exerciseId: exId, delta };
+  }
+
+  let improvedLeft = "Improved: Add more data to compare trend";
+  let improvedBadge = { text:"n/a", kind:"" };
+
+  if(improved){
+    const exName = resolveExerciseName(improved.type, improved.exerciseId, "Exercise");
+    improvedLeft = `Improved: ${exName} +${Math.abs(improved.delta).toFixed(1)} lb vs last week`;
+    improvedBadge = { text:"↑", kind:"accent" };
+  }else if(hadCompare){
+    improvedLeft = "Improved: Stable (no increases vs last week)";
+    improvedBadge = { text:"—", kind:"" };
+  }
+
+  // (3) Consistency (planned workout days in window)
+  const plannedThroughToday = plannedRows.filter(r => r.dISO <= todayISO).length;
+  const behind = Math.max(0, plannedThroughToday - trainedPlannedCount);
+
+  let consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (on pace)`;
+  let consistencyBadge = { text:"ON", kind:"good" };
+  if(trainedPlannedCount >= thisWeekDenom){
+    consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (${todayISO >= weekEndISO ? "week complete" : "target met"})`;
+    consistencyBadge = { text:"OK", kind:"good" };
+  }else if(behind > 0){
+    consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (behind by ${behind})`;
+    consistencyBadge = { text:"LOW", kind:"warn" };
+  }
+
+  // (4) Improve (single highest-priority gap)
+  let improveLeft = "Improve: No gaps detected";
+  let improveBadge = { text:"OK", kind:"good" };
+
+  if(proteinOn && proteinGoal > 0){
+    const belowProteinDays = plannedRows
+      .filter(r => r.dISO <= todayISO)
+      .filter(r => !r.pMet)
+      .length;
+
+    if(belowProteinDays > 0){
+      improveLeft = `Improve: Protein (below goal ${belowProteinDays} day${belowProteinDays===1?"":"s"})`;
+      improveBadge = { text:"LOW", kind:"warn" };
+    }else if(behind > 0){
+      improveLeft = `Improve: Consistency (behind by ${behind})`;
+      improveBadge = { text:"LOW", kind:"warn" };
+    }
+  }else if(behind > 0){
+    improveLeft = `Improve: Consistency (behind by ${behind})`;
+    improveBadge = { text:"LOW", kind:"warn" };
+  }
+
+  // -----------------------------
+  // UI construction (match your v3/v4 mock)
+  // -----------------------------
+  function badgeEl(b){
+    const cls = "tag" + (b?.kind ? (" " + b.kind) : "");
+    return el("div", { class: cls, text: b?.text || "—" });
+  }
+
+  const chips = el("div", { style:"display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;" }, [
+    el("div", { class:"tag accent", text:`${coachStartClampedISO} → ${weekEndISO}` }),
+    el("div", { class:"tag", text: (weekStartsOn === "sun") ? "Sun-start" : "Mon-start" }),
+    el("div", { class:"tag", text: (coachStartIdx > 0) ? "Mid-week start" : "Full week" })
+  ]);
+
+  const weeklyPerfBox = el("div", {
+    style:"margin-top:12px; border:1px solid rgba(255,255,255,.10); border-radius:18px; background:rgba(255,255,255,.05); padding:12px;"
+  }, [
+    el("div", { class:"homeTodayKicker", text:"Weekly Performance" }),
+
     el("div", { style:"height:10px" }),
 
-    // Title + lines
-    el("div", { style:"font-weight:920; font-size:15px; letter-spacing:.2px;", text:"Weekly Performance" }),
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: bestLeft }),
+      badgeEl(bestBadge)
+    ]),
+
     el("div", { style:"height:8px" }),
 
-    el("div", { class:"note", text: bestLine }),
-    el("div", { class:"note", text: improveLine }),
-    el("div", { class:"note", text: needLine }),
-    el("div", { class:"note", text: nextLine }),
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: improvedLeft }),
+      badgeEl(improvedBadge)
+    ]),
 
-    el("div", { style:"height:10px" }),
+    el("div", { style:"height:8px" }),
 
-    // Chips (compact, predictable)
-    el("div", { style:"display:flex; gap:8px; flex-wrap:wrap;" }, [
-      el("div", { class:"tag good", text:`Workouts: ${workoutsDone} / ${thisWeekDenom}` }),
-      el("div", { class:"tag", text: proteinOn ? `Protein: ${proteinMetPlannedCount} / ${thisWeekDenom}` : "Protein: Off" }),
-      el("div", { class:"tag", text: wChip })
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: consistencyLeft }),
+      badgeEl(consistencyBadge)
+    ]),
+
+    el("div", { style:"height:8px" }),
+
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"font-weight:900;", text: improveLeft }),
+      badgeEl(improveBadge)
     ])
   ]);
 
+  // Days in window list + micro metric: sets logged / planned sets
   const dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const list = el("div", { style:"margin-top:12px; display:flex; flex-direction:column; gap:10px;" });
+  const visibleRows = rows.slice(coachStartIdx);
 
-// ✅ Only show days inside the coaching window (coachStartClampedISO..weekEndISO)
-const visibleRows = rows.slice(coachStartIdx);
+  function plannedSetsForDay(dayObj){
+    if(!dayObj || dayObj.isRest) return null;
+    const exs = Array.isArray(dayObj.exercises) ? dayObj.exercises : [];
+    let total = 0;
+    for(const rx of exs){
+      const n = Math.max(0, Math.floor(Number(rx?.plan?.sets) || 0));
+      total += n;
+    }
+    return total;
+  }
 
-visibleRows.forEach((r, j) => {
-  const i = coachStartIdx + j; // original weekday index (0..6)
+  function loggedSetsForISO(dateISO){
+    const entries = (state.logs?.workouts || []).filter(e => e && e.dateISO === dateISO);
+    let total = 0;
+    for(const e of entries){
+      if(e.type === "weightlifting") total += Array.isArray(e.sets) ? e.sets.length : 0;
+      else if(e.type === "core"){
+        const s0 = Array.isArray(e.sets) ? e.sets[0] : null;
+        total += Math.max(0, Math.floor(Number(s0?.sets) || 0));
+      } else if(e.type === "cardio"){
+        total += 1;
+      }
+    }
+    return total;
+  }
 
-  const line =
-    `Workout: ${r.trained ? "✅" : "—"}`
-    + (proteinOn ? ` • Protein: ${Math.round(r.pTotal)}g${(proteinGoal>0 ? (r.pMet ? " ✅" : " —") : "")}` : "")
-    + ` • Weight: ${Number.isFinite(r.wVal) ? (r.wVal.toFixed(1) + " lb") : "—"}`;
-
-  const left = el("div", {}, [
-    el("div", { style:"font-weight:900;", text: `${dow[i]} • ${r.dISO}` }),
-    el("div", { class:"note", text: line })
+  const daysBox = el("div", {
+    style:"margin-top:12px; border:1px solid rgba(255,255,255,.10); border-radius:18px; background:rgba(255,255,255,.04); padding:10px;"
+  }, [
+    el("div", { class:"homeTodayKicker", text:"Days in window" })
   ]);
 
-const dayObj = anchoredRoutineDayForDate(r.dISO);
-const isRestDay = !!dayObj?.isRest;
+  visibleRows.forEach((r, j) => {
+    const weekdayIdx = coachStartIdx + j;
+    const dayObj = anchoredRoutineDayForDate(r.dISO);
+    const isRestDay = !!dayObj?.isRest;
 
-const tagText = r.trained ? "Trained" : (isRestDay ? "Rest" : "Planned");
-const tagClass = "tag " + (r.trained ? "good" : "");
+    const dayLabel = String(dayObj?.label || dow[weekdayIdx] || "Day");
+    const plannedSets = plannedSetsForDay(dayObj);
+    const loggedSets = r.trained ? loggedSetsForISO(r.dISO) : 0;
+    const micro = isRestDay ? "—" : `Sets: ${loggedSets} / ${plannedSets === null ? "—" : plannedSets}`;
 
-const right = el("div", { class: tagClass, text: tagText });
-  list.appendChild(
-    el("div", { class:"goalItem" }, [ left, right ])
-  );
-});
+    const left = el("div", { style:"display:flex; flex-direction:column; gap:2px; min-width:0;" }, [
+      el("div", { style:"font-weight:920; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;", text: `${dow[weekdayIdx]} — ${dayLabel}` }),
+      el("div", { class:"note", text: isRestDay ? "Recovery day" : `Planned • ${(Array.isArray(dayObj?.exercises) ? dayObj.exercises.length : 0)} exercises` })
+    ]);
+
+    const mid = el("div", { class:"note", style:"font-weight:850; white-space:nowrap;", text: micro });
+
+    const tagText = r.trained ? "Trained" : (isRestDay ? "Rest" : "Upcoming");
+    const tagCls = "tag " + (r.trained ? "good" : (isRestDay ? "" : "accent"));
+
+    const right = el("div", { class: tagCls.trim(), text: tagText });
+
+    const row = el("div", {
+      style:"display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.03); border-radius:16px; margin-top:10px;"
+    }, [
+      el("div", { style:"flex:1 1 auto; min-width:0;" }, [left]),
+      mid,
+      right
+    ]);
+
+    daysBox.appendChild(row);
+  });
 
   Modal.open({
     title: "This Week — Details",
     bodyNode: el("div", {}, [
-      weeklyPerf,
-      el("div", { style:"height:12px" }),
-      list,
+      chips,
+      weeklyPerfBox,
+      daysBox,
       el("div", { style:"height:14px" }),
       el("div", { class:"btnrow" }, [
         el("button", { class:"btn", onClick: () => { Modal.close(); navigate("attendance"); } }, ["Attendance"]),
