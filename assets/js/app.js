@@ -52,7 +52,18 @@ function migrateState(saved){
     // ✅ NEW: used to align routine days to when the user starts
     if(!merged.profile.startDateISO) merged.profile.startDateISO = Dates.todayISO();
   }
-
+// ✅ NEW: Progress UI preferences (exercise picker + recents)
+if(!merged.profile.progressUI || typeof merged.profile.progressUI !== "object"){
+  merged.profile.progressUI = { lastType: "weightlifting", selected: {}, recent: { weightlifting:[], cardio:[], core:[] } };
+}
+if(typeof merged.profile.progressUI.lastType !== "string") merged.profile.progressUI.lastType = "weightlifting";
+if(!merged.profile.progressUI.selected || typeof merged.profile.progressUI.selected !== "object") merged.profile.progressUI.selected = {};
+if(!merged.profile.progressUI.recent || typeof merged.profile.progressUI.recent !== "object"){
+  merged.profile.progressUI.recent = { weightlifting:[], cardio:[], core:[] };
+}
+if(!Array.isArray(merged.profile.progressUI.recent.weightlifting)) merged.profile.progressUI.recent.weightlifting = [];
+if(!Array.isArray(merged.profile.progressUI.recent.cardio)) merged.profile.progressUI.recent.cardio = [];
+if(!Array.isArray(merged.profile.progressUI.recent.core)) merged.profile.progressUI.recent.core = [];
   // Always stamp latest schema
   merged.schemaVersion = SCHEMA_VERSION;
 
@@ -1755,6 +1766,83 @@ function totalProtein(dateISO){
       const volume = entries.map(e => Number(e.summary?.totalVolume) || 0);
       return { labels, datasets: { volume } };
     }
+
+// ─────────────────────────────
+// Progress UI Engine (state-only, deterministic)
+// - Stores selected exercise per type + recent picks
+// - NO DOM access
+// ─────────────────────────────
+const ProgressUIEngine = {
+  _ensure(){
+    if(!state.profile || typeof state.profile !== "object") return;
+    const p = state.profile;
+    if(!p.progressUI || typeof p.progressUI !== "object"){
+      p.progressUI = { lastType: "weightlifting", selected: {}, recent: { weightlifting:[], cardio:[], core:[] } };
+    }
+    if(typeof p.progressUI.lastType !== "string") p.progressUI.lastType = "weightlifting";
+    if(!p.progressUI.selected || typeof p.progressUI.selected !== "object") p.progressUI.selected = {};
+    if(!p.progressUI.recent || typeof p.progressUI.recent !== "object"){
+      p.progressUI.recent = { weightlifting:[], cardio:[], core:[] };
+    }
+    if(!Array.isArray(p.progressUI.recent.weightlifting)) p.progressUI.recent.weightlifting = [];
+    if(!Array.isArray(p.progressUI.recent.cardio)) p.progressUI.recent.cardio = [];
+    if(!Array.isArray(p.progressUI.recent.core)) p.progressUI.recent.core = [];
+  },
+
+  getLastType(){
+    this._ensure();
+    return (state.profile?.progressUI?.lastType) || "weightlifting";
+  },
+
+  setLastType(type){
+    if(!state.profile) return;
+    this._ensure();
+    state.profile.progressUI.lastType = String(type || "weightlifting");
+    Storage.save(state);
+  },
+
+  getSelectedExerciseId(type){
+    this._ensure();
+    const key = String(type || "weightlifting");
+    const v = state.profile?.progressUI?.selected?.[key] || null;
+    return v || null;
+  },
+
+  setSelectedExerciseId(type, exerciseId){
+    if(!state.profile) return;
+    this._ensure();
+
+    const t = String(type || "weightlifting");
+    const id = exerciseId ? String(exerciseId) : null;
+    if(!id) return;
+
+    // Selected
+    state.profile.progressUI.selected[t] = id;
+
+    // Recent (dedupe, cap at 8)
+    const rec = state.profile.progressUI.recent[t] || (state.profile.progressUI.recent[t] = []);
+    const next = [id].concat(rec.filter(x => String(x) !== id)).slice(0, 8);
+    state.profile.progressUI.recent[t] = next;
+
+    // Last type
+    state.profile.progressUI.lastType = t;
+
+    Storage.save(state);
+  },
+
+  getRecentExerciseIds(type){
+    this._ensure();
+    const t = String(type || "weightlifting");
+    return (state.profile?.progressUI?.recent?.[t] || []).slice(0);
+  }
+};
+
+// Export into the single global namespace (for feature modals)
+(function(){
+  const GymDash = window.GymDash = window.GymDash || {};
+  GymDash.engines = GymDash.engines || {};
+  GymDash.engines.ProgressUI = ProgressUIEngine;
+})();
 
     function renderProgressChart(canvas, type, metricKey, series){
       destroyProgressChart();
@@ -5353,9 +5441,15 @@ Progress(){
   ExerciseLibrary.ensureSeeded();
   LogEngine.ensure();
 
-  // Defaults
-  let type = "weightlifting";
-  let exerciseId = (state.exerciseLibrary?.weightlifting?.[0]?.id) || null;
+  // Defaults (persisted per-user)
+let type = (state.profile ? ProgressUIEngine.getLastType() : "weightlifting");
+if(type !== "weightlifting" && type !== "cardio" && type !== "core") type = "weightlifting";
+
+// Selected exercise per type (fallback to first in library)
+let exerciseId =
+  (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
+  (state.exerciseLibrary?.[type]?.[0]?.id) ||
+  null;
 
   // Filters
   let routineId = ""; // "" = All routines
@@ -5413,7 +5507,50 @@ Progress(){
   typeRow.appendChild(typeBtns.cardio);
   typeRow.appendChild(typeBtns.core);
 
-  // Search bar + selected pill
+
+    // Exercise picker (primary)
+const pickBtn = el("button", {
+  class:"progPickBtn",
+  onClick: () => {
+    const picker =
+      (window.GymDash && window.GymDash.modals && window.GymDash.modals.openProgressExercisePicker)
+        ? window.GymDash.modals.openProgressExercisePicker
+        : null;
+
+    if(typeof picker !== "function"){
+      Modal.open({
+        title: "Picker unavailable",
+        bodyNode: el("div", {}, [
+          el("div", { class:"note", text:"The exercise picker modal script is not loaded." }),
+          el("div", { style:"height:12px" }),
+          el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
+        ]),
+        size: "sm"
+      });
+      return;
+    }
+
+    picker({
+      type,
+      currentId: exerciseId,
+      onSelect: (nextId) => {
+        exerciseId = nextId;
+        query = "";
+        searchWrap.querySelector("input").value = "";
+        // Persist selection + recents (profile-only)
+        ProgressUIEngine.setSelectedExerciseId(type, nextId);
+        repaint(true);
+      }
+    });
+  }
+}, [
+  el("div", { class:"k", text:"Exercise" }),
+  el("div", { class:"v", text:"Select…" }),
+  el("div", { class:"chev", text:"▾" })
+]);
+    
+
+    // Search bar + selected pill
   const searchWrap = el("div", { class:"progSearch" }, [
     el("div", { class:"ico", text:"🔎" }),
     el("input", {
@@ -5476,6 +5613,7 @@ const statsHost = el("div", { class:"pillRow", style:"margin-top:8px;" });
 
   topCard.appendChild(el("div", { class:"note", text:"Type + search to select an exercise." }));
   topCard.appendChild(typeRow);
+  topCard.appendChild(pickBtn);
   topCard.appendChild(el("div", { style:"height:10px" }));
   topCard.appendChild(searchWrap);
   topCard.appendChild(selectedRow);
@@ -5562,13 +5700,26 @@ topCard.appendChild(el("div", {
   }
 
   function setType(next){
-    type = next;
-    query = "";
-    searchWrap.querySelector("input").value = "";
-    exerciseId = (state.exerciseLibrary?.[type]?.[0]?.id) || null;
-    metric = defaultMetricForType(type);
-    repaint(true);
-  }
+  type = next;
+
+  // Clear search
+  query = "";
+  searchWrap.querySelector("input").value = "";
+
+  // Persist last type (even before a pick)
+  if(state.profile) ProgressUIEngine.setLastType(type);
+
+  // Restore selected exercise for this type (or fallback to first)
+  exerciseId =
+    (state.profile ? ProgressUIEngine.getSelectedExerciseId(type) : null) ||
+    (state.exerciseLibrary?.[type]?.[0]?.id) ||
+    null;
+
+  // Reset metric for the type (keep your existing behavior)
+  metric = defaultMetricForType(type);
+
+  repaint(true);
+}
 
   function setRange(days){
     fromISO = Dates.addDaysISO(todayISO, -Math.max(1, Number(days) || 30));
