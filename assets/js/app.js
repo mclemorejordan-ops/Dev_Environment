@@ -5703,7 +5703,7 @@ Progress(){
   let qCore = "";
   let qCardio = "";
 
-  const root = el("div", { class:"grid" });
+  const root = el("div", { class:"grid progressPage" });
 
   // Header
   root.appendChild(el("div", { class:"card" }, [
@@ -5837,33 +5837,53 @@ Progress(){
   function buildSearchPanel(cfg){
   const type = cfg.type;
 
-  // --- Search UI (stable input: no repaint on each keypress) ---
-  const input = el("input", {
-    type:"text",
-    value: cfg.query,
-    placeholder: (type === "cardio") ? "Search activity…" : "Search exercise…",
-    autocomplete:"off"
-  });
+  // Compute data for this render
+  const recent = PD.recentCards(type, 8);
+  const hasQuery = !!(cfg.query && String(cfg.query).trim());
+  const results = hasQuery ? PD.searchCards(type, cfg.query, 50) : [];
 
   const searchCard = el("div", { class:"card" }, [
     el("div", { class:"kicker", text: cfg.label }),
     el("div", { class:"progSearchV2", style:"margin-top:8px" }, [
       el("div", { class:"ico", text:"⌕" }),
-      input,
-      el("button", {
-        class:"progClearBtn",
-        onClick: () => {
-          cfg.setQuery("");
-          input.value = "";
-          updateResults();
-        }
-      }, ["✕"])
+
+      (() => {
+        const input = el("input", {
+          type:"text",
+          value: cfg.query,
+          placeholder: (type === "cardio") ? "Search activity…" : "Search exercise…",
+          autocomplete:"off"
+        });
+
+        // Soft clear button (no ugly “x” box)
+        // We create it here so we can toggle visibility based on input value.
+        const clearBtn = el("button", {
+          class:"progClearBtn" + (hasQuery ? " show" : ""),
+          // Using a softer glyph than "✕" (still reads as clear)
+          // If you want a different glyph, tell me: "dot", "chevron", "backspace", etc.
+          onClick: () => {
+            cfg.setQuery("");
+            repaint();
+          }
+        }, ["⌫"]);
+
+        input.addEventListener("input", () => {
+          cfg.setQuery(input.value || "");
+          // Toggle clear visibility immediately (without extra repaint work)
+          const nowHas = !!(input.value && input.value.trim());
+          clearBtn.classList.toggle("show", nowHas);
+
+          // Keep your existing architecture (simple + safe): repaint to refresh results
+          repaint();
+        });
+
+        // Return a fragment-like array: input + clear button
+        // (We can’t use real fragments with your el() helper easily.)
+        return el("div", { style:"display:contents" }, [input, clearBtn]);
+      })()
     ]),
     el("div", { class:"meta", style:"margin-top:8px", text: cfg.tips })
   ]);
-
-  // --- Recent (CSS-aligned: horizontal mini cards) ---
-  const recent = PD.recentCards(type, 8);
 
   const recentCard = el("div", { class:"card" }, [
     el("div", { class:"progSectionHead" }, [
@@ -5871,74 +5891,25 @@ Progress(){
       el("div", { class:"progCountPill", text:String(recent.length) })
     ]),
     (recent.length === 0)
-      ? el("div", { class:"note", text:"No recent picks yet. Tap a result to pin it here next time." })
-      : el("div", { class:"progRecentScroll" }, recent.map(c => buildMiniCard(type, c)))
+      ? el("div", { class:"note", text:"No recent picks yet. Tap an item below to pin it here next time." })
+      : el("div", { class:"progRecentScroll" },
+          recent.map(c => buildMiniCard(type, c)))
   ]);
-
-  // --- Results (collapsed until user types) ---
-  const resultCountEl = el("div", { class:"progCountPill", text:"0" });
-  const resultsHost = el("div", { class:"progResultsV2" });
-  const collapsedNote = el("div", {
-    class:"note",
-    style:"margin-top:10px",
-    text:"Start typing to search exercises."
-  });
-  const emptyNote = el("div", {
-    class:"note",
-    style:"margin-top:10px; display:none",
-    text:"No matches. Try another name."
-  });
 
   const resultsCard = el("div", { class:"card" }, [
     el("div", { class:"progSectionHead" }, [
       el("div", { class:"kicker", text:"Results" }),
-      resultCountEl
+      el("div", { class:"progCountPill", text:String(results.length) })
     ]),
-    collapsedNote,
-    emptyNote,
-    resultsHost
+
+    // ✅ collapsed until user types
+    (!hasQuery)
+      ? el("div", { class:"note", style:"margin-top:10px", text:"Start typing to search exercises." })
+      : (results.length === 0)
+        ? el("div", { class:"note", style:"margin-top:10px", text:"No matches. Try another name." })
+        : el("div", { class:"progResultsV2" },
+            results.map(c => buildResultCard(type, c)))
   ]);
-
-  // Update only results (no full repaint)
-  function updateResults(){
-    const q = (cfg.query || "").trim();
-
-    // Collapsed mode
-    if(!q){
-      resultCountEl.textContent = "0";
-      resultsHost.innerHTML = "";
-      resultsHost.style.display = "none";
-      emptyNote.style.display = "none";
-      collapsedNote.style.display = "block";
-      return;
-    }
-
-    const results = PD.searchCards(type, q, 50);
-
-    resultCountEl.textContent = String(results.length);
-    collapsedNote.style.display = "none";
-
-    if(results.length === 0){
-      resultsHost.innerHTML = "";
-      resultsHost.style.display = "none";
-      emptyNote.style.display = "block";
-      return;
-    }
-
-    emptyNote.style.display = "none";
-    resultsHost.style.display = "block";
-    resultsHost.innerHTML = "";
-    results.forEach(c => resultsHost.appendChild(buildResultCard(type, c)));
-  }
-
-  // Input handler: update query + updateResults only
-  input.addEventListener("input", () => {
-    cfg.setQuery(input.value || "");
-    updateResults();
-  });
-
-  // Initial paint
-  updateResults();
 
   return el("div", { class:"grid" }, [searchCard, recentCard, resultsCard]);
 }
