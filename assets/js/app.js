@@ -3477,7 +3477,7 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
 
   // (4) Improve (single highest-priority gap)
   let improveLeft = "Improve: No Gaps Detected";
-  let improveBadge = { text:"Ok", kind:"Good" };
+    let improveBadge = { text:"Ok", kind:"good" };
 
   if(proteinOn && proteinGoal > 0){
     const belowProteinDays = plannedRows
@@ -3487,23 +3487,24 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
 
     if(belowProteinDays > 0){
       improveLeft = `Improve: Protein (Below Goal ${belowProteinDays} day${belowProteinDays===1?"":"s"})`;
-      improveBadge = { text:"Low", kind:"Warn" };
+      improveBadge = { text:"Low", kind:"warn" };
     }else if(behind > 0){
       improveLeft = `Improve: Consistency (Behind by ${behind})`;
-      improveBadge = { text:"Low", kind:"Warn" };
+      improveBadge = { text:"Low", kind:"warn" };
     }
   }else if(behind > 0){
     improveLeft = `Improve: Consistency (Behind by ${behind})`;
-    improveBadge = { text:"Low", kind:"Warn" };
+    improveBadge = { text:"Low", kind:"warn" };
   }
 
   // -----------------------------
   // UI construction (match your v3/v4 mock)
   // -----------------------------
   function badgeEl(b){
-  const cls = "tag" + (b?.kind ? (" " + b.kind) : "");
-  return el("div", { class: cls, text: b?.text || "—" });
-}
+    const kind = (b?.kind || "").toString().trim().toLowerCase(); // ✅ normalize for CSS selectors
+    const cls = "tag" + (kind ? (" " + kind) : "");
+    return el("div", { class: cls, text: b?.text || "—" });
+  }
 
   const chips = el("div", { style:"display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;" }, [
     el("div", { class:"tag accent", text:`${coachStartClampedISO} → ${weekEndISO}` }),
