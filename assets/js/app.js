@@ -3401,7 +3401,7 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
     else if(bs.weight === best.set.weight && bs.reps > best.set.reps) best = { entry:e, set:bs };
   }
 
-  let bestLeft = "Best: Week in motion — build momentum";
+  let bestLeft = "Best: Week in Motion — Build Momentum";
   let bestBadge = { text:"—", kind:"" };
 
   if(best){
@@ -3449,15 +3449,15 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
     if(!improved || delta > improved.delta) improved = { type, exerciseId: exId, delta };
   }
 
-  let improvedLeft = "Improved: Add more data to compare trend";
+  let improvedLeft = "Improved: Add More Data to Compare Trend";
   let improvedBadge = { text:"n/a", kind:"" };
 
   if(improved){
     const exName = resolveExerciseName(improved.type, improved.exerciseId, "Exercise");
-    improvedLeft = `Improved: ${exName} +${Math.abs(improved.delta).toFixed(1)} lb vs last week`;
+    improvedLeft = `Improved: ${exName} +${Math.abs(improved.delta).toFixed(1)} lb vs Last Week`;
     improvedBadge = { text:"↑", kind:"accent" };
   }else if(hadCompare){
-    improvedLeft = "Improved: Stable (no increases vs last week)";
+    improvedLeft = "Improved: Stable (No Increases vs Last Week)";
     improvedBadge = { text:"—", kind:"" };
   }
 
@@ -3465,19 +3465,19 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
   const plannedThroughToday = plannedRows.filter(r => r.dISO <= todayISO).length;
   const behind = Math.max(0, plannedThroughToday - trainedPlannedCount);
 
-  let consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (on pace)`;
-  let consistencyBadge = { text:"ON", kind:"good" };
+  let consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (On Pace)`;
+  let consistencyBadge = { text:"On", kind:"Good" };
   if(trainedPlannedCount >= thisWeekDenom){
-    consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (${todayISO >= weekEndISO ? "week complete" : "target met"})`;
-    consistencyBadge = { text:"OK", kind:"good" };
+    consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (${todayISO >= weekEndISO ? "Week Complete" : "Target Met"})`;
+    consistencyBadge = { text:"Ok", kind:"Good" };
   }else if(behind > 0){
-    consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (behind by ${behind})`;
-    consistencyBadge = { text:"LOW", kind:"warn" };
+    consistencyLeft = `Consistency: ${trainedPlannedCount} / ${thisWeekDenom} (Behind by ${behind})`;
+    consistencyBadge = { text:"Low", kind:"Warn" };
   }
 
   // (4) Improve (single highest-priority gap)
-  let improveLeft = "Improve: No gaps detected";
-  let improveBadge = { text:"OK", kind:"good" };
+  let improveLeft = "Improve: No Gaps Detected";
+  let improveBadge = { text:"Ok", kind:"Good" };
 
   if(proteinOn && proteinGoal > 0){
     const belowProteinDays = plannedRows
@@ -3486,15 +3486,15 @@ const remainingPlans = plannedDaysRemainingThisWeek();     // [{dateISO,label},.
       .length;
 
     if(belowProteinDays > 0){
-      improveLeft = `Improve: Protein (below goal ${belowProteinDays} day${belowProteinDays===1?"":"s"})`;
-      improveBadge = { text:"LOW", kind:"warn" };
+      improveLeft = `Improve: Protein (Below Goal ${belowProteinDays} day${belowProteinDays===1?"":"s"})`;
+      improveBadge = { text:"Low", kind:"Warn" };
     }else if(behind > 0){
-      improveLeft = `Improve: Consistency (behind by ${behind})`;
-      improveBadge = { text:"LOW", kind:"warn" };
+      improveLeft = `Improve: Consistency (Behind by ${behind})`;
+      improveBadge = { text:"Low", kind:"Warn" };
     }
   }else if(behind > 0){
-    improveLeft = `Improve: Consistency (behind by ${behind})`;
-    improveBadge = { text:"LOW", kind:"warn" };
+    improveLeft = `Improve: Consistency (Behind by ${behind})`;
+    improveBadge = { text:"Low", kind:"Warn" };
   }
 
   // -----------------------------
