@@ -4097,234 +4097,320 @@ function goalsListNode(){
   // ----------------------------
   const cards = [];
 
-  // Today
-  cards.push(
-    el("div", { class:"card" }, [
-      el("div", { class:"homeRow" }, [
-        el("div", {}, [
-          el("h2", { text:"Today" }),
-          el("div", { class:"note", text: workoutSub })
-        ]),
-        el("button", {
-          class:"btn primary",
-          onClick: () => navigate("routine")
-        }, ["Log workout"])
-      ]),
+    // Today
+  (function(){
+    // Local UI state (view-only)
+    let expanded = false;
 
-      el("div", { class:"kpi", style:"margin-top:8px" }, [
-        el("div", { class:"big", text: workoutTitle })
-      ]),
+    // Map workout status -> visual state + CTA label (no behavior change: still navigates to Routine)
+    const stKey =
+      (status.key === "complete") ? "complete" :
+      (status.key === "in_progress") ? "progress" :
+      (status.key === "rest") ? "rest" :
+      "ready";
 
-      el("div", { style:"height:10px" }),
+    const ctaText =
+      (stKey === "complete") ? "View summary" :
+      (stKey === "progress") ? "Continue" :
+      (stKey === "rest") ? "Log recovery" :
+      "Start workout";
 
-      // Top 3 planned exercises (show last logged performance; supports weightlifting/cardio/core)
-(top3.length === 0)
-  ? el("div", { class:"note", text: (!routine ? "Select a routine to see planned exercises." : (day?.isRest ? "Rest day." : "Add exercises in Routine Editor.")) })
-  : el("div", { class:"exList" }, (day.exercises || []).slice(0,3).map(rx => {
+    const totalExercises = Number(status.total || 0);
+    const doneExercises  = Number(status.done || 0);
+    const showProgress = (stKey !== "rest") && totalExercises > 0;
 
-      const exName = resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap);
+    // Build exercise nodes (all), then render collapsed/expanded view by slicing
+    const exerciseNodes = (!routine || !day || day.isRest)
+      ? []
+      : (day.exercises || []).map(rx => {
+          const exName = resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap);
 
-      // Time formatter (local + safe)
-      const fmtTimeSec = (sec) => {
-        const s = Math.max(0, Math.floor(Number(sec) || 0));
-        const m = Math.floor(s / 60);
-        const r = s % 60;
-        return `${m}:${String(r).padStart(2,"0")}`;
-      };
+          // Planned sets (plan-first)
+          const plannedSets = Math.max(0, Math.floor(Number(rx?.plan?.sets) || 0));
+          const plannedText = plannedSets > 0
+            ? `Planned: ${plannedSets} set${plannedSets === 1 ? "" : "s"}`
+            : "Planned: —";
 
-        // Pull the most recent TWO entries for this routine exercise (so we can show +/- since last time)
-      LogEngine.ensure();
-
-      const _entries = (state.logs?.workouts || [])
-        .filter(e => e && e.routineExerciseId === rx.id)
-        .sort((a,b) => (b.dateISO || "").localeCompare(a.dateISO || "") || (b.createdAt||0)-(a.createdAt||0));
-
-      const last = _entries[0] || null;
-      const prev = _entries[1] || null;
-
-      let metaText = "No previous logs";
-
-      function fmtSignedNumber(n){
-        const v = Number(n) || 0;
-        if(!v) return "0";
-        return (v > 0 ? `+${v}` : `${v}`);
-      }
-
-      function deltaSuffix(type, lastEntry, prevEntry){
-        if(!lastEntry || !prevEntry) return "";
-
-        // Weightlifting: compare best set (weight first, then reps)
-        if(type === "weightlifting"){
-          const bestOf = (entry) => {
-            const sets = Array.isArray(entry?.sets) ? entry.sets : [];
-            let best = null;
-            for(const s of sets){
-              const w = Number(s.weight) || 0;
-              const r = Math.max(0, Math.floor(Number(s.reps) || 0));
-              if(!best || w > best.w || (w === best.w && r > best.r)){
-                best = { w, r };
-              }
-            }
-            return best;
+          // Time formatter (local + safe)
+          const fmtTimeSec = (sec) => {
+            const s = Math.max(0, Math.floor(Number(sec) || 0));
+            const m = Math.floor(s / 60);
+            const r = s % 60;
+            return `${m}:${String(r).padStart(2,"0")}`;
           };
 
-          const a = bestOf(lastEntry);
-          const b = bestOf(prevEntry);
-          if(!a || !b) return "";
+          // Pull the most recent TWO entries for this routine exercise (so we can show +/- since last time)
+          LogEngine.ensure();
 
-          const dw = Math.round((a.w - b.w) * 100) / 100;
-          if(dw){
-            return ` • ${fmtSignedNumber(dw)} lb`;
+          const _entries = (state.logs?.workouts || [])
+            .filter(e => e && e.routineExerciseId === rx.id)
+            .sort((a,b) => (b.dateISO || "").localeCompare(a.dateISO || "") || (b.createdAt||0)-(a.createdAt||0));
+
+          const last = _entries[0] || null;
+          const prev = _entries[1] || null;
+
+          let metaText = "No previous logs";
+
+          function fmtSignedNumber(n){
+            const v = Number(n) || 0;
+            if(!v) return "0";
+            return (v > 0 ? `+${v}` : `${v}`);
           }
 
-          const dr = (a.r || 0) - (b.r || 0);
-          if(dr){
-            return ` • ${fmtSignedNumber(dr)} rep${Math.abs(dr) === 1 ? "" : "s"}`;
+          function deltaSuffix(type, lastEntry, prevEntry){
+            if(!lastEntry || !prevEntry) return "";
+
+            // Weightlifting: compare best set (weight first, then reps)
+            if(type === "weightlifting"){
+              const bestOf = (entry) => {
+                const sets = Array.isArray(entry?.sets) ? entry.sets : [];
+                let best = null;
+                for(const s of sets){
+                  const w = Number(s.weight) || 0;
+                  const r = Math.max(0, Math.floor(Number(s.reps) || 0));
+                  if(!best || w > best.w || (w === best.w && r > best.r)){
+                    best = { w, r };
+                  }
+                }
+                return best;
+              };
+
+              const a = bestOf(lastEntry);
+              const b = bestOf(prevEntry);
+              if(!a || !b) return "";
+
+              const dw = Math.round((a.w - b.w) * 100) / 100;
+              if(dw){
+                return ` • ${fmtSignedNumber(dw)} lb`;
+              }
+
+              const dr = (a.r || 0) - (b.r || 0);
+              if(dr){
+                return ` • ${fmtSignedNumber(dr)} rep${Math.abs(dr) === 1 ? "" : "s"}`;
+              }
+
+              return "";
+            }
+
+            // Cardio: compare distance first (if present), otherwise time
+            if(type === "cardio"){
+              const sumA = lastEntry.summary || LogEngine.computeCardioSummary(lastEntry.sets || []);
+              const sumB = prevEntry.summary || LogEngine.computeCardioSummary(prevEntry.sets || []);
+              const distA = Number(sumA.distance) || 0;
+              const distB = Number(sumB.distance) || 0;
+              const tA = Number(sumA.timeSec) || 0;
+              const tB = Number(sumB.timeSec) || 0;
+
+              if(distA || distB){
+                const dd = Math.round((distA - distB) * 100) / 100;
+                if(dd){
+                  return ` • ${fmtSignedNumber(dd)} dist`;
+                }
+              }
+
+              if(tA || tB){
+                const dt = Math.round(tA - tB);
+                if(dt){
+                  const abs = Math.abs(dt);
+                  const pretty = fmtTimeSec(abs);
+                  return ` • ${dt > 0 ? "+" : "-"}${pretty}`;
+                }
+              }
+
+              return "";
+            }
+
+            // Core: compare total reps first (sets×reps) if present, otherwise time
+            if(type === "core"){
+              const first = (entry) => (Array.isArray(entry?.sets) ? entry.sets : [])[0] || {};
+              const a0 = first(lastEntry);
+              const b0 = first(prevEntry);
+
+              const setsA = Math.max(0, Math.floor(Number(a0.sets) || 0));
+              const repsA = Math.max(0, Math.floor(Number(a0.reps) || 0));
+              const timeA = Math.max(0, Math.floor(Number(a0.timeSec) || 0));
+
+              const setsB = Math.max(0, Math.floor(Number(b0.sets) || 0));
+              const repsB = Math.max(0, Math.floor(Number(b0.reps) || 0));
+              const timeB = Math.max(0, Math.floor(Number(b0.timeSec) || 0));
+
+              const totalRepsA = setsA * repsA;
+              const totalRepsB = setsB * repsB;
+
+              if(totalRepsA || totalRepsB){
+                const dr = totalRepsA - totalRepsB;
+                if(dr){
+                  return ` • ${fmtSignedNumber(dr)} rep${Math.abs(dr) === 1 ? "" : "s"}`;
+                }
+              }
+
+              if(timeA || timeB){
+                const dt = timeA - timeB;
+                if(dt){
+                  const abs = Math.abs(dt);
+                  const pretty = fmtTimeSec(abs);
+                  return ` • ${dt > 0 ? "+" : "-"}${pretty}`;
+                }
+              }
+
+              return "";
+            }
+
+            return "";
           }
 
-          return "";
-        }
+          if(last){
+            const type = last.type || rx.type;
+            const delta = deltaSuffix(type, last, prev);
 
-        // Cardio: compare distance first (if present), otherwise time
-        if(type === "cardio"){
-          const sumA = lastEntry.summary || LogEngine.computeCardioSummary(lastEntry.sets || []);
-          const sumB = prevEntry.summary || LogEngine.computeCardioSummary(prevEntry.sets || []);
-          const distA = Number(sumA.distance) || 0;
-          const distB = Number(sumB.distance) || 0;
-          const tA = Number(sumA.timeSec) || 0;
-          const tB = Number(sumB.timeSec) || 0;
+            if(type === "weightlifting"){
+              const sets = Array.isArray(last.sets) ? last.sets : [];
+              let best = null;
+              for(const s of sets){
+                const w = Number(s.weight) || 0;
+                const r = Math.max(0, Math.floor(Number(s.reps) || 0));
+                if(!best || w > best.w || (w === best.w && r > best.r)){
+                  best = { w, r };
+                }
+              }
+              if(best && best.w > 0){
+                metaText = (best.r > 0 ? `Last: ${best.w} lb × ${best.r}` : `Last: ${best.w} lb`) + delta;
+              } else {
+                metaText = "No previous logs";
+              }
+            } else if(type === "cardio"){
+              const sum = last.summary || LogEngine.computeCardioSummary(last.sets || []);
+              const dist = Number(sum.distance) || 0;
+              const t = Number(sum.timeSec) || 0;
+              const inc = (sum.incline == null) ? "" : ` • Incline: ${sum.incline}`;
+              if(dist > 0 || t > 0){
+                metaText = `Last: ${dist > 0 ? dist : "—"} • ${t > 0 ? fmtTimeSec(t) : "—"}${inc}${delta}`;
+              } else {
+                metaText = "No previous logs";
+              }
+            } else if(type === "core"){
+              const s0 = (Array.isArray(last.sets) ? last.sets : [])[0] || {};
+              const sets = Math.max(0, Math.floor(Number(s0.sets) || 0));
+              const reps = Math.max(0, Math.floor(Number(s0.reps) || 0));
+              const timeSec = Math.max(0, Math.floor(Number(s0.timeSec) || 0));
+              const w = Number(s0.weight) || 0;
 
-          if(distA || distB){
-            const dd = Math.round((distA - distB) * 100) / 100;
-            if(dd){
-              return ` • ${fmtSignedNumber(dd)} dist`;
+              const repPart = (sets > 0 && reps > 0) ? `${sets}×${reps}` : "";
+              const timePart = (timeSec > 0) ? fmtTimeSec(timeSec) : "";
+              const detail = [repPart, timePart].filter(Boolean).join(" • ");
+              const wPart = (w > 0) ? ` @ ${w}` : "";
+
+              metaText = detail ? `Last: ${detail}${wPart}${delta}` : "No previous logs";
+            } else {
+              metaText = "No previous logs";
             }
           }
 
-          if(tA || tB){
-            const dt = Math.round(tA - tB);
-            if(dt){
-              const abs = Math.abs(dt);
-              const pretty = fmtTimeSec(abs);
-              return ` • ${dt > 0 ? "+" : "-"}${pretty}`;
-            }
-          }
+          return el("div", { class:"homeTodayExRow" }, [
+            el("div", { class:"left" }, [
+              el("div", { class:"name", text: exName }),
+              el("div", { class:"meta", text: `${plannedText} • ${metaText}` })
+            ]),
+            el("div", { class:"pill", text: (stKey === "complete" ? "Done" : (stKey === "progress" ? (isExerciseTrained(todayISO, rx.id) ? "Done" : "Planned") : "Planned")) })
+          ]);
+        });
 
-          return "";
-        }
+    const listHost = el("div", { class:"homeTodayListHost" });
+    const fadeHint = el("div", { class:"homeTodayFadeHint" });
 
-        // Core: compare total reps first (sets×reps) if present, otherwise time
-        if(type === "core"){
-          const first = (entry) => (Array.isArray(entry?.sets) ? entry.sets : [])[0] || {};
-          const a0 = first(lastEntry);
-          const b0 = first(prevEntry);
+    const listViewport = el("div", {
+      class:"homeTodayListViewport",
+      "aria-label":"Exercise list (collapsible)"
+    }, [ listHost, fadeHint ]);
 
-          const setsA = Math.max(0, Math.floor(Number(a0.sets) || 0));
-          const repsA = Math.max(0, Math.floor(Number(a0.reps) || 0));
-          const timeA = Math.max(0, Math.floor(Number(a0.timeSec) || 0));
-
-          const setsB = Math.max(0, Math.floor(Number(b0.sets) || 0));
-          const repsB = Math.max(0, Math.floor(Number(b0.reps) || 0));
-          const timeB = Math.max(0, Math.floor(Number(b0.timeSec) || 0));
-
-          const totalRepsA = setsA * repsA;
-          const totalRepsB = setsB * repsB;
-
-          if(totalRepsA || totalRepsB){
-            const dr = totalRepsA - totalRepsB;
-            if(dr){
-              return ` • ${fmtSignedNumber(dr)} rep${Math.abs(dr) === 1 ? "" : "s"}`;
-            }
-          }
-
-          if(timeA || timeB){
-            const dt = timeA - timeB;
-            if(dt){
-              const abs = Math.abs(dt);
-              const pretty = fmtTimeSec(abs);
-              return ` • ${dt > 0 ? "+" : "-"}${pretty}`;
-            }
-          }
-
-          return "";
-        }
-
-        return "";
+    const expandBtn = el("button", {
+      class:"homeTodayExpandBtn",
+      "aria-expanded":"false",
+      onClick: () => {
+        expanded = !expanded;
+        renderList();
       }
+    }, [
+      el("span", { class:"lbl", text:"" }),
+      el("span", { class:"chev", text:"⌄" })
+    ]);
 
-      if(last){
-        const type = last.type || rx.type;
-        const delta = deltaSuffix(type, last, prev);
+    function renderList(){
+      listHost.innerHTML = "";
 
-        // Weightlifting: show best set from last session
-        if(type === "weightlifting"){
-          const sets = Array.isArray(last.sets) ? last.sets : [];
-          let best = null;
-          for(const s of sets){
-            const w = Number(s.weight) || 0;
-            const r = Math.max(0, Math.floor(Number(s.reps) || 0));
-            if(!best || w > best.w || (w === best.w && r > best.r)){
-              best = { w, r };
-            }
-          }
-          if(best && best.w > 0){
-            metaText = (best.r > 0 ? `Last: ${best.w} lb × ${best.r}` : `Last: ${best.w} lb`) + delta;
-          } else {
-            metaText = "No previous logs";
-          }
-        }
+      const hasMore = exerciseNodes.length > 3;
+      const visible = expanded ? exerciseNodes : exerciseNodes.slice(0,3);
+      visible.forEach(n => listHost.appendChild(n));
 
-        // Cardio: show distance + time (+ incline if present)
-        else if(type === "cardio"){
-          const sum = last.summary || LogEngine.computeCardioSummary(last.sets || []);
-          const dist = Number(sum.distance) || 0;
-          const t = Number(sum.timeSec) || 0;
-          const inc = (sum.incline == null) ? "" : ` • Incline: ${sum.incline}`;
-          if(dist > 0 || t > 0){
-            metaText = `Last: ${dist > 0 ? dist : "—"} • ${t > 0 ? fmtTimeSec(t) : "—"}${inc}${delta}`;
-          } else {
-            metaText = "No previous logs";
-          }
-        }
+      fadeHint.style.display = (!expanded && hasMore) ? "" : "none";
 
-        // Core: show sets×reps OR time (+ weight if present)
-        else if(type === "core"){
-          const s0 = (Array.isArray(last.sets) ? last.sets : [])[0] || {};
-          const sets = Math.max(0, Math.floor(Number(s0.sets) || 0));
-          const reps = Math.max(0, Math.floor(Number(s0.reps) || 0));
-          const timeSec = Math.max(0, Math.floor(Number(s0.timeSec) || 0));
-          const w = Number(s0.weight) || 0;
+      expandBtn.style.display = hasMore ? "" : "none";
+      expandBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
 
-          const repPart = (sets > 0 && reps > 0) ? `${sets}×${reps}` : "";
-          const timePart = (timeSec > 0) ? fmtTimeSec(timeSec) : "";
-          const detail = [repPart, timePart].filter(Boolean).join(" • ");
-          const wPart = (w > 0) ? ` @ ${w}` : "";
+      const lbl = expandBtn.querySelector(".lbl");
+      if(lbl) lbl.textContent = expanded ? "Collapse" : `Show all (${exerciseNodes.length})`;
 
-          metaText = detail ? `Last: ${detail}${wPart}${delta}` : "No previous logs";
-        }
+      listViewport.classList.toggle("expanded", !!expanded);
+    }
 
-        // Fallback
-        else {
-          metaText = "No previous logs";
-        }
-      }
+    renderList();
 
-      return el("div", { class:"exItem" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: exName }),
-          el("div", { class:"meta", text: metaText })
-        ])
-      ]);
-    })),
+    cards.push(
+      el("div", { class:`card homeTodayCard st-${stKey}` }, [
+        el("div", { class:"homeTodayTop" }, [
+          el("div", {}, [
+            el("div", { class:"homeTodayKicker", text:"TODAY" }),
+            el("div", { class:"homeTodaySub", text: workoutSub }),
+            el("div", { class:"homeTodayTitle", text: workoutTitle })
+          ]),
+          el("button", {
+            class:"btn primary homeTodayCta",
+            onClick: () => navigate("routine")
+          }, [ctaText])
+        ]),
 
-      el("div", { style:"height:10px" }),
+        showProgress
+          ? el("div", { class:"homeTodayProgress" }, [
+              el("div", { class:"bar" }, [
+                el("div", {
+                  class:"fill",
+                  style:`width:${Math.max(0, Math.min(100, Math.round((doneExercises / Math.max(1,totalExercises)) * 100)))}%`
+                })
+              ]),
+              el("div", { class:"metaRow" }, [
+                el("div", { class:"meta", text:`${doneExercises} / ${totalExercises} complete` }),
+                el("div", { class:`homeTodayStatus st-${stKey}` }, [
+                  el("span", { class:"aura" }),
+                  el("span", { class:"dot" }),
+                  el("span", { class:"txt", text:
+                    (stKey === "complete") ? `Complete • ${doneExercises} / ${totalExercises}` :
+                    (stKey === "progress") ? `In Progress • ${doneExercises} / ${totalExercises}` :
+                    "Ready"
+                  })
+                ])
+              ])
+            ])
+          : el("div", { class:"homeTodayProgress" }, [
+              el("div", { class:"metaRow", style:"justify-content:flex-end;" }, [
+                el("div", { class:`homeTodayStatus st-${stKey}` }, [
+                  el("span", { class:"aura" }),
+                  el("span", { class:"dot" }),
+                  el("span", { class:"txt", text: (stKey === "rest") ? "Rest Day" : (routine ? "Ready" : "Set a routine") })
+                ])
+              ])
+            ]),
 
-      // Status pill only (keep "Not Started" pill, remove redundant left text)
-el("div", { class:"homeRow", style:"justify-content:flex-end;" }, [
-  el("div", { class:"tag" + (status.kind ? ` ${status.kind}` : ""), text: status.tag })
-])
-    ])
-  );
+        el("div", { class:"homeTodayDivider" }),
+
+        (exerciseNodes.length === 0)
+          ? el("div", { class:"note", text: (!routine ? "Select a routine to see planned exercises." : (day?.isRest ? "Rest day." : "Add exercises in Routine Editor.")) })
+          : el("div", { class:"homeTodayListWrap" }, [
+              listViewport,
+              expandBtn
+            ])
+      ])
+    );
+  })();
 
   // This Week (dots + 3 metric cards + Coach Insight)
 cards.push(
