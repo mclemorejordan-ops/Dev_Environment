@@ -2147,6 +2147,181 @@ button.mini.added{
     font-size: 16px !important;
   }
 }
+
+/* =========================================================
+   Progress v2 — Tabs + Search + Redesigned Results
+   ========================================================= */
+
+/* Tabs */
+.progTabs{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+.progTabBtn{
+  padding:8px 12px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.03);
+  font-weight:900;
+  font-size:13px;
+  cursor:pointer;
+}
+.progTabBtn.active{
+  border-color:rgba(122,162,255,.55);
+  box-shadow:0 0 0 2px rgba(122,162,255,.12) inset;
+}
+
+/* Search */
+.progSearchWrap{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  margin-top:8px;
+}
+.progSearch{
+  flex:1;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.03);
+  border-radius:14px;
+  padding:10px 12px;
+  font-weight:900;
+  color:#fff;
+}
+.progSearch::placeholder{
+  color:rgba(255,255,255,.45);
+}
+.progSearchClear{
+  width:44px;
+  height:42px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.03);
+  font-weight:900;
+  cursor:pointer;
+}
+
+/* Recent horizontal scroll */
+.progRecentScroll{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  padding:10px 2px 4px;
+  scroll-snap-type:x mandatory;
+}
+.progRecentCard{
+  min-width:220px;
+  scroll-snap-align:start;
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+  cursor:pointer;
+}
+.progRecentTitle{
+  font-weight:900;
+}
+.progRecentBig{
+  font-size:18px;
+  font-weight:900;
+  margin-top:6px;
+}
+.progRecentMeta{
+  font-size:12px;
+  color:rgba(255,255,255,.55);
+  margin-top:2px;
+}
+.progRecentDelta{
+  margin-top:8px;
+  font-size:12px;
+  font-weight:900;
+}
+.progRecentDelta.good{ color:var(--good); }
+.progRecentDelta.warn{ color:var(--warn); }
+.progRecentDelta.flat{ color:rgba(255,255,255,.55); }
+
+/* Results cards */
+.progResultCard{
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;
+  background:rgba(255,255,255,.03);
+  padding:12px;
+  margin-top:10px;
+  cursor:pointer;
+}
+.progResultTop{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+}
+.progResultTitle{
+  font-weight:900;
+}
+.progResultSub{
+  font-size:12px;
+  color:rgba(255,255,255,.55);
+  margin-top:2px;
+}
+
+/* Stats row */
+.progResultStats{
+  display:flex;
+  gap:8px;
+  margin-top:10px;
+}
+.progStat{
+  flex:1;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(0,0,0,.18);
+  padding:8px 10px;
+  border-radius:14px;
+}
+.progStatLabel{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.18px;
+  color:rgba(255,255,255,.45);
+}
+.progStatVal{
+  font-weight:900;
+  font-size:13px;
+  margin-top:2px;
+}
+
+/* Trend pill */
+.progTrend{
+  font-weight:900;
+  padding:8px 10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(0,0,0,.18);
+}
+.progTrend.up{ color:var(--good); }
+.progTrend.down{ color:var(--warn); }
+.progTrend.flat{ color:rgba(255,255,255,.55); }
+
+/* Bottom actions */
+.progResultBottom{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:10px;
+}
+.progQuickBtns{
+  display:flex;
+  gap:8px;
+}
+.progQuickBtn{
+  padding:8px 10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(0,0,0,.18);
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
+}
+
   /* ─────────────────────────────
    Onboarding vA (onbV1)
 ───────────────────────────── */
