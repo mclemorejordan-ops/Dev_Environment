@@ -1723,7 +1723,7 @@ function totalProtein(dateISO){
         upsertMeal(dateISO, existingId, lbl, grams);
       });
 
-      showToast("Saved");
+      showToast("Saved", { center:true });
       renderView(); // update ring on Home
       // stay open; user asked to keep Save button + live feel
       reopenFor(dateISO);
@@ -2267,17 +2267,42 @@ function maybeShowNextNudge(dateISO, day){
   }
 }
 
-function showToast(message){
+function showToast(message, opts){
   try{
+    const options = opts && typeof opts === "object" ? opts : {};
+    const center = !!options.center;
+
     const existing = document.getElementById("toastTemp");
     if(existing) existing.remove();
+
+    // Centered toast (used for Protein modal “Saved”)
+    if(center){
+      const wrap = el("div", {
+        id:"toastTemp",
+        // Full-screen, but non-interactive so it doesn't block the modal
+        style:"position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index: 9999;"
+      }, [
+        el("div", {
+          style:"padding: 10px 12px; border-radius: 999px; background: rgba(16,20,30,.92); border: 1px solid rgba(255,255,255,.12); color: rgba(255,255,255,.92); font-size: 12.5px; box-shadow: 0 18px 44px rgba(0,0,0,.55); max-width: min(92vw, 420px); text-align:center;"
+        }, [message])
+      ]);
+
+      document.body.appendChild(wrap);
+      setTimeout(() => { try{ wrap.remove(); }catch(e){} }, 1100);
+      return;
+    }
+
+    // Default (unchanged behavior): top toast
     const t = el("div", {
       id:"toastTemp",
       style:"position:fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 90; padding: 10px 12px; border-radius: 999px; background: rgba(16,20,30,.92); border: 1px solid rgba(255,255,255,.12); color: rgba(255,255,255,.92); font-size: 12.5px; box-shadow: 0 18px 44px rgba(0,0,0,.55);"
     }, [message]);
+
     document.body.appendChild(t);
     setTimeout(() => { try{ t.remove(); }catch(e){} }, 1100);
-  }catch(e){}
+  }catch(e){
+    // no-op (toast should never break the app)
+  }
 }
     /********************
  * 🔥 Crash Failsafe (prevents blank UI)
@@ -5636,7 +5661,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           state.profile.hideRestDays = !!hideRestDays;
           state.profile.show3DPreview = !!show3DPreview;
           Storage.save(state);
-          showToast("Saved");
+          showToast("Saved", { center:true });
           renderView();
         }
 
