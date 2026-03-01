@@ -4447,9 +4447,10 @@ function setShow3DPreview(v){
     // ────────────────────────────
     // 3D Card Carousel (visual container)
     // ────────────────────────────
-// ✅ Always render the carousel container to prevent layout shift.
-// If 3D is disabled, we render a same-height placeholder stage.
-fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
+// ✅ Render carousel card always, but collapse it completely when OFF (no blank space).
+fixedHost.appendChild(el("div", {
+  class: "card carouselCard" + (show3DPreview ? "" : " isCollapsed")
+}, [
   show3DPreview
     ? (() => {
         let down = false;
@@ -4527,7 +4528,7 @@ fixedHost.appendChild(el("div", { class:"card carouselCard" }, [
 
         return c3d;
       })()
-    : el("div", { class:"c3d", style:"opacity:0; pointer-events:none;", "aria-hidden":"true" }, [])
+    : el("div", { class:"c3d", "aria-hidden":"true" }, [])
 ]));
 
 fixedHost.appendChild(el("div", { class:"routineDayStrip" }, [
