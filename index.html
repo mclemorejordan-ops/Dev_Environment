@@ -3997,10 +3997,6 @@ function totalProtein(dateISO){
       return Math.round((Number(n) || 0) * 100) / 100;
     }
 
-    function round2(n){
-      return Math.round((Number(n) || 0) * 100) / 100;
-    }
-
     function formatTime(sec){
       const s = Math.max(0, Math.floor(Number(sec) || 0));
       const m = Math.floor(s / 60);
@@ -5107,186 +5103,215 @@ function bindHeaderPills(){
 
 
     function renderView(){
-setChip();
-setHeaderPills();
-      const root = $("#viewRoot");
-      root.innerHTML = "";
+  setChip();
+  setHeaderPills();
 
-      if(!state.profile){
-        root.appendChild(Views.Onboarding());
-        return;
-      }
+  const root = $("#viewRoot");
+  root.innerHTML = "";
 
-         if(currentRoute === "home") root.appendChild(Views.Home());
-else if(currentRoute === "routine") root.appendChild(Views.Routine());
-else if(currentRoute === "progress") root.appendChild(Views.Progress());
-else if(currentRoute === "settings") root.appendChild(Views.Settings());
-else if(currentRoute === "weight") root.appendChild(Views.Weight());
-else if(currentRoute === "attendance") root.appendChild(Views.Attendance());
-else if(currentRoute === "routine_editor") root.appendChild(Views.RoutineEditor());
-else if(currentRoute === "exercise_library") root.appendChild(Views.ExerciseLibraryManager());
-else if(currentRoute === "protein_history") root.appendChild(Views.ProteinHistory());
-else root.appendChild(el("div", { class:"card" }, [
-  el("h2", { text:"Not found" }),
-  el("div", { class:"note", text:`Unknown route: ${currentRoute}` })
-]));
+  // Onboarding gate stays exactly the same
+  if(!state.profile){
+    root.appendChild(Views.Onboarding());
+    return;
+  }
 
-    }
+  // ✅ Cleaner dispatch map (same behavior as the old if/else chain)
+  const routeMap = {
+    home: Views.Home,
+    routine: Views.Routine,
+    progress: Views.Progress,
+    settings: Views.Settings,
+    weight: Views.Weight,
+    attendance: Views.Attendance,
+    routine_editor: Views.RoutineEditor,
+    exercise_library: Views.ExerciseLibraryManager,
+    protein_history: Views.ProteinHistory
+  };
+
+  const viewFn = routeMap[currentRoute];
+
+  if(typeof viewFn === "function"){
+    root.appendChild(viewFn());
+    return;
+  }
+
+  // Fallback stays the same
+  root.appendChild(el("div", { class:"card" }, [
+    el("h2", { text:"Not found" }),
+    el("div", { class:"note", text:`Unknown route: ${currentRoute}` })
+  ]));
+}
 
     /********************
      * 7) Views
      ********************/
-    const Views = {
-      Onboarding(){
-        let hideRestDays = true;
-        let selectedTpl = "ppl";
+Onboarding(){
+  let hideRestDays = true;
+  let selectedTpl = "ppl";
 
-        const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
+  // Error UI + helper (prevents repeated style/text logic)
+  const errorBox = el("div", {
+    class:"note",
+    style:"display:none; color: rgba(255,92,122,.95);"
+  });
 
-        const switchNode = el("div", { class:"switch on" });
-        switchNode.addEventListener("click", () => {
-          hideRestDays = !hideRestDays;
-          switchNode.classList.toggle("on", hideRestDays);
-        });
+  function showError(msg){
+    errorBox.textContent = msg || "";
+    errorBox.style.display = msg ? "block" : "none";
+  }
 
-        const tplCardsHost = el("div", { class:"tplGrid" });
-        const renderTplCards = () => {
-          tplCardsHost.innerHTML = "";
-          RoutineTemplates.forEach(t => {
-            tplCardsHost.appendChild(el("div", {
-              class: "tpl" + (t.key === selectedTpl ? " selected" : ""),
-              onClick: () => { selectedTpl = t.key; renderTplCards(); }
-            }, [
-              el("div", { class:"name", text: t.name }),
-              el("div", { class:"desc", text: t.desc })
-            ]));
-          });
-        };
-        renderTplCards();
+  // Hide Rest Days switch
+  const switchNode = el("div", { class:"switch on" });
+  switchNode.addEventListener("click", () => {
+    hideRestDays = !hideRestDays;
+    switchNode.classList.toggle("on", hideRestDays);
+  });
 
-        const nameInput = el("input", { type:"text", placeholder:"Jordan" });
-        const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
+  // Template picker
+  const tplCardsHost = el("div", { class:"tplGrid" });
 
-        const weekSelect = el("select", {});
-        weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
-        weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
-        weekSelect.value = "mon";
+  function renderTplCards(){
+    tplCardsHost.innerHTML = "";
+    RoutineTemplates.forEach(t => {
+      tplCardsHost.appendChild(el("div", {
+        class: "tpl" + (t.key === selectedTpl ? " selected" : ""),
+        onClick: () => {
+          selectedTpl = t.key;
+          renderTplCards(); // repaint selection only
+        }
+      }, [
+        el("div", { class:"name", text: t.name }),
+        el("div", { class:"desc", text: t.desc })
+      ]));
+    });
+  }
+  renderTplCards();
 
-        const finish = () => {
-          errorBox.style.display = "none";
-          errorBox.textContent = "";
+  // Inputs
+  const nameInput = el("input", { type:"text", placeholder:"Jordan" });
+  const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
 
-          const cleanName = (nameInput.value || "").trim();
-          const cleanProtein = Number(proteinInput.value);
-          const weekStartsOn = weekSelect.value === "sun" ? "sun" : "mon";
+  const weekSelect = el("select", {});
+  weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
+  weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
+  weekSelect.value = "mon";
 
-          if(!cleanName){
-            errorBox.textContent = "Please enter your name.";
-            errorBox.style.display = "block";
-            return;
-          }
-          if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
-            errorBox.textContent = "Please enter a valid daily protein goal (grams).";
-            errorBox.style.display = "block";
-            return;
-          }
+  // Commit onboarding (keeps your exact behavior/order)
+  function finish(){
+    showError("");
 
-          const profile = {
-          name: cleanName,
-          proteinGoal: Math.round(cleanProtein),
-          weekStartsOn,
-          hideRestDays: !!hideRestDays,
-        
-          // ✅ NEW: 3D Preview default (ON)
-          show3DPreview: true
-        };
+    const cleanName = (nameInput.value || "").trim();
+    const cleanProtein = Number(proteinInput.value);
+    const weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
 
+    if(!cleanName){
+      showError("Please enter your name.");
+      return;
+    }
+    if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
+      showError("Please enter a valid daily protein goal (grams).");
+      return;
+    }
 
-          // Seed library FIRST so template exercises can resolve to real exerciseIds
-          ExerciseLibrary.ensureSeeded();
+    // Keep profile keys stable: show3DPreview exists elsewhere and defaults ON
+    // (Routine uses: state.profile?.show3DPreview !== false)  [oai_citation:4‡index.html.txt](sediment://file_000000006464722fa16b464546e64ab1)
+    const profile = {
+      name: cleanName,
+      proteinGoal: Math.round(cleanProtein),
+      weekStartsOn,
+      hideRestDays: !!hideRestDays,
+      show3DPreview: true
+    };
 
-          const routineName = RoutineTemplates.find(t => t.key === selectedTpl)?.name || "Routine";
-          const routine = createRoutineFromTemplate(selectedTpl, routineName);
+    // Seed library FIRST so template exercises can resolve to real exerciseIds
+    ExerciseLibrary.ensureSeeded();
 
-          state.profile = profile;
-          state.routines = [routine];
-          state.activeRoutineId = routine.id;
+    const routineName = RoutineTemplates.find(t => t.key === selectedTpl)?.name || "Routine";
+    const routine = createRoutineFromTemplate(selectedTpl, routineName);
 
-          // Repair any missing links (older data / edge cases)
-          repairExerciseLinks();
+    state.profile = profile;
+    state.routines = [routine];
+    state.activeRoutineId = routine.id;
 
+    // Repair any missing links (older data / edge cases)
+    repairExerciseLinks();
 
-          Storage.save(state);
-          navigate("home");
-          bindHeaderPills();
-          setHeaderPills();
-          checkForUpdates();
+    Storage.save(state);
+    navigate("home");
 
-        };
+    // Keep your existing post-navigate calls (even though navigate() does some of this)
+    bindHeaderPills();
+    setHeaderPills();
+    checkForUpdates();
+  }
 
-        return el("div", { class:"grid" }, [
-          el("div", { class:"card" }, [
-            el("h2", { text:"Welcome" }),
-            el("div", { class:"kpi" }, [
-              el("div", { class:"big", text:"Let’s set up your dashboard" }),
-              el("div", { class:"small", text:"Create your profile and choose a routine template. You can edit everything later." })
-            ])
-          ]),
-          el("div", { class:"card" }, [
-            el("h2", { text:"Create profile" }),
-            el("div", { class:"form" }, [
-              el("div", { class:"row2" }, [
-                el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
-                el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
-              ]),
-              el("div", { class:"row2" }, [
-                el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ]),
-                el("div", { class:"toggle" }, [
-                  el("div", { class:"ttext" }, [
-                    el("div", { class:"a", text:"Hide rest days" }),
-                    el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)" })
-                  ]),
-                  switchNode
-                ])
-              ]),
-              errorBox
-            ])
-          ]),
-          el("div", { class:"card" }, [
-            el("h2", { text:"Choose a routine template" }),
-            tplCardsHost,
-            el("div", { style:"height:10px" }),
-            el("div", { class:"btnrow" }, [
-              el("button", { class:"btn primary", onClick: finish }, ["Finish setup"]),
-              el("button", {
-                class:"btn danger",
-                onClick: () => {
-                  Modal.open({
-                    title: "Reset local data",
-                    bodyNode: el("div", {}, [
-                      el("div", { class:"note", text:"This clears everything saved in this browser for the app." }),
-                      el("div", { style:"height:12px" }),
-                      el("div", { class:"btnrow" }, [
-                        el("button", {
-                          class:"btn danger",
-                          onClick: () => {
-                            try{ BackupVault.forceSnapshot(state, "pre-reset"); }catch(_){ }
-                            Storage.reset();
-                            state = Storage.load();
-                            Modal.close();
-                            navigate("home");
-                          }
-                        }, ["Reset"]),
-                        el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
-                      ])
-                    ])
-                  });
-                }
-              }, ["Reset"])
-            ])
+  return el("div", { class:"grid" }, [
+    el("div", { class:"card" }, [
+      el("h2", { text:"Welcome" }),
+      el("div", { class:"kpi" }, [
+        el("div", { class:"big", text:"Let’s set up your dashboard" }),
+        el("div", { class:"small", text:"Create your profile and choose a routine template. You can edit everything later." })
+      ])
+    ]),
+
+    el("div", { class:"card" }, [
+      el("h2", { text:"Create profile" }),
+      el("div", { class:"form" }, [
+        el("div", { class:"row2" }, [
+          el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
+          el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
+        ]),
+        el("div", { class:"row2" }, [
+          el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ]),
+          el("div", { class:"toggle" }, [
+            el("div", { class:"ttext" }, [
+              el("div", { class:"a", text:"Hide rest days" }),
+              el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)" })
+            ]),
+            switchNode
           ])
-        ]);
-      },
+        ]),
+        errorBox
+      ])
+    ]),
+
+    el("div", { class:"card" }, [
+      el("h2", { text:"Choose a routine template" }),
+      tplCardsHost,
+      el("div", { style:"height:10px" }),
+      el("div", { class:"btnrow" }, [
+        el("button", { class:"btn primary", onClick: finish }, ["Finish setup"]),
+
+        // ✅ Keep your existing Reset flow exactly (includes BackupVault snapshot)
+        el("button", {
+          class:"btn danger",
+          onClick: () => {
+            Modal.open({
+              title: "Reset local data",
+              bodyNode: el("div", {}, [
+                el("div", { class:"note", text:"This clears everything saved in this browser for the app." }),
+                el("div", { style:"height:12px" }),
+                el("div", { class:"btnrow" }, [
+                  el("button", {
+                    class:"btn danger",
+                    onClick: () => {
+                      try{ BackupVault.forceSnapshot(state, "pre-reset"); }catch(_){ }
+                      Storage.reset();
+                      state = Storage.load();
+                      Modal.close();
+                      navigate("home");
+                    }
+                  }, ["Reset"]),
+                  el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
+                ])
+              ])
+            });
+          }
+        }, ["Reset"])
+      ])
+    ])
+  ]);
+},
 
         Home(){
         ExerciseLibrary.ensureSeeded();
