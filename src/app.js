@@ -4334,15 +4334,13 @@ function openExerciseHistoryModal(type, exerciseId, exNameOverride=null){
   }
 
    Modal.open({
-    title: "History",
-    center: true,
-    bodyNode: el("div", { class:"grid" }, [
-      head,
-      list,
-      el("div", { style:"height:10px" }),
-      el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-    ])
-  });
+  title: "History",
+  center: true,
+  bodyNode: el("div", { class:"grid" }, [
+    head,
+    list
+  ])
+});
 
   function prBadges(pr){
     if(!pr) return "";
