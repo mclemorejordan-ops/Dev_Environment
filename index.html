@@ -2105,6 +2105,11 @@ function migrateState(saved){
   if(!Array.isArray(merged.logs.protein)) merged.logs.protein = [];
   if(!Array.isArray(merged.attendance)) merged.attendance = [];
 
+  // ✅ Profile defaults (so new toggles never crash older saved states)
+  if(merged.profile && typeof merged.profile === "object"){
+    if(typeof merged.profile.trackProtein !== "boolean") merged.profile.trackProtein = true;
+  }
+  
   // Always stamp latest schema
   merged.schemaVersion = SCHEMA_VERSION;
 
@@ -5149,6 +5154,7 @@ const Views = {
 Onboarding(){
   let hideRestDays = true;
   let selectedTpl = "ppl";
+  let trackProtein = true;
 
   // Error UI + helper (prevents repeated style/text logic)
   const errorBox = el("div", {
@@ -5167,6 +5173,15 @@ Onboarding(){
     hideRestDays = !hideRestDays;
     switchNode.classList.toggle("on", hideRestDays);
   });
+  
+  const proteinSwitchNode = el("div", { class:"switch on" });
+proteinSwitchNode.addEventListener("click", () => {
+  trackProtein = !trackProtein;
+  proteinSwitchNode.classList.toggle("on", trackProtein);
+
+  // Hide/show the protein input row live
+  proteinGoalLabel.style.display = trackProtein ? "" : "none";
+});
 
   // Template picker
   const tplCardsHost = el("div", { class:"tplGrid" });
@@ -5192,6 +5207,14 @@ Onboarding(){
   const nameInput = el("input", { type:"text", placeholder:"Jordan" });
   const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
 
+  const proteinGoalLabel = el("label", {}, [
+  el("span", { text:"Protein goal (grams/day)" }),
+  proteinInput
+]);
+
+  // Initial visibility (in case default changes later)
+  proteinGoalLabel.style.display = trackProtein ? "" : "none";
+  
   const weekSelect = el("select", {});
   weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
   weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
@@ -5209,21 +5232,30 @@ Onboarding(){
       showError("Please enter your name.");
       return;
     }
+    if(trackProtein){
     if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
-      showError("Please enter a valid daily protein goal (grams).");
-      return;
-    }
+    errorBox.textContent = "Please enter a valid daily protein goal (grams).";
+    errorBox.style.display = "block";
+    return;
+  }
+}
 
     // Keep profile keys stable: show3DPreview exists elsewhere and defaults ON
     // (Routine uses: state.profile?.show3DPreview !== false)  [oai_citation:4‡index.html.txt](sediment://file_000000006464722fa16b464546e64ab1)
     const profile = {
       name: cleanName,
-      proteinGoal: Math.round(cleanProtein),
       weekStartsOn,
       hideRestDays: !!hideRestDays,
+    
+      // ✅ NEW: Protein tracking toggle (default ON)
+      trackProtein: !!trackProtein,
+    
+      // If protein tracking is off, we store 0 (so nothing breaks downstream)
+      proteinGoal: trackProtein ? Math.round(cleanProtein) : 0,
+    
+      // ✅ existing default
       show3DPreview: true
     };
-
     // Seed library FIRST so template exercises can resolve to real exerciseIds
     ExerciseLibrary.ensureSeeded();
 
@@ -5259,9 +5291,9 @@ Onboarding(){
       el("h2", { text:"Create profile" }),
       el("div", { class:"form" }, [
         el("div", { class:"row2" }, [
-          el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
-          el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
-        ]),
+            el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
+            proteinGoalLabel
+          ]),
         el("div", { class:"row2" }, [
           el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ]),
           el("div", { class:"toggle" }, [
@@ -5271,6 +5303,13 @@ Onboarding(){
             ]),
             switchNode
           ])
+        ]),
+        el("div", { class:"toggle" }, [
+          el("div", { class:"ttext" }, [
+            el("div", { class:"a", text:"Track protein" }),
+            el("div", { class:"b", text:"Turn this off if you don’t want protein to appear in the app." })
+          ]),
+          proteinSwitchNode
         ]),
         errorBox
       ])
@@ -7697,7 +7736,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
 
         let hideRestDays = !!state.profile?.hideRestDays;
         let show3DPreview = (state.profile?.show3DPreview !== false); // default ON
-
+        let trackProtein = (state.profile?.trackProtein !== false);
 
         const hideRestSwitch = el("div", {
           class: "switch" + (hideRestDays ? " on" : ""),
@@ -7715,6 +7754,20 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             show3DSwitch.classList.toggle("on", show3DPreview);
           }
         });
+        
+        const proteinSwitchNode = el("div", { class:"switch" + (trackProtein ? " on" : "") });
+        proteinSwitchNode.addEventListener("click", () => {
+          trackProtein = !trackProtein;
+          proteinSwitchNode.classList.toggle("on", trackProtein);
+        
+          // live UI
+          proteinGoalLabel.style.display = trackProtein ? "" : "none";
+        
+          // persist immediately (or in your Save button handler)
+          state.profile = state.profile || {};
+          state.profile.trackProtein = !!trackProtein;
+          Storage.save(state);
+        });
 
         function saveProfile(){
           state.profile = state.profile || {};
@@ -7723,6 +7776,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
           state.profile.hideRestDays = !!hideRestDays;
           state.profile.show3DPreview = !!show3DPreview;
+          state.profile.trackProtein = !!trackProtein;
           Storage.save(state);
           showToast("Saved");
           renderView();
