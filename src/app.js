@@ -3171,29 +3171,17 @@ else root.appendChild(el("div", { class:"card" }, [
 
         const nameInput = el("input", { type:"text", placeholder:"Jordan" });
 
-        const proteinInput = el("input", { 
-          type:"number", 
-          inputmode:"numeric", 
-          placeholder:"180", 
-          min:"0" 
-        });
-
-          el("div", { class:"row" }, [
-          el("div", { class:"note", text:"Track protein?" }),
-          proteinToggle
-        ]),
-        
-        el("div", { class:"row" }, [
-          el("div", { class:"note", text:"Track weight?" }),
-          weightToggle
-        ]),
-        
+        const proteinLabel = el("label", {}, [
+          el("span", { text:"Protein goal (grams/day)" }),
+          proteinInput
+        ]);
+                
         // ✅ Protein Toggle
         const proteinToggle = el("div", { class:"switch on" });
         proteinToggle.addEventListener("click", () => {
           trackProtein = !trackProtein;
           proteinToggle.classList.toggle("on", trackProtein);
-          proteinInput.parentElement.style.display = trackProtein ? "" : "none";
+          proteinLabel.style.display = trackProtein ? "" : "none";
         });
         
         // ✅ Weight Toggle
@@ -3221,11 +3209,13 @@ else root.appendChild(el("div", { class:"card" }, [
             errorBox.style.display = "block";
             return;
           }
+          if(trackProtein){
           if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
             errorBox.textContent = "Please enter a valid daily protein goal (grams).";
             errorBox.style.display = "block";
             return;
           }
+        }
 
           const profile = {
           name: cleanName,
@@ -3280,8 +3270,22 @@ else root.appendChild(el("div", { class:"card" }, [
             el("div", { class:"form" }, [
               el("div", { class:"row2" }, [
                 el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
-                el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
+                proteinLabel
               ]),
+                el("div", { class:"row2" }, [
+                  el("div", {}, [
+                    el("div", { class:"note", text:"Track protein?" }),
+                    el("div", { class:"meta", text:"Hide protein everywhere when off" })
+                  ]),
+                  proteinToggle
+                ]),
+                el("div", { class:"row2" }, [
+                  el("div", {}, [
+                    el("div", { class:"note", text:"Track weight?" }),
+                    el("div", { class:"meta", text:"Hide weight everywhere when off" })
+                  ]),
+                  weightToggle
+                ]),
               el("div", { class:"row2" }, [
                 el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ]),
                 el("div", { class:"toggle" }, [
