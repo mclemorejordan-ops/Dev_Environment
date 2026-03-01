@@ -3409,7 +3409,16 @@ lib.core = [
       const found = (state.exerciseLibrary?.[type] || []).find(x => x.id === exerciseId);
       return found?.name || fallback || "Unknown exercise";
     }
-   /********************
+
+// -----------------------------
+// Protein feature flag (global)
+// -----------------------------
+function isProteinEnabled(){
+  // Default ON if older profiles don’t have the flag yet
+  return (state?.profile?.trackProtein !== false);
+}
+
+/********************
  * 4c) Protein (Today) Helpers (Step 5)
  * OPTION B: A date only exists if user logs >0g and saves
  ********************/
@@ -3464,6 +3473,7 @@ function findProteinEntry(dateISO){
 
 // ✅ Write-path helper (creates ONLY when we truly need to save something)
 function ensureProteinEntry(dateISO){
+  if(!isProteinEnabled()) return null;
   state.logs = state.logs || { workouts: [], weight: [], protein: [] };
   state.logs.protein = state.logs.protein || [];
   let entry = state.logs.protein.find(x => x.dateISO === dateISO);
@@ -5232,9 +5242,11 @@ proteinSwitchNode.addEventListener("click", () => {
       showError("Please enter your name.");
       return;
     }
+    // Only require a protein goal if tracking is ON
     if(trackProtein){
     if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
-    showError("Please enter a valid daily protein goal (grams).");
+    errorBox.textContent = "Please enter a valid daily protein goal (grams).";
+    errorBox.style.display = "block";
     return;
   }
 }
@@ -5243,16 +5255,15 @@ proteinSwitchNode.addEventListener("click", () => {
     // (Routine uses: state.profile?.show3DPreview !== false)  [oai_citation:4‡index.html.txt](sediment://file_000000006464722fa16b464546e64ab1)
     const profile = {
       name: cleanName,
+    
+      // Protein tracking
+      trackProtein: !!trackProtein,
+      proteinGoal: trackProtein ? Math.round(cleanProtein) : 0,
+    
       weekStartsOn,
       hideRestDays: !!hideRestDays,
     
-      // ✅ NEW: Protein tracking toggle (default ON)
-      trackProtein: !!trackProtein,
-    
-      // If protein tracking is off, we store 0 (so nothing breaks downstream)
-      proteinGoal: trackProtein ? Math.round(cleanProtein) : 0,
-    
-      // ✅ existing default
+      // 3D Preview default (ON)
       show3DPreview: true
     };
     // Seed library FIRST so template exercises can resolve to real exerciseIds
@@ -5369,71 +5380,89 @@ proteinSwitchNode.addEventListener("click", () => {
           trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
         }
 
-        // Protein
-        const goal = Number(state.profile?.proteinGoal) || 0;
-        const done = totalProtein(todayISO);
-        const left = Math.max(0, goal - done);
-        const pct = goal > 0 ? Math.max(0, Math.min(1, done / goal)) : 0;
-        const deg = Math.round(pct * 360);
+       // Protein (respect global toggle)
+const trackProtein = (state.profile?.trackProtein !== false);
 
+let goal = 0;
+let done = 0;
+let left = 0;
+let pct = 0;
+let deg = 0;
+
+// Keep function defined so later code can reference it safely if needed
 const openProteinModal = (dateISO = todayISO) => {
+  if(!trackProtein){
+    showToast("Protein tracking is off");
+    navigate("settings");
+    return;
+  }
   Modal.open({
     title: "Protein",
     bodyNode: buildProteinTodayModal(dateISO, goal)
   });
 };
 
+// Only compute totals if protein is enabled (totalProtein can auto-create entries)
+if(trackProtein){
+  goal = Number(state.profile?.proteinGoal) || 0;
+  done = totalProtein(todayISO);
+  left = Math.max(0, goal - done);
+  pct  = goal > 0 ? Math.max(0, Math.min(1, done / goal)) : 0;
+  deg  = Math.round(pct * 360);
+}
 
-        const openCheckIn = () => {
-          toggleTrained(todayISO);
-          renderView();
-        };
+const openCheckIn = () => {
+  toggleTrained(todayISO);
+  renderView();
+};
 
-        const workoutTitle = !routine ? "No routine selected"
-          : (!day ? "No day found"
-          : (day.isRest ? "Rest Day" : day.label));
+const workoutTitle = !routine ? "No routine selected"
+  : (!day ? "No day found"
+  : (day.isRest ? "Rest Day" : day.label));
 
-        const workoutSub = !routine ? "Go to Routine → create/select a routine."
-          : (!day ? "Open Routine Editor to fix day mapping."
-          : (day.isRest ? "Recovery day. Hydrate + mobility."
-          : `${(day.exercises || []).length} exercises planned`));
+const workoutSub = !routine ? "Go to Routine → create/select a routine."
+  : (!day ? "Open Routine Editor to fix day mapping."
+  : (day.isRest ? "Recovery day. Hydrate + mobility."
+  : `${(day.exercises || []).length} exercises planned`));
 
-        const workoutExercises = (day?.isRest || !day) ? []
-          : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
+const workoutExercises = (day?.isRest || !day) ? []
+  : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
 
-        const ring = el("div", {
-          class:"ringWrap",
-          style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
-        }, [
-          el("div", { class:"ringText" }, [
-            el("div", { class:"big", text: `${left}g` }),
-            el("div", { class:"small", text: "left" }),
-            el("div", { class:"small", text: `${done} / ${goal}g` })
-          ])
-        ]);
+// Build ring only if protein is enabled (prevents bogus 0/0 UI and avoids touching protein logs)
+const ring = trackProtein ? el("div", {
+  class:"ringWrap",
+  style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
+}, [
+  el("div", { class:"ringText" }, [
+    el("div", { class:"big", text: `${left}g` }),
+    el("div", { class:"small", text: "left" }),
+    el("div", { class:"small", text: `${done} / ${goal}g` })
+  ])
+]) : null;
 
-        const dots = el("div", { class:"dots" });
-        trainedThisWeek.forEach((d, idx) => {
-          const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
-          dots.appendChild(dot);
-        });
+const dots = el("div", { class:"dots" });
+trainedThisWeek.forEach((d, idx) => {
+  const dot = el("div", { class:"dotDay" + (d.trained ? " on" : "") });
+  dots.appendChild(dot);
+});
 
-        const weekLabel = weekStartsOn === "sun" ? "Week (Sun–Sat)" : "Week (Mon–Sun)";
+const weekLabel = weekStartsOn === "sun" ? "Week (Sun–Sat)" : "Week (Mon–Sun)";
 
-        const wLatest = WeightEngine.latest();
-        const wPrev = WeightEngine.previous();
-        const wDelta = (wLatest && wPrev)
-          ? (Number(wLatest.weight) - Number(wPrev.weight))
-          : null;
+const wLatest = WeightEngine.latest();
+const wPrev = WeightEngine.previous();
+const wDelta = (wLatest && wPrev)
+  ? (Number(wLatest.weight) - Number(wPrev.weight))
+  : null;
 
-        const wDeltaText = (wDelta === null || !Number.isFinite(wDelta))
-          ? "—"
-          : `${wDelta > 0 ? "+" : ""}${wDelta.toFixed(1)}`;
+const wDeltaText = (wDelta === null || !Number.isFinite(wDelta))
+  ? "—"
+  : `${wDelta > 0 ? "+" : ""}${wDelta.toFixed(1)}`;
 
-        return el("div", { class:"grid cols2" }, [
-          el("div", { class:"card" }, [
-            el("h2", { text:"Today’s workout" }),
-
+return el("div", { class:"grid cols2" }, [
+  el("div", { class:"card" }, [
+    el("h2", { text:"Today’s workout" }),
+      
+      
 // ✅ KPI + action (Edit routine) on the same row
 el("div", { class:"homeRow" }, [
   el("div", { class:"kpi" }, [
@@ -5470,7 +5499,7 @@ el("div", { style:"height:10px" }),
 //   el("button", { class:"btn", onClick: () => navigate("routine") }, ["Open Routine"])
 // ])
 
-el("div", { class:"card" }, [
+isProteinEnabled() && el("div", { class:"card" }, [
   el("h2", { text:"Protein" }),
   el("div", { class:"homeRow" }, [
     el("div", { class:"kpi" }, [
@@ -5538,6 +5567,17 @@ el("div", { class:"card" }, [
         ]);
       },
       ProteinHistory(){
+        
+        if(!isProteinEnabled()){
+        return el("div", { class:"grid" }, [
+          el("div", { class:"card" }, [
+            el("h2", { text:"Protein" }),
+            el("div", { class:"note", text:"Protein tracking is turned off in Settings." }),
+            el("div", { style:"height:10px" }),
+            el("button", { class:"btn primary", onClick: () => navigate("settings") }, ["Go to Settings"])
+          ])
+        ]);
+}
 
         const root = el("div", { class:"grid" });
 
@@ -7735,7 +7775,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
 
         let hideRestDays = !!state.profile?.hideRestDays;
         let show3DPreview = (state.profile?.show3DPreview !== false); // default ON
-        let trackProtein = (state.profile?.trackProtein !== false);
+        let trackProtein = (state?.profile?.trackProtein !== false);
 
         const hideRestSwitch = el("div", {
           class: "switch" + (hideRestDays ? " on" : ""),
@@ -7753,6 +7793,27 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             show3DSwitch.classList.toggle("on", show3DPreview);
           }
         });
+        
+        // ✅ Protein goal row node (so we can hide/show it)
+const proteinGoalRow = el("div", { class:"setRow" }, [
+  el("div", {}, [
+    el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
+    el("div", { class:"meta", text:"grams/day" })
+  ]),
+  proteinInput
+]);
+
+// ✅ Track protein toggle row (Settings)
+const trackProteinRow = el("div", { class:"setRow" }, [
+  el("div", {}, [
+    el("div", { style:"font-weight:820;", text:"Track protein" }),
+    el("div", { class:"meta", text:"Show/hide protein features across the app" })
+  ]),
+  proteinSwitchNode
+]);
+
+// Initial visibility
+proteinGoalRow.style.display = trackProtein ? "" : "none";
         
         const proteinSwitchNode = el("div", { class:"switch" + (trackProtein ? " on" : "") });
         proteinSwitchNode.addEventListener("click", () => {
@@ -7864,6 +7925,10 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             ]),
             nameInput
           ]),
+          
+          trackProteinRow,
+          proteinGoalRow,
+          
           el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
