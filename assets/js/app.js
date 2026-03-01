@@ -1945,9 +1945,8 @@ const ProgressUIEngine = {
   const last7 = this.overviewLast7Days();
   const { start: start14, end: end14 } = this._sinceDays(13);
 
-  // Helper to push with deterministic priority
-  function pushItem(key, score, title, sub, right){
-    items.push({ key, score, title, sub, right });
+  function pushItem(key, score, title, sub, pill, tier){
+    items.push({ key, score, title, sub, pill, tier });
   }
 
   // 1) Training pace vs weekly goal (highest priority)
@@ -1962,7 +1961,8 @@ const ProgressUIEngine = {
         30,
         "Training pace",
         "No workouts logged in the last 7 days",
-        "▼"
+        "Action",
+        "action"
       );
     } else if(remaining > 0){
       // Positive framing
@@ -1971,7 +1971,8 @@ const ProgressUIEngine = {
         20 + Math.min(9, remaining),
         "Training pace",
         `${remaining} workout${remaining === 1 ? "" : "s"} remaining to hit weekly goal`,
-        "▼"
+        (remaining >= 2 ? "Action" : "Focus"),
+        (remaining >= 2 ? "action" : "focus")
       );
     }
   }
@@ -1988,21 +1989,23 @@ const ProgressUIEngine = {
         25,
         "Protein consistency",
         "No protein goal hits this week",
-        "▼"
+        "Action",
+        "action"
       );
     } else if(missed > 0){
-      // Neutral coaching framing
+      // Coaching framing
       pushItem(
         "protein",
         15 + Math.min(9, missed),
         "Protein consistency",
         `${hit}/${total} days hit this week`,
-        "—"
+        (missed >= 3 ? "Focus" : "Optional"),
+        (missed >= 3 ? "focus" : "optional")
       );
     }
   }
 
-  // 3) Cardio gap (last 14 days) — only if space remains after prioritization
+  // 3) Cardio gap (last 14 days)
   const cardioAny14 = (state.logs?.workouts || []).some(e =>
     e && e.type === "cardio" && e.dateISO >= start14 && e.dateISO <= end14
   );
@@ -2012,14 +2015,15 @@ const ProgressUIEngine = {
       5,
       "Cardio consistency",
       "No cardio logged in the last 14 days",
-      "—"
+      "Optional",
+      "optional"
     );
   }
 
-  // Sort by severity score desc, then by key to be deterministic
+  // Deterministic order
   items.sort((a,b) => (b.score - a.score) || String(a.key).localeCompare(String(b.key)));
 
-  return items.slice(0, limit).map(({ title, sub, right }) => ({ title, sub, right }));
+  return items.slice(0, limit).map(({ title, sub, pill, tier }) => ({ title, sub, pill, tier }));
 },
 
     // Recent cards use ProgressUIEngine recents (if available)
@@ -5918,7 +5922,7 @@ Progress(){
         : el("div", { class:"note", text:"No recent PRs yet. Log a few sessions and this will populate." })
     ]),
 
-    // WATCHLIST (smart hybrid, no emojis)
+    /// WATCHLIST (smart hybrid, premium pill)
     (() => {
       const items = PD.watchlistOverview(2);
 
@@ -5934,7 +5938,7 @@ Progress(){
                     el("div", { class:"name", text: it.title }),
                     el("div", { class:"small", text: it.sub })
                   ]),
-                  el("div", { class:"right", text: it.right || "—" })
+                  el("span", { class:`wlPill ${it.tier || "optional"}`, text: it.pill || "Optional" })
                 ])
               )
             )
