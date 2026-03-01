@@ -5180,7 +5180,7 @@ proteinSwitchNode.addEventListener("click", () => {
   proteinSwitchNode.classList.toggle("on", trackProtein);
 
   // Hide/show the protein input row live
-  proteinGoalRow.style.display = trackProtein ? "" : "none";
+  proteinGoalLabel.style.display = trackProtein ? "" : "none";
 });
 
   // Template picker
@@ -5213,7 +5213,7 @@ proteinSwitchNode.addEventListener("click", () => {
 ]);
 
   // Initial visibility (in case default changes later)
-  proteinGoalRow.style.display = trackProtein ? "" : "none";
+  proteinGoalLabel.style.display = trackProtein ? "" : "none";
   
   const weekSelect = el("select", {});
   weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
@@ -5234,8 +5234,7 @@ proteinSwitchNode.addEventListener("click", () => {
     }
     if(trackProtein){
     if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
-    errorBox.textContent = "Please enter a valid daily protein goal (grams).";
-    errorBox.style.display = "block";
+    showError("Please enter a valid daily protein goal (grams).");
     return;
   }
 }
