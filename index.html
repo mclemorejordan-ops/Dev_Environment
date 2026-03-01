@@ -5180,7 +5180,7 @@ proteinSwitchNode.addEventListener("click", () => {
   proteinSwitchNode.classList.toggle("on", trackProtein);
 
   // Hide/show the protein input row live
-  proteinGoalLabel.style.display = trackProtein ? "" : "none";
+  proteinGoalRow.style.display = trackProtein ? "" : "none";
 });
 
   // Template picker
@@ -5213,7 +5213,7 @@ proteinSwitchNode.addEventListener("click", () => {
 ]);
 
   // Initial visibility (in case default changes later)
-  proteinGoalLabel.style.display = trackProtein ? "" : "none";
+  proteinGoalRow.style.display = trackProtein ? "" : "none";
   
   const weekSelect = el("select", {});
   weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
@@ -7761,7 +7761,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
           proteinSwitchNode.classList.toggle("on", trackProtein);
         
           // live UI
-          proteinGoalLabel.style.display = trackProtein ? "" : "none";
+          proteinGoalRow.style.display = trackProtein ? "" : "none";
         
           // persist immediately (or in your Save button handler)
           state.profile = state.profile || {};
@@ -7772,7 +7772,7 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
         function saveProfile(){
           state.profile = state.profile || {};
           state.profile.name = (nameInput.value || "").trim();
-          state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
+          state.profile.proteinGoal = trackProtein ? Math.max(0, Number(proteinInput.value || 0)) : 0;
           state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
           state.profile.hideRestDays = !!hideRestDays;
           state.profile.show3DPreview = !!show3DPreview;
@@ -7865,13 +7865,13 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
             ]),
             nameInput
           ]),
-          el("div", { class:"setRow" }, [
+        const proteinGoalRow = el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
               el("div", { class:"meta", text:"grams/day" })
             ]),
             proteinInput
-          ]),
+          ]);
           el("div", { class:"setRow" }, [
             el("div", {}, [
               el("div", { style:"font-weight:820;", text:"Week starts on" }),
