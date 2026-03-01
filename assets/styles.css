@@ -1514,7 +1514,16 @@ body.modalOpen{
 .routineDayStrip{
   display:flex;
   gap: 8px;
-  justify-content:space-between;
+  /*
+    iOS Safari can occasionally produce subtle horizontal overflow when
+    `justify-content: space-between` is combined with `gap` and flex children
+    that dynamically change content (ex: 3D Preview ON/OFF).
+    We rely on flex sizing + gap, and keep the strip hard-clipped to the
+    viewport to prevent any width "expansion" / horizontal scroll.
+  */
+  justify-content:flex-start;
+  width: 100%;
+  overflow-x: hidden;
   margin-top: 20px;
 }
 
