@@ -1938,61 +1938,89 @@ const ProgressUIEngine = {
 
     watchlistOverview(cap){
   LogEngine.ensure();
-  const out = [];
   const limit = Math.max(0, Math.round(Number(cap || 2)));
+  const items = [];
 
-  // ---- window helpers ----
-  const last7 = this.overviewLast7Days(); // already consistent
+  // Windows
+  const last7 = this.overviewLast7Days();
   const { start: start14, end: end14 } = this._sinceDays(13);
 
-  // ---- 1) Protein consistency (only if tracking enabled) ----
-  if(last7.proteinTotal > 0){
-    const missed = Math.max(0, (last7.proteinTotal || 0) - (last7.proteinHit || 0));
-    if(missed > 0){
-      out.push({
-        key: "protein",
-        title: "Protein below goal",
-        sub: `${missed} day${missed === 1 ? "" : "s"} below goal in the last 7 days`,
-        tone: "warn",
-        icon: "🍗",
-        right: "▼"
-      });
+  // Helper to push with deterministic priority
+  function pushItem(key, score, title, sub, right){
+    items.push({ key, score, title, sub, right });
+  }
+
+  // 1) Training pace vs weekly goal (highest priority)
+  const wkGoal = Math.max(0, Math.round(Number(state.profile?.workoutsPerWeekGoal || 0)));
+  if(wkGoal > 0){
+    const done = Math.max(0, Number(last7.workouts || 0));
+    const remaining = Math.max(0, wkGoal - done);
+
+    if(done === 0){
+      pushItem(
+        "workouts",
+        30,
+        "Training pace",
+        "No workouts logged in the last 7 days",
+        "▼"
+      );
+    } else if(remaining > 0){
+      // Positive framing
+      pushItem(
+        "workouts",
+        20 + Math.min(9, remaining),
+        "Training pace",
+        `${remaining} workout${remaining === 1 ? "" : "s"} remaining to hit weekly goal`,
+        "▼"
+      );
     }
   }
 
-  // ---- 2) Workouts pace (uses profile goal if set) ----
-  const wkGoal = Math.max(0, Math.round(Number(state.profile?.workoutsPerWeekGoal || 0)));
-  if(wkGoal > 0 && last7.workouts < wkGoal){
-    const behind = Math.max(0, wkGoal - last7.workouts);
-    out.push({
-      key: "workouts",
-      title: "Training volume",
-      sub: `Only ${last7.workouts}/${wkGoal} workouts in the last 7 days (${behind} behind goal)`,
-      tone: "warn",
-      icon: "🏋️",
-      right: "▼"
-    });
+  // 2) Protein consistency (only if tracking enabled)
+  if(last7.proteinTotal > 0){
+    const hit = Math.max(0, Number(last7.proteinHit || 0));
+    const total = Math.max(0, Number(last7.proteinTotal || 0));
+    const missed = Math.max(0, total - hit);
+
+    if(hit === 0 && total > 0){
+      pushItem(
+        "protein",
+        25,
+        "Protein consistency",
+        "No protein goal hits this week",
+        "▼"
+      );
+    } else if(missed > 0){
+      // Neutral coaching framing
+      pushItem(
+        "protein",
+        15 + Math.min(9, missed),
+        "Protein consistency",
+        `${hit}/${total} days hit this week`,
+        "—"
+      );
+    }
   }
 
-  // ---- 3) Cardio gap (last 14 days) ----
-  const cardioCount14 = (state.logs?.workouts || []).some(e =>
+  // 3) Cardio gap (last 14 days) — only if space remains after prioritization
+  const cardioAny14 = (state.logs?.workouts || []).some(e =>
     e && e.type === "cardio" && e.dateISO >= start14 && e.dateISO <= end14
   );
-  if(!cardioCount14){
-    out.push({
-      key: "cardio_gap",
-      title: "Cardio gap",
-      sub: "No cardio logged in the last 14 days",
-      tone: "flat",
-      icon: "🏃",
-      right: "—"
-    });
+  if(!cardioAny14){
+    pushItem(
+      "cardio_gap",
+      5,
+      "Cardio consistency",
+      "No cardio logged in the last 14 days",
+      "—"
+    );
   }
 
-  // Deterministic order (as pushed). Cap.
-  return out.slice(0, limit);
-},
+  // Sort by severity score desc, then by key to be deterministic
+  items.sort((a,b) => (b.score - a.score) || String(a.key).localeCompare(String(b.key)));
 
+  return items.slice(0, limit).map(({ title, sub, right }) => ({ title, sub, right }));
+},
 
     // Recent cards use ProgressUIEngine recents (if available)
     recentCards(type, cap){
@@ -5890,20 +5918,20 @@ Progress(){
         : el("div", { class:"note", text:"No recent PRs yet. Log a few sessions and this will populate." })
     ]),
 
-    // WATCHLIST (dynamic)
+    // WATCHLIST (smart hybrid, no emojis)
     (() => {
       const items = PD.watchlistOverview(2);
-    
+
       return el("div", { class:"card" }, [
         el("div", { class:"kicker", text:"Watchlist" }),
-    
+
         (items.length === 0)
           ? el("div", { class:"note", text:"Watchlist will populate as you log more sessions." })
           : el("div", { class:"list", style:"border-top:none; margin-top:8px;" },
               items.map(it =>
                 el("div", { class:"item" }, [
                   el("div", { class:"left" }, [
-                    el("div", { class:"name", text: `${it.icon || "•"} ${it.title}` }),
+                    el("div", { class:"name", text: it.title }),
                     el("div", { class:"small", text: it.sub })
                   ]),
                   el("div", { class:"right", text: it.right || "—" })
