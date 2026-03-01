@@ -54,105 +54,30 @@
 
   <style>
 :root{
-  /* Slightly richer glass + better separation */
-  --glass: rgba(16,20,30,.78);
-  --glass2: rgba(16,20,30,.62);
-  --glassStrong: rgba(16,20,30,.92);
-  --glassBorder: rgba(255,255,255,.12);
+      --bg: #0b0f17;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.09);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.62);
+      --hair: rgba(255,255,255,.10);
 
-  /* Deeper shadow, cleaner “floating” feel */
-  --shadow: 0 22px 55px rgba(0,0,0,.52);
+      --accent: #7c5cff;
+      --good: #37d67a;
+      --warn: #ffd166;
+      --bad: #ff5c7a;
 
-  /* Slightly softer radius (keeps your aesthetic) */
-  --r: 20px;
+      --r: 18px;
+      --shadow: 0 18px 40px rgba(0,0,0,.45);
 
-  /* Improve legibility a touch */
-  --text: rgba(255,255,255,.94);
-  --muted: rgba(255,255,255,.68);
-  --hair: rgba(255,255,255,.12);
-}
+      /* Unified "glass" theme tokens (header + nav + modals match) */
+      --glass: rgba(16,20,30,.72);
+      --glass2: rgba(16,20,30,.55);
+      --glassStrong: rgba(16,20,30,.88);
+      --glassBorder: rgba(255,255,255,.10);
+      --blur: 18px;
 
-/* Smoothen general interactions without changing layout */
-.card,
-.btn,
-.navbar,
-.navbtn,
-.chip,
-input, select, textarea{
-  transition: transform .08s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease, opacity .18s ease;
-}
-
-/* Cards: slightly cleaner gradient + subtle highlight edge */
-.card{
-  background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
-  border-color: rgba(255,255,255,.12);
-  box-shadow: var(--shadow);
-}
-
-/* Card headings: slightly clearer */
-.card h2{
-  color: rgba(255,255,255,.70);
-  letter-spacing: .34px;
-}
-
-/* Buttons: more “pressable”, better tap feel */
-.btn{
-  border-color: rgba(255,255,255,.14);
-  box-shadow: 0 10px 26px rgba(0,0,0,.35);
-}
-.btn:active{
-  transform: translateY(1px);
-  box-shadow: 0 8px 18px rgba(0,0,0,.28);
-}
-
-/* Inputs: reduce flatness + unify focus ring */
-input, select, textarea{
-  background: rgba(255,255,255,.07);
-  border-color: rgba(255,255,255,.14);
-}
-input:focus, select:focus, textarea:focus{
-  border-color: rgba(124,92,255,.46);
-  box-shadow: 0 0 0 4px rgba(124,92,255,.18);
-}
-
-/* Chips: slightly more glassy */
-.chip{
-  background: rgba(255,255,255,.075);
-  border-color: rgba(255,255,255,.12);
-}
-
-/* Header: subtle improvement, keep your rounded/blur look */
-header{
-  border-bottom: 1px solid rgba(255,255,255,.10);
-  box-shadow: 0 14px 36px rgba(0,0,0,.40);
-}
-
-/* Bottom nav: clearer separation + nicer active state */
-.navbar{
-  background: rgba(16,20,30,.82);
-  border-color: rgba(255,255,255,.12);
-  box-shadow: 0 22px 60px rgba(0,0,0,.62);
-}
-.navbtn .dot{
-  background: rgba(255,255,255,.07);
-  border-color: rgba(255,255,255,.12);
-}
-.navbtn.active{
-  background: rgba(124,92,255,.16);
-  border: 1px solid rgba(124,92,255,.26);
-  box-shadow: 0 0 0 1px rgba(124,92,255,.10) inset;
-}
-.navbtn.active .dot{
-  background: rgba(124,92,255,.26);
-  border-color: rgba(124,92,255,.34);
-}
-
-/* Respect reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .card, .btn, .navbar, .navbtn, .chip, input, select, textarea{
-    transition: none !important;
-  }
-}
+      --navH: 78px;
+    }
 
     *{ box-sizing:border-box; }
     html,body{ height:100%; }
