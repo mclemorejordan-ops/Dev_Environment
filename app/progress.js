@@ -249,20 +249,15 @@ export function initProgress({ getState, Storage, uid, Dates, Modal, el }){
     return __weightChart;
   }
 
-  return {
-    // formatting
-    formatTime,
-    formatPace,
-
-    // progress chart
-    destroyProgressChart,
-    downloadCanvasPNG,
-    buildSeries,
-    renderProgressChart,
-
-    // weight
-    WeightEngine,
-    destroyWeightChart,
-    renderWeightChart
-  };
+  const {
+  formatTime,
+  formatPace,
+  destroyProgressChart,
+  downloadCanvasPNG,
+  buildSeries,
+  renderProgressChart,
+  WeightEngine,
+  destroyWeightChart,
+  renderWeightChart
+} = initProgress({ getState: () => state, Storage, uid, Dates, Modal, el });
 }
