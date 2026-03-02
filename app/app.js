@@ -402,6 +402,7 @@ const ProteinUI = initProteinUI({
   navigate: (route) => navigate(route),
 
   UIState,
+  showToast,
 
   findProteinEntry,
   cleanupProteinEntryIfEmpty,
