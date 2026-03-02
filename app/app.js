@@ -626,18 +626,28 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
         }
 
         // Protein
-        const goal = Number(state.profile?.proteinGoal) || 0;
-        const done = totalProtein(todayISO);
-        const left = Math.max(0, goal - done);
-        const pct = goal > 0 ? Math.max(0, Math.min(1, done / goal)) : 0;
-        const deg = Math.round(pct * 360);
+const goal = Number(state.profile?.proteinGoal) || 0;
 
-const openProteinModal = (dateISO = todayISO) => {
-  Modal.open({
-    title: "Protein",
-    bodyNode: buildProteinTodayModal(dateISO, goal)
-  });
-};
+// ✅ Option B: Hide Protein card entirely when goal = 0
+const showProtein = goal > 0;
+
+// Only compute protein progress when it will be shown
+const done = showProtein ? totalProtein(todayISO) : 0;
+const left = showProtein ? Math.max(0, goal - done) : 0;
+const pct  = showProtein ? Math.max(0, Math.min(1, done / goal)) : 0;
+const deg  = Math.round(pct * 360);
+
+let openProteinModal = null;
+let ring = null;
+
+if(showProtein){
+  openProteinModal = (dateISO = todayISO) => {
+    Modal.open({
+      title: "Protein",
+      bodyNode: buildProteinTodayModal(dateISO, goal)
+    });
+  };
+
 
 
         const openCheckIn = () => {
@@ -657,16 +667,17 @@ const openProteinModal = (dateISO = todayISO) => {
         const workoutExercises = (day?.isRest || !day) ? []
           : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
 
-        const ring = el("div", {
-          class:"ringWrap",
-          style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
-        }, [
-          el("div", { class:"ringText" }, [
-            el("div", { class:"big", text: `${left}g` }),
-            el("div", { class:"small", text: "left" }),
-            el("div", { class:"small", text: `${done} / ${goal}g` })
-          ])
-        ]);
+        ring = el("div", {
+    class:"ringWrap",
+    style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
+  }, [
+    el("div", { class:"ringText" }, [
+      el("div", { class:"big", text: `${left}g` }),
+      el("div", { class:"small", text: "left" }),
+      el("div", { class:"small", text: `${done} / ${goal}g` })
+    ])
+  ]);
+}
 
         const dots = el("div", { class:"dots" });
         trainedThisWeek.forEach((d, idx) => {
@@ -726,7 +737,7 @@ el("div", { style:"height:10px" }),
 //   el("button", { class:"btn", onClick: () => navigate("routine") }, ["Open Routine"])
 // ])
 
-el("div", { class:"card" }, [
+showProtein ? el("div", { class:"card" }, [
   el("h2", { text:"Protein" }),
   el("div", { class:"homeRow" }, [
     el("div", { class:"kpi" }, [
@@ -739,7 +750,7 @@ el("div", { class:"card" }, [
   el("div", { class:"btnrow" }, [
     el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
   ])
-]),
+]) : null,
 
 el("div", { class:"card" }, [
   // Header row + action buttons
