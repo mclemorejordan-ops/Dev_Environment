@@ -404,7 +404,17 @@ window.addEventListener("unhandledrejection", (ev) => {
 * 6) Router (extracted to router.js)
 ********************/
 
-    
+// IMPORTANT: Protein UI needs navigate(), but Router wiring happens later (after Views exist).
+// If we reference `const navigate` before it’s initialized, JS throws a TDZ ReferenceError.
+// So we define a safe placeholder here and assign the real Router.navigate in the 7b block.
+let navigate = (route) => {
+  try{
+    // fallback behavior if called extremely early (should be rare)
+    const r = String(route || "").replace(/^#/, "");
+    if(r) location.hash = `#${r}`;
+  }catch(_){}
+};
+
 /********************
  * 6b) Protein UI wiring (Phase 3.4)
  ********************/
@@ -5022,7 +5032,9 @@ const Router = initRouter({
   checkForUpdates
 });
 
-const { Routes, navigate, renderNav, renderView, getCurrentRoute } = Router;
+// Pull router funcs, but DO NOT redeclare `navigate` (we already defined it above).
+const { Routes, renderNav, renderView, getCurrentRoute } = Router;
+navigate = Router.navigate;
 
 
 /********************
