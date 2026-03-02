@@ -396,7 +396,11 @@ const ProteinUI = initProteinUI({
   Modal,
   el,
   $,
-  navigate,
+
+  // ✅ IMPORTANT: pass a wrapper so ProteinUI always uses the latest `navigate`
+  // (the variable is reassigned later to Router.navigate)
+  navigate: (route) => navigate(route),
+
   UIState,
 
   findProteinEntry,
