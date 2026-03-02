@@ -3613,3 +3613,6 @@ const root = el("div", { class:"settingsWrap" }, [
         return root;
       }
     }; //  end Views object
+
+  return Views;
+}
