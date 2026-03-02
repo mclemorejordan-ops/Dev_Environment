@@ -16,6 +16,7 @@ export function initProteinUI({
   $,
   navigate,
   UIState,
+  showToast,
 
   // Logs.protein helpers
   findProteinEntry,
@@ -30,6 +31,7 @@ export function initProteinUI({
   if(typeof $ !== "function") throw new Error("initProteinUI requires $()");
   if(typeof navigate !== "function") throw new Error("initProteinUI requires navigate()");
   if(!UIState) throw new Error("initProteinUI requires UIState");
+  if(typeof showToast !== "function") throw new Error("initProteinUI requires showToast()");
   if(typeof findProteinEntry !== "function") throw new Error("initProteinUI requires findProteinEntry()");
   if(typeof cleanupProteinEntryIfEmpty !== "function") throw new Error("initProteinUI requires cleanupProteinEntryIfEmpty()");
   if(typeof upsertMeal !== "function") throw new Error("initProteinUI requires upsertMeal()");
@@ -250,6 +252,9 @@ export function initProteinUI({
 
         repaintProgress();
         renderLegacy();
+
+        // ✅ restore saved prompt
+        showToast("Saved");
       }
     }, ["Save"]);
 
