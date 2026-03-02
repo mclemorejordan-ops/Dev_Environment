@@ -464,6 +464,7 @@ const Views = initViews({
   // engines + helpers used by views
   ExerciseLibrary,
   Routines,
+  resolveExerciseName,
   RoutineTemplates,
   createRoutineFromTemplate,
   repairExerciseLinks,
