@@ -2750,9 +2750,13 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
         AttendanceEngine.ensure();
 
-        // default month = current
+        // ✅ keep calendar month stable across re-renders (UI-only; not saved)
+        const ui = UIState.attendance || (UIState.attendance = {});
+
+        // default month = current (only if we haven't navigated months yet)
         const today = Dates.todayISO();
-        let { y, m } = ymFromISO(today);
+        let { y, m } = (ui.y && ui.m) ? { y: ui.y, m: ui.m } : ymFromISO(today);
+        if(!ui.y || !ui.m){ ui.y = y; ui.m = m; }
 
         const weekStartsOn = state.profile?.weekStartsOn || "mon"; // affects calendar header order
         const weekStart = (weekStartsOn === "sun") ? 0 : 1;
@@ -2792,6 +2796,10 @@ statsHost.appendChild(el("div", { class:"pill" }, [
                       AttendanceEngine.clearMonth(y, m);
                       Modal.close();
                       repaint();
+
+                      // ✅ preserve month when Attendance re-renders
+                      ui.y = y; ui.m = m;
+
                       renderView(); // Home dots update too
                     }
                   }, ["Clear month"]),
@@ -2827,6 +2835,10 @@ statsHost.appendChild(el("div", { class:"pill" }, [
           m += delta;
           if(m <= 0){ m = 12; y -= 1; }
           if(m >= 13){ m = 1; y += 1; }
+
+          // ✅ persist selected month
+          ui.y = y; ui.m = m;
+
           repaint();
         }
 
@@ -2838,6 +2850,10 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
         function repaint(){
           AttendanceEngine.ensure();
+
+          // ✅ persist selected month (defensive)
+          ui.y = y; ui.m = m;
+
           title.textContent = monthTitle(y, m);
 
           const count = AttendanceEngine.monthCount(y, m);
@@ -2871,6 +2887,10 @@ statsHost.appendChild(el("div", { class:"pill" }, [
               onClick: () => {
                 toggleTrained(dateISO);
                 repaint();
+
+                // ✅ preserve month when Attendance re-renders
+                ui.y = y; ui.m = m;
+
                 renderView(); // updates Home dots too
               }
             });
