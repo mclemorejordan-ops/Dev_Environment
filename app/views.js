@@ -46,6 +46,7 @@ export function initViews(ctx){
     // core engines + helpers
     ExerciseLibrary,
     Routines,
+    resolveExerciseName,
     RoutineTemplates,
     createRoutineFromTemplate,
     repairExerciseLinks,
