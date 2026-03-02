@@ -15,22 +15,25 @@ const APP_SHELL = [
   "./assets/styles.css",
 
   "./app/app.js",
+  "./app/bootstrap.js",
+   
   "./app/state.js",
   "./app/storage.js",
   "./app/ui.js",
   "./app/versioning.js",
-  "./app/routines.js",
+   
   "./app/library.js",
+  "./app/router.js",
+  "./app/protein-ui.js",
+  "./app/attendance-ui.js",
+
+  "./app/routines.js",
   "./app/logs.js",
   "./app/workouts.js",
   "./app/progress.js",
   "./app/attendance.js",
   "./app/backup.js",
   "./app/settings.js",
-  "./app/router.js",
-  "./app/protein-ui.js",
-  "./app/attendance-ui.js",
-
 
   "./manifest.webmanifest",
   "./icon.svg"
