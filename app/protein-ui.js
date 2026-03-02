@@ -58,7 +58,22 @@ export function initProteinUI({
   }
 
   function buildProteinTodayModal(dateISO, goal){
-    const container = el("div", { class:"grid" });
+  const container = el("div", { class:"grid" });
+
+  // ✅ If user disabled protein tracking, don’t allow logging UI
+  const trackProtein = (getState()?.profile?.trackProtein !== false);
+  if(!trackProtein){
+    container.appendChild(el("div", { class:"card" }, [
+      el("h2", { text:"Protein" }),
+      el("div", { class:"note", text:"Protein tracking is disabled in your profile. Enable it in Settings if you want to track meals." }),
+      el("div", { style:"height:12px" }),
+      el("div", { class:"btnrow" }, [
+        el("button", { class:"btn primary", onClick: () => { Modal.close(); navigate("settings"); } }, ["Go to Settings"]),
+        el("button", { class:"btn", onClick: () => Modal.close() }, ["Close"])
+      ])
+    ]));
+    return container;
+  }
 
     // ---- helpers ----
     const MEAL_LABELS = ["Morning", "Lunch", "Pre-Gym", "Dinner", "Bedtime"];
