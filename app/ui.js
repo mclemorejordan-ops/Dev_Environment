@@ -37,7 +37,7 @@ export const Dates = {
     return typeof dateISO === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateISO);
   },
 
-  // ✅ Backwards-compat alias (some modules still call Dates.fromISO)
+  // ✅ Backwards compatibility (protein-ui expects this)
   fromISO(dateISO){
     return this.parseISO(dateISO);
   },
@@ -57,7 +57,7 @@ export const Dates = {
     const baseISO = this.isISO(dateISO) ? dateISO : this.todayISO();
     const d = new Date(baseISO + "T00:00:00");
 
-    const dow = d.getDay(); // 0=Sun..6=Sat
+    const dow = d.getDay();
     const weekStart = (weekStartsOn === "sun") ? 0 : 1;
 
     let diff = dow - weekStart;
