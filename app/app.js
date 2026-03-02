@@ -432,13 +432,13 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
     switchNode.classList.toggle("on", hideRestDays);
   });
 
-  // Track protein toggle
+  // Track protein toggle (NEW)
   const proteinSwitch = el("div", { class:"switch on" });
   proteinSwitch.addEventListener("click", () => {
     trackProtein = !trackProtein;
     proteinSwitch.classList.toggle("on", trackProtein);
 
-    // If user disables protein tracking, clear/disable the goal input
+    // Disable/enable goal input so users aren’t forced to fill it
     if(!trackProtein){
       try{ proteinInput.value = ""; }catch(_){}
       try{ proteinInput.disabled = true; }catch(_){}
@@ -465,15 +465,9 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
   renderTplCards();
 
   const nameInput = el("input", { type:"text", placeholder:"Jordan" });
+  const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
 
-  const proteinInput = el("input", {
-    type:"number",
-    inputmode:"numeric",
-    placeholder:"180",
-    min:"0"
-  });
-
-  // ensure initial enabled state matches default toggle (ON)
+  // initial state matches default toggle (ON)
   try{ proteinInput.disabled = false; }catch(_){}
 
   const weekSelect = el("select", {});
@@ -510,7 +504,7 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
       weekStartsOn,
       hideRestDays: !!hideRestDays,
 
-      // ✅ NEW: Protein tracking toggle (default ON)
+      // NEW: trackProtein flag
       trackProtein: !!trackProtein,
 
       // ✅ NEW: 3D Preview default (ON)
@@ -563,11 +557,11 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
           ])
         ]),
 
-        // ✅ NEW: Track protein toggle (same style as Hide rest days)
+        // NEW: Track protein toggle
         el("div", { class:"toggle" }, [
           el("div", { class:"ttext" }, [
             el("div", { class:"a", text:"Track protein" }),
-            el("div", { class:"b", text:"Turn off if you don’t want Protein on Home or in modals." })
+            el("div", { class:"b", text:"Turn off if you don’t want Protein tracking on Home or in modals." })
           ]),
           proteinSwitch
         ]),
@@ -634,7 +628,6 @@ const trackProtein = (state.profile?.trackProtein !== false);
 let proteinCard = null;
 
 if(trackProtein){
-
   const goal = Number(state.profile?.proteinGoal) || 0;
   const done = totalProtein(todayISO);
   const left = Math.max(0, goal - done);
