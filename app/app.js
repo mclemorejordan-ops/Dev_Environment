@@ -628,12 +628,13 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
           trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
         }
 
-        // Protein (optional)
+       // Protein (optional)
 const trackProtein = (state.profile?.trackProtein !== false);
 
 let proteinCard = null;
 
 if(trackProtein){
+
   const goal = Number(state.profile?.proteinGoal) || 0;
   const done = totalProtein(todayISO);
   const left = Math.max(0, goal - done);
