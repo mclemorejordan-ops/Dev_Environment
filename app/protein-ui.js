@@ -241,7 +241,7 @@ export function initProteinUI({
             MEAL_LABELS.forEach(lbl => {
               const grams = Math.max(0, Number(slot[lbl] || 0));
             
-              // ✅ logs.js contract: upsertMeal(dateISO, mealId, label, grams)
+              // ✅ Use positional signature to match logs.js
               upsertMeal(
                 dateISO,
                 slotId[lbl] || null,
@@ -249,12 +249,15 @@ export function initProteinUI({
                 grams
               );
             });
-
-        UIState.protein = UIState.protein || {};
-        UIState.protein.dateISO = dateISO;
-
-        repaintProgress();
-        renderLegacy();
+            
+            UIState.protein = UIState.protein || {};
+            UIState.protein.dateISO = dateISO;
+            
+            repaintProgress();
+            renderLegacy();
+            
+            // ✅ Force Home to re-render so the ring updates behind the modal
+            navigate("home");
 
         // ✅ restore saved prompt
         showToast("Saved");
