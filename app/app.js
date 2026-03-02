@@ -66,6 +66,8 @@ import { initSettings } from "./settings.js";
 
 import { initProteinUI } from "./protein-ui.js";
 
+import { initAttendanceUI } from "./attendance-ui.js";
+
 import { initRouter } from "./router.js";
 
 // ✅ Load state AFTER Storage exists
@@ -197,58 +199,25 @@ const UIState = window.__GymDashUIState || (window.__GymDashUIState = {
       return { routine, day, dayIndex: idx };
     }
 
-    function isTrained(dateISO){
-      return (state.attendance || []).includes(dateISO);
-    }
+/********************
+ * Attendance Calendar UI (Phase 3.5) — moved to /app/attendance-ui.js
+ ********************/
+const AttendanceUI = initAttendanceUI({
+  getState: () => state,
+  Storage,
+  pad2
+});
 
-    function toggleTrained(dateISO){
-      state.attendance = state.attendance || [];
-      const i = state.attendance.indexOf(dateISO);
-      if(i >= 0) state.attendance.splice(i, 1);
-      else state.attendance.push(dateISO);
-      Storage.save(state);
-    }
-    /********************
-     * Attendance Helpers (Step 9)
-     ********************/
-    function ymFromISO(dateISO){
-      const [y,m] = String(dateISO).split("-").map(x => parseInt(x,10));
-      return { y, m }; // m = 1..12
-    }
-
-    function monthTitle(y, m){
-      const d = new Date(y, m-1, 1);
-      return d.toLocaleString(undefined, { month:"long", year:"numeric" });
-    }
-
-    function daysInMonth(y, m){
-      return new Date(y, m, 0).getDate(); // m is 1..12
-    }
-
-    function firstDayDow(y, m){
-      return new Date(y, m-1, 1).getDay(); // 0=Sun..6=Sat
-    }
-
-    function isoForYMD(y, m, d){
-      return `${y}-${pad2(m)}-${pad2(d)}`;
-    }
-
-    const AttendanceEngine = {
-      ensure(){
-        state.attendance = state.attendance || [];
-      },
-      monthCount(y, m){
-        this.ensure();
-        const prefix = `${y}-${pad2(m)}-`;
-        return state.attendance.filter(x => String(x).startsWith(prefix)).length;
-      },
-      clearMonth(y, m){
-        this.ensure();
-        const prefix = `${y}-${pad2(m)}-`;
-        state.attendance = state.attendance.filter(x => !String(x).startsWith(prefix));
-        Storage.save(state);
-      }
-    };
+const {
+  isTrained,
+  toggleTrained,
+  ymFromISO,
+  monthTitle,
+  daysInMonth,
+  firstDayDow,
+  isoForYMD,
+  AttendanceEngine
+} = AttendanceUI;
 
 // ─────────────────────────────
 // Phase 3.2: Exercise Library + Templates extracted to /app/library.js
