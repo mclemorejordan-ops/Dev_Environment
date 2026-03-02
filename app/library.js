@@ -337,13 +337,6 @@ const RoutineTemplates = [
         lib.cardio = lib.cardio || [];
         lib.core = lib.core || [];
 
-        if(empty){
-          // ===================================================
-// COPY-PASTE JSON LIBS (Weightlifting / Core / Cardio)
-// Format per item:
-// { id, type, name, equipment, primaryMuscle, secondaryMuscles, createdAt }
-// ===================================================
-
 lib.weightlifting = [
   // --- Barbell ---
   { id: uid("ex"), type:"weightlifting", name:"Barbell Bench Press", equipment:"Barbell", primaryMuscle:"Chest", secondaryMuscles:["Triceps"], createdAt:Date.now() },
