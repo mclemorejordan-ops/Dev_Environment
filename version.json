@@ -1,5 +1,5 @@
 {
-  "version": "2.8.5",
+  "version": "2.8.6",
   "buildDate": "2026-03-01",
   "notes": [
     "Fix: Service worker APP_SHELL syntax + ensure module shell cached for offline"
