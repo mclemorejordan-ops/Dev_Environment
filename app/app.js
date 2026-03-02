@@ -136,6 +136,7 @@ const {
 } = Attendance;
 
 const {
+  round2,
   formatTime,
   formatPace,
   destroyProgressChart,
