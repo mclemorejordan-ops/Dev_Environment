@@ -523,7 +523,7 @@ lib.core = [
   { id: uid("ex"), type:"core", name:"Hollow Body Hold", equipment:"Bodyweight", primaryMuscle:"Core", secondaryMuscles:["Abs"], createdAt:Date.now() },
   { id: uid("ex"), type:"core", name:"Dragon Flag", equipment:"Bench", primaryMuscle:"Core", secondaryMuscles:["Abs"], createdAt:Date.now() },
   { id: uid("ex"), type:"core", name:"Medicine Ball Slam", equipment:"Medicine Ball", primaryMuscle:"Core", secondaryMuscles:["Full Body"], createdAt:Date.now() },
-  { id: uid("ex"), type:"core", name:"Medicine Ball Russian Twist", equipment:"Medicine Ball", primaryMuscle:"Core", secondaryMuscles:["Obliques"], createdAt:Date.now() },
+  { id: uid("ex"), type:"core", name:"Medicine Ball Russian Twist", equipment:"Medicine Ball", primaryMuscle:"Core", secondaryMuscles:["Obliques"], createdAt:Date.now() }
 ];
 
         }
