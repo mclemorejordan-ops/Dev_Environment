@@ -58,21 +58,7 @@ export function initProteinUI({
   }
 
   function buildProteinTodayModal(dateISO, goal){
-  const container = el("div", { class:"grid" });
-
-  // If protein tracking is disabled, don’t allow logging UI
-  const trackProtein = (getState()?.profile?.trackProtein !== false);
-  if(!trackProtein){
-    container.appendChild(el("div", { class:"card" }, [
-      el("h2", { text:"Protein" }),
-      el("div", { class:"note", text:"Protein tracking is disabled in your profile." }),
-      el("div", { style:"height:12px" }),
-      el("div", { class:"btnrow" }, [
-        el("button", { class:"btn", onClick: () => Modal.close() }, ["Close"])
-      ])
-    ]));
-    return container;
-  }
+    const container = el("div", { class:"grid" });
 
     // ---- helpers ----
     const MEAL_LABELS = ["Morning", "Lunch", "Pre-Gym", "Dinner", "Bedtime"];
