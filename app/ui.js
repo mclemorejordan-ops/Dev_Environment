@@ -37,6 +37,11 @@ export const Dates = {
     return typeof dateISO === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateISO);
   },
 
+  // ✅ Backwards-compat alias (some modules still call Dates.fromISO)
+  fromISO(dateISO){
+    return this.parseISO(dateISO);
+  },
+
   parseISO(dateISO){
     if(!this.isISO(dateISO)) return null;
     const d = new Date(dateISO + "T00:00:00");
