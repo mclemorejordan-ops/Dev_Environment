@@ -24,9 +24,20 @@ export function initSettings({
 }){
   if(typeof getState !== "function") throw new Error("initSettings requires getState()");
   if(!Storage) throw new Error("initSettings requires Storage");
+  if(!Modal) throw new Error("initSettings requires Modal");
   if(typeof el !== "function") throw new Error("initSettings requires el()");
   if(typeof $ !== "function") throw new Error("initSettings requires $()");
-  if(!Modal) throw new Error("initSettings requires Modal");
+
+  // ✅ Hardening: fail-fast if any injected helper is missing/renamed
+  if(typeof showToast !== "function") throw new Error("initSettings requires showToast()");
+  if(typeof appStorageBytes !== "function") throw new Error("initSettings requires appStorageBytes()");
+  if(typeof bytesToNice !== "function") throw new Error("initSettings requires bytesToNice()");
+
+  if(typeof exportBackupJSON !== "function") throw new Error("initSettings requires exportBackupJSON()");
+  if(typeof importBackupJSON !== "function") throw new Error("initSettings requires importBackupJSON()");
+  if(typeof downloadTextFile !== "function") throw new Error("initSettings requires downloadTextFile()");
+
+  if(typeof openVersionModal !== "function") throw new Error("initSettings requires openVersionModal()");
 
   function confirmDanger({ title, message, confirmText, onConfirm }){
     Modal.open({
@@ -57,7 +68,7 @@ export function initSettings({
         el("div", { class:"note", text:"About" }),
         el("div", { style:"height:10px" }),
         el("div", { class:"btnrow" }, [
-          el("button", { class:"btn", onClick: () => openVersionModal && openVersionModal() }, ["Version / Updates"]),
+          el("button", { class:"btn", onClick: () => openVersionModal() }, ["Version / Updates"]),
         ])
       ]),
 
