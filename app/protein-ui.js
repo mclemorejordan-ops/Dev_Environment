@@ -238,14 +238,17 @@ export function initProteinUI({
       class:"btn primary",
       onClick: () => {
         // Persist the five standard meal slots using Logs.protein.upsertMeal
-        MEAL_LABELS.forEach(lbl => {
-          const grams = Math.max(0, Number(slot[lbl] || 0));
-          upsertMeal(dateISO, {
-            id: slotId[lbl] || undefined,
-            label: lbl,
-            grams
-          });
-        });
+            MEAL_LABELS.forEach(lbl => {
+              const grams = Math.max(0, Number(slot[lbl] || 0));
+            
+              // ✅ logs.js contract: upsertMeal(dateISO, mealId, label, grams)
+              upsertMeal(
+                dateISO,
+                slotId[lbl] || null,
+                lbl,
+                grams
+              );
+            });
 
         UIState.protein = UIState.protein || {};
         UIState.protein.dateISO = dateISO;
