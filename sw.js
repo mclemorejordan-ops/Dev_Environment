@@ -20,6 +20,7 @@ const APP_SHELL = [
   "./app/ui.js",
   "./app/versioning.js",
   "./app/routines.js",
+  "./app/library.js",
   "./app/logs.js",
   "./app/workouts.js",
   "./app/progress.js",
