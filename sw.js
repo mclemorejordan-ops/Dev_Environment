@@ -27,8 +27,8 @@ const APP_SHELL = [
   "./app/attendance.js",
   "./app/backup.js",
   "./app/settings.js",
-  "./app/router.js"
-
+  "./app/router.js",
+  "./app/protein-ui.js",
 
   "./manifest.webmanifest",
   "./icon.svg"
