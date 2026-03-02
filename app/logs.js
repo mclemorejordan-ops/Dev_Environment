@@ -57,17 +57,39 @@ export function initLogs({ getState, Storage, uid }){
   // Save/update a meal:
   // - If grams <= 0 → treat as "no log" and delete meal if it exists
   // - If grams > 0 → create the day entry if missing and save
-  function upsertMeal(dateISO, mealId, label, grams){
+  //
+  // ✅ Backward-compatible overload:
+  //   upsertMeal(dateISO, { id, label, grams })
+  //   upsertMeal(dateISO, mealId, label, grams)
+  function upsertMeal(dateISO, mealIdOrObj, label, grams){
     const state = ensureLogsContainers();
-    const cleanGrams = Math.max(0, Math.round(Number(grams) || 0));
+
+    // Support object signature used by protein-ui.js
+    let mealId = mealIdOrObj;
+    let mealLabel = label;
+    let mealGrams = grams;
+
+    if(mealIdOrObj && typeof mealIdOrObj === "object"){
+      mealId = mealIdOrObj.id;
+      mealLabel = mealIdOrObj.label;
+      mealGrams = mealIdOrObj.grams;
+    }
+
+    const cleanGrams = Math.max(0, Math.round(Number(mealGrams) || 0));
 
     if(cleanGrams <= 0){
-      // delete path
+      // delete path (do NOT create the day)
       const entry = findProteinEntry(dateISO);
       if(!entry) return;
+
       entry.meals = Array.isArray(entry.meals) ? entry.meals : [];
       const before = entry.meals.length;
-      entry.meals = entry.meals.filter(m => m && m.id !== mealId);
+
+      // If we have an id, delete by id (safe + precise)
+      if(mealId != null){
+        entry.meals = entry.meals.filter(m => m && m.id !== mealId);
+      }
+
       if(entry.meals.length !== before){
         Storage.save(state);
         cleanupProteinEntryIfEmpty(dateISO);
@@ -80,7 +102,12 @@ export function initLogs({ getState, Storage, uid }){
 
     const id = mealId || uid("meal");
     const idx = entry.meals.findIndex(m => m && m.id === id);
-    const next = { id, label: String(label || "").trim(), grams: cleanGrams };
+
+    const next = {
+      id,
+      label: String(mealLabel || "").trim(),
+      grams: cleanGrams
+    };
 
     if(idx >= 0) entry.meals[idx] = { ...entry.meals[idx], ...next };
     else entry.meals.push(next);
