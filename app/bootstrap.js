@@ -165,7 +165,8 @@ export function initBootstrap(){
   const Attendance = initAttendance({
     getState: () => state,
     Storage,
-    Dates
+    LogEngine,
+    el
   });
 
   const {
