@@ -419,191 +419,155 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
 ********************/
     const Views = {
       Onboarding(){
-  let hideRestDays = true;
-  let trackProtein = true;
-  let selectedTpl = "ppl";
+        let hideRestDays = true;
+        let selectedTpl = "ppl";
 
-  const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
+        const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
-  // Hide rest days toggle
-  const switchNode = el("div", { class:"switch on" });
-  switchNode.addEventListener("click", () => {
-    hideRestDays = !hideRestDays;
-    switchNode.classList.toggle("on", hideRestDays);
-  });
+        const switchNode = el("div", { class:"switch on" });
+        switchNode.addEventListener("click", () => {
+          hideRestDays = !hideRestDays;
+          switchNode.classList.toggle("on", hideRestDays);
+        });
 
-  // Track protein toggle (NEW)
-  const proteinSwitch = el("div", { class:"switch on" });
-  proteinSwitch.addEventListener("click", () => {
-    trackProtein = !trackProtein;
-    proteinSwitch.classList.toggle("on", trackProtein);
+        const tplCardsHost = el("div", { class:"tplGrid" });
+        const renderTplCards = () => {
+          tplCardsHost.innerHTML = "";
+          RoutineTemplates.forEach(t => {
+            tplCardsHost.appendChild(el("div", {
+              class: "tpl" + (t.key === selectedTpl ? " selected" : ""),
+              onClick: () => { selectedTpl = t.key; renderTplCards(); }
+            }, [
+              el("div", { class:"name", text: t.name }),
+              el("div", { class:"desc", text: t.desc })
+            ]));
+          });
+        };
+        renderTplCards();
 
-    // Disable/enable goal input so users aren’t forced to fill it
-    if(!trackProtein){
-      try{ proteinInput.value = ""; }catch(_){}
-      try{ proteinInput.disabled = true; }catch(_){}
-      try{ proteinInput.placeholder = "Disabled"; }catch(_){}
-    }else{
-      try{ proteinInput.disabled = false; }catch(_){}
-      try{ proteinInput.placeholder = "180"; }catch(_){}
-    }
-  });
+        const nameInput = el("input", { type:"text", placeholder:"Jordan" });
+        const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
 
-  const tplCardsHost = el("div", { class:"tplGrid" });
-  const renderTplCards = () => {
-    tplCardsHost.innerHTML = "";
-    RoutineTemplates.forEach(t => {
-      tplCardsHost.appendChild(el("div", {
-        class: "tpl" + (t.key === selectedTpl ? " selected" : ""),
-        onClick: () => { selectedTpl = t.key; renderTplCards(); }
-      }, [
-        el("div", { class:"name", text: t.name }),
-        el("div", { class:"desc", text: t.desc })
-      ]));
-    });
-  };
-  renderTplCards();
+        const weekSelect = el("select", {});
+        weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
+        weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
+        weekSelect.value = "mon";
 
-  const nameInput = el("input", { type:"text", placeholder:"Jordan" });
-  const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
+        const finish = () => {
+          errorBox.style.display = "none";
+          errorBox.textContent = "";
 
-  // initial state matches default toggle (ON)
-  try{ proteinInput.disabled = false; }catch(_){}
+          const cleanName = (nameInput.value || "").trim();
+          const cleanProtein = Number(proteinInput.value);
+          const weekStartsOn = weekSelect.value === "sun" ? "sun" : "mon";
 
-  const weekSelect = el("select", {});
-  weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
-  weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
-  weekSelect.value = "mon";
-
-  const finish = () => {
-    errorBox.style.display = "none";
-    errorBox.textContent = "";
-
-    const cleanName = (nameInput.value || "").trim();
-    const cleanProtein = Number(proteinInput.value);
-    const weekStartsOn = weekSelect.value === "sun" ? "sun" : "mon";
-
-    if(!cleanName){
-      errorBox.textContent = "Please enter your name.";
-      errorBox.style.display = "block";
-      return;
-    }
-
-    // Only validate protein goal if tracking is enabled
-    if(trackProtein){
-      if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
-        errorBox.textContent = "Please enter a valid daily protein goal (grams).";
-        errorBox.style.display = "block";
-        return;
-      }
-    }
-
-    const profile = {
-      name: cleanName,
-      proteinGoal: trackProtein ? Math.round(cleanProtein) : 0,
-      weekStartsOn,
-      hideRestDays: !!hideRestDays,
-
-      // NEW: trackProtein flag
-      trackProtein: !!trackProtein,
-
-      // ✅ NEW: 3D Preview default (ON)
-      show3DPreview: true
-    };
-
-    // Seed library FIRST so template exercises can resolve to real exerciseIds
-    ExerciseLibrary.ensureSeeded();
-
-    const routineName = RoutineTemplates.find(t => t.key === selectedTpl)?.name || "Routine";
-    const routine = createRoutineFromTemplate(selectedTpl, routineName);
-
-    state.profile = profile;
-    state.routines = [routine];
-    state.activeRoutineId = routine.id;
-
-    // Repair any missing links (older data / edge cases)
-    repairExerciseLinks();
-
-    Storage.save(state);
-    navigate("home");
-    bindHeaderPills();
-    setHeaderPills();
-    checkForUpdates();
-  };
-
-  return el("div", { class:"grid" }, [
-    el("div", { class:"card" }, [
-      el("h2", { text:"Welcome" }),
-      el("div", { class:"kpi" }, [
-        el("div", { class:"big", text:"Let’s set up your dashboard" }),
-        el("div", { class:"small", text:"Create your profile and choose a routine template. You can edit everything later." })
-      ])
-    ]),
-    el("div", { class:"card" }, [
-      el("h2", { text:"Create profile" }),
-      el("div", { class:"form" }, [
-        el("div", { class:"row2" }, [
-          el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
-          el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
-        ]),
-        el("div", { class:"row2" }, [
-          el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ]),
-          el("div", { class:"toggle" }, [
-            el("div", { class:"ttext" }, [
-              el("div", { class:"a", text:"Hide rest days" }),
-              el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)" })
-            ]),
-            switchNode
-          ])
-        ]),
-
-        // NEW: Track protein toggle
-        el("div", { class:"toggle" }, [
-          el("div", { class:"ttext" }, [
-            el("div", { class:"a", text:"Track protein" }),
-            el("div", { class:"b", text:"Turn off if you don’t want Protein tracking on Home or in modals." })
-          ]),
-          proteinSwitch
-        ]),
-
-        errorBox
-      ])
-    ]),
-    el("div", { class:"card" }, [
-      el("h2", { text:"Choose a routine template" }),
-      tplCardsHost,
-      el("div", { style:"height:10px" }),
-      el("div", { class:"btnrow" }, [
-        el("button", { class:"btn primary", onClick: finish }, ["Finish setup"]),
-        el("button", {
-          class:"btn danger",
-          onClick: () => {
-            Modal.open({
-              title: "Reset local data",
-              bodyNode: el("div", {}, [
-                el("div", { class:"note", text:"This clears everything saved in this browser for the app." }),
-                el("div", { style:"height:12px" }),
-                el("div", { class:"btnrow" }, [
-                  el("button", {
-                    class:"btn danger",
-                    onClick: () => {
-                      try{ BackupVault.forceSnapshot(state, "pre-reset"); }catch(_){ }
-                      Storage.reset();
-                      state = Storage.load();
-                      Modal.close();
-                      navigate("home");
-                    }
-                  }, ["Reset"]),
-                  el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
-                ])
-              ])
-            });
+          if(!cleanName){
+            errorBox.textContent = "Please enter your name.";
+            errorBox.style.display = "block";
+            return;
           }
-        }, ["Reset"])
-      ])
-    ])
-  ]);
-},
+          if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
+            errorBox.textContent = "Please enter a valid daily protein goal (grams).";
+            errorBox.style.display = "block";
+            return;
+          }
+
+          const profile = {
+          name: cleanName,
+          proteinGoal: Math.round(cleanProtein),
+          weekStartsOn,
+          hideRestDays: !!hideRestDays,
+        
+          // ✅ NEW: 3D Preview default (ON)
+          show3DPreview: true
+        };
+
+
+          // Seed library FIRST so template exercises can resolve to real exerciseIds
+          ExerciseLibrary.ensureSeeded();
+
+          const routineName = RoutineTemplates.find(t => t.key === selectedTpl)?.name || "Routine";
+          const routine = createRoutineFromTemplate(selectedTpl, routineName);
+
+          state.profile = profile;
+          state.routines = [routine];
+          state.activeRoutineId = routine.id;
+
+          // Repair any missing links (older data / edge cases)
+          repairExerciseLinks();
+
+
+          Storage.save(state);
+          navigate("home");
+          bindHeaderPills();
+          setHeaderPills();
+          checkForUpdates();
+
+        };
+
+        return el("div", { class:"grid" }, [
+          el("div", { class:"card" }, [
+            el("h2", { text:"Welcome" }),
+            el("div", { class:"kpi" }, [
+              el("div", { class:"big", text:"Let’s set up your dashboard" }),
+              el("div", { class:"small", text:"Create your profile and choose a routine template. You can edit everything later." })
+            ])
+          ]),
+          el("div", { class:"card" }, [
+            el("h2", { text:"Create profile" }),
+            el("div", { class:"form" }, [
+              el("div", { class:"row2" }, [
+                el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
+                el("label", {}, [ el("span", { text:"Protein goal (grams/day)" }), proteinInput ])
+              ]),
+              el("div", { class:"row2" }, [
+                el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ]),
+                el("div", { class:"toggle" }, [
+                  el("div", { class:"ttext" }, [
+                    el("div", { class:"a", text:"Hide rest days" }),
+                    el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)" })
+                  ]),
+                  switchNode
+                ])
+              ]),
+              errorBox
+            ])
+          ]),
+          el("div", { class:"card" }, [
+            el("h2", { text:"Choose a routine template" }),
+            tplCardsHost,
+            el("div", { style:"height:10px" }),
+            el("div", { class:"btnrow" }, [
+              el("button", { class:"btn primary", onClick: finish }, ["Finish setup"]),
+              el("button", {
+                class:"btn danger",
+                onClick: () => {
+                  Modal.open({
+                    title: "Reset local data",
+                    bodyNode: el("div", {}, [
+                      el("div", { class:"note", text:"This clears everything saved in this browser for the app." }),
+                      el("div", { style:"height:12px" }),
+                      el("div", { class:"btnrow" }, [
+                        el("button", {
+                          class:"btn danger",
+                          onClick: () => {
+                            try{ BackupVault.forceSnapshot(state, "pre-reset"); }catch(_){ }
+                            Storage.reset();
+                            state = Storage.load();
+                            Modal.close();
+                            navigate("home");
+                          }
+                        }, ["Reset"]),
+                        el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
+                      ])
+                    ])
+                  });
+                }
+              }, ["Reset"])
+            ])
+          ])
+        ]);
+      },
 
         Home(){
         ExerciseLibrary.ensureSeeded();
@@ -622,51 +586,19 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
           trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
         }
 
-       // Protein (optional)
-const trackProtein = (state.profile?.trackProtein !== false);
+        // Protein
+        const goal = Number(state.profile?.proteinGoal) || 0;
+        const done = totalProtein(todayISO);
+        const left = Math.max(0, goal - done);
+        const pct = goal > 0 ? Math.max(0, Math.min(1, done / goal)) : 0;
+        const deg = Math.round(pct * 360);
 
-let proteinCard = null;
-
-if(trackProtein){
-  const goal = Number(state.profile?.proteinGoal) || 0;
-  const done = totalProtein(todayISO);
-  const left = Math.max(0, goal - done);
-  const pct = goal > 0 ? Math.max(0, Math.min(1, done / goal)) : 0;
-  const deg = Math.round(pct * 360);
-
-  const openProteinModal = (dateISO = todayISO) => {
-    Modal.open({
-      title: "Protein",
-      bodyNode: buildProteinTodayModal(dateISO, goal)
-    });
-  };
-
-  const ring = el("div", {
-    class:"ringWrap",
-    style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
-  }, [
-    el("div", { class:"ringText" }, [
-      el("div", { class:"big", text: `${left}g` }),
-      el("div", { class:"small", text: "left" }),
-      el("div", { class:"small", text: `${done} / ${goal}g` })
-    ])
-  ]);
-
-  proteinCard = el("div", { class:"card" }, [
-    el("h2", { text:"Protein" }),
-    el("div", { class:"homeRow" }, [
-      el("div", { class:"kpi" }, [
-        el("div", { class:"big", text: `${left}g left` }),
-        el("div", { class:"small", text:"Tap to log meals for today." })
-      ]),
-      el("div", { onClick: openProteinModal }, [ ring ])
-    ]),
-    el("div", { style:"height:10px" }),
-    el("div", { class:"btnrow" }, [
-      el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
-    ])
-  ]);
-}
+const openProteinModal = (dateISO = todayISO) => {
+  Modal.open({
+    title: "Protein",
+    bodyNode: buildProteinTodayModal(dateISO, goal)
+  });
+};
 
 
         const openCheckIn = () => {
