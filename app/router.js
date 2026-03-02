@@ -107,11 +107,14 @@ export function initRouter({
     ]));
   }
 
-  function navigate(routeKey){
+    function navigate(routeKey){
     try{ destroyProgressChart && destroyProgressChart(); }catch(_){}
     try{ destroyWeightChart && destroyWeightChart(); }catch(_){}
 
-    currentRoute = routeKey;
+    // ✅ Route-name contract hardening:
+    // If someone calls navigate("typo_route"), never break rendering.
+    const safeRoute = Routes?.[routeKey] ? routeKey : "home";
+    currentRoute = safeRoute;
 
     renderNav();
     renderView();
@@ -128,8 +131,8 @@ export function initRouter({
     // ─────────────────────────────
     try{
       if(typeof gtag === "function"){
-        const label = (Routes?.[routeKey]?.label) || routeKey || "unknown";
-        const pagePath = "/" + String(routeKey || "unknown");
+        const label = (Routes?.[safeRoute]?.label) || safeRoute || "unknown";
+        const pagePath = "/" + String(safeRoute || "unknown");
 
         gtag("event", "page_view", {
           page_title: label,
