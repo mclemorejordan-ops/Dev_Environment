@@ -625,36 +625,13 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
           trainedThisWeek.push({ dateISO: dISO, trained: isTrained(dISO) });
         }
 
-        // Protein
-const goal = Number(state.profile?.proteinGoal) || 0;
-
-// ✅ Option B: Hide Protein card entirely when goal = 0
-const showProtein = goal > 0;
-
-// Only compute protein progress when it will be shown
-const done = showProtein ? totalProtein(todayISO) : 0;
-const left = showProtein ? Math.max(0, goal - done) : 0;
-const pct  = showProtein ? Math.max(0, Math.min(1, done / goal)) : 0;
-const deg  = Math.round(pct * 360);
-
-let openProteinModal = null;
-let ring = null;
-
-if(showProtein){
-  openProteinModal = (dateISO = todayISO) => {
-    Modal.open({
-      title: "Protein",
-      bodyNode: buildProteinTodayModal(dateISO, goal)
-    });
-  };
-
-
-
+        // ✅ Check-in (must exist even if protein is hidden)
         const openCheckIn = () => {
           toggleTrained(todayISO);
           renderView();
         };
 
+        // ✅ Workout summary (must exist even if protein is hidden)
         const workoutTitle = !routine ? "No routine selected"
           : (!day ? "No day found"
           : (day.isRest ? "Rest Day" : day.label));
@@ -667,17 +644,42 @@ if(showProtein){
         const workoutExercises = (day?.isRest || !day) ? []
           : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
 
-        ring = el("div", {
-    class:"ringWrap",
-    style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
-  }, [
-    el("div", { class:"ringText" }, [
-      el("div", { class:"big", text: `${left}g` }),
-      el("div", { class:"small", text: "left" }),
-      el("div", { class:"small", text: `${done} / ${goal}g` })
-    ])
-  ]);
-}
+        // Protein
+        const goal = Number(state.profile?.proteinGoal) || 0;
+
+        // ✅ Option B: Hide Protein card entirely when goal = 0
+        const showProtein = goal > 0;
+
+        // Only compute protein progress when it will be shown
+        const done = showProtein ? totalProtein(todayISO) : 0;
+        const left = showProtein ? Math.max(0, goal - done) : 0;
+        const pct  = showProtein ? Math.max(0, Math.min(1, done / goal)) : 0;
+        const deg  = Math.round(pct * 360);
+
+        let openProteinModal = null;
+        let ring = null;
+
+        if(showProtein){
+          openProteinModal = (dateISO = todayISO) => {
+            Modal.open({
+              title: "Protein",
+              bodyNode: buildProteinTodayModal(dateISO, goal)
+            });
+          };
+
+          ring = el("div", {
+            class:"ringWrap",
+            style: `background: conic-gradient(rgba(124,92,255,.95) 0deg ${deg}deg, rgba(255,255,255,.10) ${deg}deg 360deg);`
+          }, [
+            el("div", { class:"ringText" }, [
+              el("div", { class:"big", text: `${left}g` }),
+              el("div", { class:"small", text: "left" }),
+              el("div", { class:"small", text: `${done} / ${goal}g` })
+            ])
+          ]);
+        }
+
+        // ...keep the rest of your Home() code exactly as-is below this point
 
         const dots = el("div", { class:"dots" });
         trainedThisWeek.forEach((d, idx) => {
