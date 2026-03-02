@@ -28,7 +28,6 @@ const APP_SHELL = [
   "./app/backup.js",
   "./app/settings.js",
   "./app/router.js",
-  "./app/views.js",
   "./app/protein-ui.js",
   "./app/attendance-ui.js",
   "./app/bootstrap.js",
