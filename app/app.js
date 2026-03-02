@@ -70,6 +70,8 @@ import { initAttendanceUI } from "./attendance-ui.js";
 
 import { initRouter } from "./router.js";
 
+import { initBootstrap } from "./bootstrap.js";
+
 // ✅ Load state AFTER Storage exists
 let state = Storage.load();
 
@@ -5007,37 +5009,26 @@ navigate = Router.navigate;
 
 
 /********************
- * 8) Boot (guarded)
+ * 8) Boot (guarded) — extracted to bootstrap.js (Phase 3.6)
  ********************/
-(async () => {
-  // If already onboarded and library is empty, seed it (won't overwrite non-empty)
-  if(state.profile) ExerciseLibrary.ensureSeeded();
+const Bootstrap = initBootstrap({
+  getState: () => state,
 
-  // Step 6 safety: ensure logs arrays exist even if older saved state is missing fields
-  LogEngine.ensure();
+  ExerciseLibrary,
+  LogEngine,
 
-  // Keep an accurate header height for internal fixed/scroll layouts
-  function updateLayoutVars(){
-    const h = document.querySelector("header");
-    if(h) document.documentElement.style.setProperty("--headerH", `${h.offsetHeight}px`);
-  }
-  updateLayoutVars();
-  window.addEventListener("resize", updateLayoutVars);
+  ensureFloatNext,
 
-  ensureFloatNext(); // Phase 3: enable Floating Next → nudge container
+  renderNav,
+  renderView,
 
-  // Render baseline UI first (so user never sees a blank app)
-  renderNav();
-  renderView();
-  bindHeaderPills();
-  setHeaderPills();
+  bindHeaderPills,
+  setHeaderPills,
 
-  // ✅ IMPORTANT: fetch version.json FIRST, so SW registers with the correct ?v=
-  await checkForUpdates();
+  checkForUpdates,
+  registerServiceWorker,
 
-  // ✅ Then register SW using the latest version (deterministic updates)
-  await registerServiceWorker();
-
-})().catch((e) => {
-  __fatal(e, "boot");
+  fatal: __fatal
 });
+
+Bootstrap.start();
