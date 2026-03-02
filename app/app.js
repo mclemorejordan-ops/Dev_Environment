@@ -1940,7 +1940,8 @@ scrollHost.appendChild(el("div", { class:"card" }, [
 
   scrollHost.appendChild(el("div", {
     class:"card rxCard",
-    id:`rx_${rx.id}`,
+    // ✅ DOM selector hardening: namespace ids to this view
+    id:`routine_rx_${rx.id}`,
     "data-unlogged": logged ? "false" : "true"
   }, [
     el("div", { class:"rxTop" }, [
