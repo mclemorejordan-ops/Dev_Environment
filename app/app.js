@@ -417,6 +417,7 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
 /********************
      * 7) Views
 ********************/
+ const Views = {   
     Onboarding(){
   let hideRestDays = true;
   let trackProtein = true; // ✅ NEW: Protein is optional via toggle
