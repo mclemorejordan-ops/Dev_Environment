@@ -54,7 +54,7 @@ export function initLogs({ getState, Storage, uid }){
     return ensureProteinEntry(dateISO);
   }
 
-  // Save/update a meal:
+    // Save/update a meal:
   // - If grams <= 0 → treat as "no log" and delete meal if it exists
   // - If grams > 0 → create the day entry if missing and save
   //
@@ -85,7 +85,7 @@ export function initLogs({ getState, Storage, uid }){
       entry.meals = Array.isArray(entry.meals) ? entry.meals : [];
       const before = entry.meals.length;
 
-      // If we have an id, delete by id (safe + precise)
+      // If we have an id, delete by id (precise)
       if(mealId != null){
         entry.meals = entry.meals.filter(m => m && m.id !== mealId);
       }
