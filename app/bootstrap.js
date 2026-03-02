@@ -162,7 +162,7 @@ export function initBootstrap(){
     destroyProgressChart
   } = Progress;
 
-  const Attendance = initAttendance({
+    const Attendance = initAttendance({
     getState: () => state,
     Storage,
     LogEngine,
@@ -170,9 +170,16 @@ export function initBootstrap(){
   });
 
   const {
+    attendanceHas,
     attendanceAdd,
     attendanceRemove,
-    ensureFloatNext
+    hasRoutineExerciseLog,
+    lifetimeMaxSet,
+    setNextNudge,
+    ensureFloatNext,
+    maybeShowNextNudge,
+    bindFloatNext,
+    clearNextNudge
   } = Attendance;
 
   // Library (templates + exercise library) extracted in 3.2
