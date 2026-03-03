@@ -3928,269 +3928,264 @@ const profileBody = el("div", {}, [
         ]);
 
         const backupBody = el("div", {}, [
-          el("div", { class:"note", text:"Export your full app data as JSON. Import will overwrite your current data in this browser." }),
+  el("div", { class:"note", text:"Export your full app data as JSON. Import will overwrite your current data in this browser." }),
 
-          // ───────────────
-          // Export reminder
-          // ───────────────
-          el("div", { style:"height:10px" }),
-          (() => {
-            const last = (typeof getLastExportAt === "function") ? getLastExportAt() : 0;
-            const never = !last || !Number.isFinite(last);
-            const label = never
-              ? "Last file backup: Never exported"
-              : `Last file backup: ${new Date(last).toLocaleString()}`;
-            const sub = never
-              ? "Recommendation: export a file backup occasionally (helps if iOS clears storage / app is deleted)."
-              : "Tip: auto backups protect against mistakes/bugs; file backups protect against phone/browser storage being wiped.";
-            return el("div", { class:"note", text: `${label}\n${sub}` });
-          })(),
+  // ───────────────
+  // Export reminder
+  // ───────────────
+  el("div", { style:"height:10px" }),
+  (() => {
+    const last = (typeof getLastExportAt === "function") ? getLastExportAt() : 0;
+    const never = !last || !Number.isFinite(last);
 
-          el("div", { style:"height:10px" }),
+    const label = never
+      ? "Last file backup: Never exported"
+      : `Last file backup: ${new Date(last).toLocaleString()}`;
 
-          // ───────────────
-          // Export
-          // ───────────────
-          el("div", { class:"btnrow" }, [
-          el("button", {
-            class:"btn primary",
-            onClick: () => {
-              try{
-                const txt = exportBackupJSON();
-                const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
-                downloadTextFile(`gym-dashboard-backup_${stamp}.json`, txt);
-        
-                // ✅ track export for reminder UI (best-effort)
-                try{ if(typeof setLastExportAt === "function") setLastExportAt(Date.now()); }catch(_){}
-                showToast("Backup exported");
-              }catch(e){
-                Modal.open({
-                  title:"Export failed",
-                  bodyNode: el("div", {}, [
-                    el("div", { class:"note", text: e.message || "Could not export backup." }),
-                    el("div", { style:"height:12px" }),
-                    el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-                  ])
-                });
-              }
-            }
-          }, ["Export JSON backup"])
-        ]),
+    // ✅ Always show recommendation directly under the label
+    const rec = "Recommendation: export a file backup occasionally (helps if iOS clears storage / app is deleted).";
 
-// ───────────────
-// Auto backups (rolling snapshots)
-// ───────────────
-el("div", { style:"height:14px" }),
-el("div", {
-  class:"note",
-  text:"Auto backups (recommended): the app keeps rolling snapshots so you can restore if something breaks."
-}),
-el("div", { style:"height:8px" }),
+    return el("div", { class:"note", text: `${label}\n${rec}` });
+  })(),
 
-el("div", { class:"btnrow" }, [
+  el("div", { style:"height:10px" }),
 
-  // Restore from Auto Backup
-  el("button", {
-    class:"btn",
-    onClick: async () => {
-      try{
-        if(typeof BackupVault === "undefined" || !BackupVault.list){
+  // ───────────────
+  // Export + Import (same row)
+  // ───────────────
+  el("div", { class:"btnrow" }, [
+    el("button", {
+      class:"btn primary",
+      onClick: () => {
+        try{
+          const txt = exportBackupJSON();
+          const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+          downloadTextFile(`gym-dashboard-backup_${stamp}.json`, txt);
+
+          // ✅ track export for reminder UI (best-effort)
+          try{ if(typeof setLastExportAt === "function") setLastExportAt(Date.now()); }catch(_){}
+          showToast("Backup exported");
+        }catch(e){
           Modal.open({
-            title:"Auto backups unavailable",
+            title:"Export failed",
             bodyNode: el("div", {}, [
-              el("div", { class:"note", text:"Auto backups are not enabled in this build." }),
+              el("div", { class:"note", text: e.message || "Could not export backup." }),
               el("div", { style:"height:12px" }),
               el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
             ])
           });
-          return;
         }
+      }
+    }, ["Export JSON backup"]),
 
-        const snapsRaw = await BackupVault.list(BackupVault.KEEP || 20);
+    // ✅ Import button on the right of Export
+    el("button", {
+      class:"btn danger",
+      onClick: openImportFileModal
+    }, ["Import (upload file)"])
+  ]),
 
-        // Safety-net: remove duplicates (same createdAt)
-        const seen = new Set();
-        const snaps = (snapsRaw || []).filter(s => {
-          const key = String(s?.createdAt ?? "");
-          if(seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
+  // ───────────────
+  // Auto backups (rolling snapshots)
+  // ───────────────
+  el("div", { style:"height:14px" }),
+  el("div", {
+    class:"note",
+    text:"Auto backups (recommended): the app keeps rolling snapshots so you can restore if something breaks."
+  }),
+  el("div", { style:"height:8px" }),
 
-        const container = el("div", {
-          style:"max-height:70vh; overflow-y:auto; padding-right:6px;"
-        });
+  el("div", { class:"btnrow" }, [
 
-        // Sticky Banner (always visible)
-        container.appendChild(
-          el("div", {
-            style:[
-              "position:sticky",
-              "top:0",
-              "z-index:5",
-              "padding:10px 0",
-              "background:rgba(20,20,30,.65)",
-              "backdrop-filter:blur(8px)",
-              "-webkit-backdrop-filter:blur(8px)",
-              "border-bottom:1px solid rgba(255,255,255,.08)"
-            ].join(";")
-          }, [
-            el("div", { style:"display:flex; align-items:center; gap:8px;" }, [
-              el("div", { style:"width:8px;height:8px;border-radius:50%;background:#4CAF50;" }),
-              el("div", { style:"font-weight:800;", text:"Auto Backups Active" })
-            ]),
-            el("div", { class:"note", text:`Keeping: ${BackupVault.KEEP || 20} snapshots` })
-          ])
-        );
+    // Restore from Auto Backup
+    el("button", {
+      class:"btn",
+      onClick: async () => {
+        try{
+          if(typeof BackupVault === "undefined" || !BackupVault.list){
+            Modal.open({
+              title:"Auto backups unavailable",
+              bodyNode: el("div", {}, [
+                el("div", { class:"note", text:"Auto backups are not enabled in this build." }),
+                el("div", { style:"height:12px" }),
+                el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
+              ])
+            });
+            return;
+          }
 
-        container.appendChild(el("div", { style:"height:12px" }));
+          const snapsRaw = await BackupVault.list(BackupVault.KEEP || 20);
 
-        function normalizeReason(r){
-          const rr = String(r || "").toLowerCase();
-          if(rr.includes("pre-import")) return "Pre-Import";
-          if(rr.includes("pre-reset")) return "Pre-Reset";
-          if(rr.includes("manual")) return "Manual";
-          return "Auto";
-        }
+          // Safety-net: remove duplicates (same createdAt)
+          const seen = new Set();
+          const snaps = (snapsRaw || []).filter(s => {
+            const key = String(s?.createdAt ?? "");
+            if(seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
 
-        function badgeColor(label){
-          const l = String(label || "").toLowerCase();
-          if(l.includes("pre-import")) return "#FFC107";
-          if(l.includes("pre-reset")) return "#F44336";
-          if(l.includes("manual")) return "#2196F3";
-          return "#4CAF50";
-        }
+          const container = el("div", {
+            style:"max-height:70vh; overflow-y:auto; padding-right:6px;"
+          });
 
-        if(!snaps.length){
+          // Sticky Banner (always visible)
           container.appendChild(
-            el("div", { class:"card" }, [
-              el("div", { class:"note", text:"No auto backups found yet." })
+            el("div", {
+              style:[
+                "position:sticky",
+                "top:0",
+                "z-index:5",
+                "padding:10px 0",
+                "background:rgba(20,20,30,.65)",
+                "backdrop-filter:blur(8px)",
+                "-webkit-backdrop-filter:blur(8px)",
+                "border-bottom:1px solid rgba(255,255,255,.08)"
+              ].join(";")
+            }, [
+              el("div", { style:"display:flex; align-items:center; gap:8px;" }, [
+                el("div", { style:"width:8px;height:8px;border-radius:50%;background:#4CAF50;" }),
+                el("div", { style:"font-weight:800;", text:"Auto Backups Active" })
+              ]),
+              el("div", { class:"note", text:`Keeping: ${BackupVault.KEEP || 20} snapshots` })
             ])
           );
-        }else{
-          snaps.forEach(snap => {
-            const dObj = new Date(Number(snap?.createdAt || Date.now()));
-            const dt =
-              dObj.toLocaleDateString(undefined, { month:"short", day:"numeric" }) +
-              " • " +
-              dObj.toLocaleTimeString(undefined, { hour:"2-digit", minute:"2-digit" });
 
-            const c = snap?.counts || {};
-            const reasonLabel = normalizeReason(snap?.reason);
+          container.appendChild(el("div", { style:"height:12px" }));
 
-            const card = el("div", {
-              class:"card",
-              style:"cursor:pointer;"
-            }, [
-              el("div", { style:"display:flex; justify-content:space-between; align-items:center;" }, [
-                el("div", { style:"font-weight:900;", text: dt }),
-                el("div", {
-                  style:`
-                    padding:4px 10px;
-                    border-radius:999px;
-                    font-size:11px;
-                    font-weight:700;
-                    background:${badgeColor(reasonLabel)}22;
-                    color:${badgeColor(reasonLabel)};
-                    border:1px solid ${badgeColor(reasonLabel)}55;
-                  `
-                }, [reasonLabel])
-              ]),
-              el("div", { style:"height:8px" }),
-              el("div", { class:"note", text:`${c.routines||0} Routines • ${c.workouts||0} Workouts` }),
-              el("div", { class:"note", text:`${c.protein||0} Protein • ${c.attendance||0} Attendance` })
-            ]);
+          function normalizeReason(r){
+            const rr = String(r || "").toLowerCase();
+            if(rr.includes("pre-import")) return "Pre-Import";
+            if(rr.includes("pre-reset")) return "Pre-Reset";
+            if(rr.includes("manual")) return "Manual";
+            return "Auto";
+          }
 
-            card.onclick = () => {
-              confirmModal({
-                title:"Restore Snapshot?",
-                note:`Restore snapshot from:\n${dt}\n\nThis will overwrite your current data.`,
-                confirmText:"Restore",
-                danger:true,
-                onConfirm: () => {
-                  try{
-                    state = migrateState(snap.state);
-                    Storage.save(state);
-                    showToast("Snapshot restored");
-                    Modal.close();
-                    navigate("home");
-                  }catch(err){
-                    Modal.open({
-                      title:"Restore failed",
-                      bodyNode: el("div", {}, [
-                        el("div", { class:"note", text: err?.message || "Could not restore snapshot." }),
-                        el("div", { style:"height:12px" }),
-                        el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-                      ])
-                    });
+          function badgeColor(label){
+            const l = String(label || "").toLowerCase();
+            if(l.includes("pre-import")) return "#FFC107";
+            if(l.includes("pre-reset")) return "#F44336";
+            if(l.includes("manual")) return "#2196F3";
+            return "#4CAF50";
+          }
+
+          if(!snaps.length){
+            container.appendChild(
+              el("div", { class:"card" }, [
+                el("div", { class:"note", text:"No auto backups found yet." })
+              ])
+            );
+          }else{
+            snaps.forEach(snap => {
+              const dObj = new Date(Number(snap?.createdAt || Date.now()));
+              const dt =
+                dObj.toLocaleDateString(undefined, { month:"short", day:"numeric" }) +
+                " • " +
+                dObj.toLocaleTimeString(undefined, { hour:"2-digit", minute:"2-digit" });
+
+              const c = snap?.counts || {};
+              const reasonLabel = normalizeReason(snap?.reason);
+
+              const card = el("div", {
+                class:"card",
+                style:"cursor:pointer;"
+              }, [
+                el("div", { style:"display:flex; justify-content:space-between; align-items:center;" }, [
+                  el("div", { style:"font-weight:900;", text: dt }),
+                  el("div", {
+                    style:`
+                      padding:4px 10px;
+                      border-radius:999px;
+                      font-size:11px;
+                      font-weight:700;
+                      background:${badgeColor(reasonLabel)}22;
+                      color:${badgeColor(reasonLabel)};
+                      border:1px solid ${badgeColor(reasonLabel)}55;
+                    `
+                  }, [reasonLabel])
+                ]),
+                el("div", { style:"height:8px" }),
+                el("div", { class:"note", text:`${c.routines||0} Routines • ${c.workouts||0} Workouts` }),
+                el("div", { class:"note", text:`${c.protein||0} Protein • ${c.attendance||0} Attendance` })
+              ]);
+
+              card.onclick = () => {
+                confirmModal({
+                  title:"Restore Snapshot?",
+                  note:`Restore snapshot from:\n${dt}\n\nThis will overwrite your current data.`,
+                  confirmText:"Restore",
+                  danger:true,
+                  onConfirm: () => {
+                    try{
+                      state = migrateState(snap.state);
+                      Storage.save(state);
+                      showToast("Snapshot restored");
+                      Modal.close();
+                      navigate("home");
+                    }catch(err){
+                      Modal.open({
+                        title:"Restore failed",
+                        bodyNode: el("div", {}, [
+                          el("div", { class:"note", text: err?.message || "Could not restore snapshot." }),
+                          el("div", { style:"height:12px" }),
+                          el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
+                        ])
+                      });
+                    }
                   }
-                }
-              });
-            };
+                });
+              };
 
-            container.appendChild(card);
-            container.appendChild(el("div", { style:"height:10px" }));
+              container.appendChild(card);
+              container.appendChild(el("div", { style:"height:10px" }));
+            });
+          }
+
+          Modal.open({
+            title:"Restore from Auto Backup",
+            bodyNode: container
+          });
+
+        }catch(e){
+          Modal.open({
+            title:"Could not load auto backups",
+            bodyNode: el("div", {}, [
+              el("div", { class:"note", text: e?.message || "Could not read auto backups." }),
+              el("div", { style:"height:12px" }),
+              el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
+            ])
           });
         }
+      }
+    }, ["Restore from Auto Backup"]),
 
-        Modal.open({
-          title:"Restore from Auto Backup",
-          bodyNode: container
-        });
-
-      }catch(e){
-        Modal.open({
-          title:"Could not load auto backups",
-          bodyNode: el("div", {}, [
-            el("div", { class:"note", text: e?.message || "Could not read auto backups." }),
-            el("div", { style:"height:12px" }),
-            el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-          ])
+    // Clear Auto Backups
+    el("button", {
+      class:"btn danger",
+      onClick: () => {
+        confirmModal({
+          title:"Clear auto backups",
+          note:"Deletes ALL auto backup snapshots stored on this device. This cannot be undone.",
+          confirmText:"Clear auto backups",
+          danger:true,
+          onConfirm: async () => {
+            try{
+              if(typeof BackupVault !== "undefined" && BackupVault.clear){
+                await BackupVault.clear();
+                showToast("Auto backups cleared");
+              }else{
+                showToast("Auto backups not available");
+              }
+            }catch(_){
+              showToast("Could not clear auto backups");
+            }
+          }
         });
       }
-    }
-  }, ["Restore from Auto Backup"]),
+    }, ["Clear Auto Backups"])
 
-  // Clear Auto Backups
-  el("button", {
-    class:"btn danger",
-    onClick: () => {
-      confirmModal({
-        title:"Clear auto backups",
-        note:"Deletes ALL auto backup snapshots stored on this device. This cannot be undone.",
-        confirmText:"Clear auto backups",
-        danger:true,
-        onConfirm: async () => {
-          try{
-            if(typeof BackupVault !== "undefined" && BackupVault.clear){
-              await BackupVault.clear();
-              showToast("Auto backups cleared");
-            }else{
-              showToast("Auto backups not available");
-            }
-          }catch(_){
-            showToast("Could not clear auto backups");
-          }
-        }
-      });
-    }
-  }, ["Clear Auto Backups"])
-
-]),
-
-
-          // ───────────────
-          // Import options
-          // ───────────────
-          el("div", { style:"height:14px" }),
-          el("div", { class:"note", text:"Import options:" }),
-          el("div", { style:"height:8px" }),
-          el("div", { class:"btnrow" }, [
-            el("button", { class:"btn danger", onClick: openImportFileModal }, ["Import (upload file)"])
-          ]),
-          el("div", { style:"height:10px" }),
-          el("div", { class:"note", text:"Tip: Export a file backup occasionally. Auto backups help you recover from mistakes/bugs, but a file backup is safer if iOS clears storage." })
-        ]);
+  ])
+]);
            
         const dataBody = el("div", {}, [
           el("div", { class:"note", text:"Repair tools and targeted clears." }),
