@@ -4144,23 +4144,50 @@ if(!ui.__netSub){
 const followsNow = Social.getFollows ? Social.getFollows() : [];
 const followersNow = Social.getFollowers ? Social.getFollowers() : [];
 
-// Followers list with Follow Back
+// Followers list with Follow Back + Unfollow (with display names)
 if(user && followersNow.length){
+
+  // Build displayName lookup from feed (actorId → displayName)
+  const feed = Social.getFeed ? Social.getFeed() : [];
+  const nameMap = {};
+  (feed || []).forEach(ev => {
+    const actorId = ev?.actorId;
+    const dn = ev?.payload?.displayName;
+    if(actorId && dn && !nameMap[actorId]) nameMap[actorId] = dn;
+  });
+
   const followersCard = el("div", { class:"card" }, [
     el("h2", { text:"Followers" }),
 
     el("div", { class:"list" },
       followersNow.map(fid => {
         const alreadyFollowing = followsNow.includes(fid);
+        const displayName = nameMap[fid] || (fid.slice(0,8) + "...");
 
         return el("div", { class:"item" }, [
+
           el("div", { class:"left" }, [
-            el("div", { class:"name", text: fid.slice(0,8) + "..." })
+            el("div", { class:"name", text: displayName }),
+            el("div", { class:"meta", text: fid.slice(0,8) + "…" })
           ]),
 
           el("div", { class:"actions" }, [
+
+            // If already following → show Unfollow
             alreadyFollowing
-              ? el("div", { class:"meta", text:"Following" })
+              ? el("button", {
+                  class:"btn danger sm",
+                  onClick: async () => {
+                    try{
+                      await Social.unfollow(fid);
+                      renderView();
+                    }catch(e){
+                      showToast(e.message || "Unfollow failed");
+                    }
+                  }
+                }, ["Unfollow"])
+
+              // If not following → show Follow Back
               : el("button", {
                   class:"btn primary sm",
                   onClick: async () => {
@@ -4172,6 +4199,7 @@ if(user && followersNow.length){
                     }
                   }
                 }, ["Follow Back"])
+
           ])
         ]);
       })
@@ -4179,7 +4207,7 @@ if(user && followersNow.length){
   ]);
 
   root.appendChild(followersCard);
-}     
+}    
 
 function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
