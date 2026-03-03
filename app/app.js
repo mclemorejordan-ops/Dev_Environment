@@ -4429,7 +4429,33 @@ socialUI.supabaseUrl = (socialUI.supabaseUrl ?? socialCfg?.url ?? "");
 socialUI.supabaseAnon = (socialUI.supabaseAnon ?? socialCfg?.anonKey ?? "");
 socialUI.friendId = socialUI.friendId || "";
 
-const socialBody = el("div", {}, [
+
+  // ✅ Auto-populate signed-in state after OAuth redirect
+// (Without requiring user to click "Save" in Settings)
+const _socialConfigured = Social.isConfigured && Social.isConfigured();
+const _socialUserNow = Social.getUser && Social.getUser();
+
+// Only attempt once per app session render path
+if(_socialConfigured && !_socialUserNow && !socialUI._autoUserRefreshDone){
+  socialUI._autoUserRefreshDone = true;
+
+  setTimeout(async () => {
+    try{
+      await Social.refreshUser();
+      if(Social.getUser && Social.getUser()){
+        try{ Social.startFeed && Social.startFeed(); }catch(_){}
+      }
+      renderView();
+    }catch(_){}
+  }, 0);
+}
+
+// If user is present, allow future auto-refresh attempts after sign-out
+if(_socialUserNow){
+  socialUI._autoUserRefreshDone = false;
+}         
+           
+  const socialBody = el("div", {}, [
   el("div", { class:"note", text:"Connect a free Supabase project to enable the Friends feed (events-only). This does not sync your full app data — it only posts compact activity events." }),
   el("div", { style:"height:10px" }),
 
