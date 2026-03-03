@@ -5100,10 +5100,11 @@ if(_socialUserNow){
     }, ["Follow"])
   ]),
 
-  el("div", { style:"height:14px" }),
+ el("div", { style:"height:14px" })
+]); // ✅ closes the socialBody el(...,[ ... ]) array + call
 
-           
-        const backupBody = el("div", {}, [
+// ✅ now you can declare the next const safely
+const backupBody = el("div", {}, [
   el("div", { class:"note", text:"Export your full app data as JSON. Import will overwrite your current data in this browser." }),
 
   // ───────────────
