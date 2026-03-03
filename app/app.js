@@ -386,7 +386,7 @@ async function signInWithOAuth(provider){
     };
   }
 
-function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights }){
+function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
   const state = stateRef();
   return {
     eventType: "workout_completed",
@@ -395,7 +395,8 @@ function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights }){
       dateISO: dateISO || null,
       routineId: routineId || null,
       dayId: dayId || null,
-      highlights: highlights || {}
+      highlights: highlights || {},
+      details: details || null
     }
   };
 }
@@ -449,13 +450,13 @@ function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights }){
   }
 
 
-async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights }){
+async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
   // Only publish if configured + signed in
   if(!isConfigured()) return;
   await ensureClient();
   if(!_user) return;
 
-  const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights });
+  const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
   const row = {
     actor_id: _user.id,
     type: ev.eventType,
@@ -2339,16 +2340,113 @@ if(type === "weightlifting"){
           prCount += ["isPRWeight","isPR1RM","isPRVolume","isPRPace"].filter(k => pr?.[k]).length;
         }
 
-        Social.publishWorkoutCompletedEvent({
-          dateISO: savedDateISO,
-          routineId: routine?.id || null,
-          dayId: day?.id || null,
-          highlights: {
-            exerciseCount: exSet.size,
-            prCount,
-            totalVolume: Math.round(totalVolume * 100) / 100
-          }
-        });
+        // Build richer "details" so feed items can be tapped for the full breakdown
+let details = null;
+try{
+  // Group by routineExerciseId (one line item per exercise)
+  const byRx = new Map();
+  for(const e of entries){
+    const k = String(e?.routineExerciseId || e?.exerciseId || "");
+    if(!k) continue;
+    if(!byRx.has(k)) byRx.set(k, e);
+  }
+
+  const items = [];
+  for(const e of byRx.values()){
+    const type = String(e?.type || "");
+    const exerciseId = e?.exerciseId || null;
+
+    const exName = (() => {
+      try{
+        // Prefer the library if possible, else fall back
+        const lib = state?.exerciseLibrary?.[type] || [];
+        const found = lib.find(x => String(x.id||"") === String(exerciseId||""));
+        return found?.name || e?.nameSnap || "Exercise";
+      }catch(_){
+        return e?.nameSnap || "Exercise";
+      }
+    })();
+
+    // Top set / rep (or top cardio / core summary)
+    let topText = "";
+    try{
+      if(type === "weightlifting"){
+        const sets = Array.isArray(e?.sets) ? e.sets : [];
+        let best = null;
+        for(const s of sets){
+          const w = Number(s?.weight) || 0;
+          const r = Number(s?.reps) || 0;
+          if(!best || w > best.w) best = { w, r };
+        }
+        if(best) topText = `${best.w}×${best.r}`;
+        else if(Number.isFinite(Number(e?.summary?.bestWeight))) topText = `${Number(e.summary.bestWeight)} (top)`;
+      }else if(type === "cardio"){
+        const d = e?.summary?.distance;
+        const t = e?.summary?.timeSec;
+        const p = e?.summary?.paceSecPerUnit;
+        const dist = (d == null) ? "" : `Dist ${d}`;
+        const time = (t == null) ? "" : `Time ${formatTime(Number(t) || 0)}`;
+        const pace = (p == null) ? "" : `Pace ${formatPace(p)}`;
+        topText = [dist, time, pace].filter(Boolean).join(" • ");
+      }else if(type === "core"){
+        // Core varies; show best available summary
+        const t = e?.summary?.timeSec;
+        const reps = e?.summary?.reps;
+        const sets = e?.summary?.sets;
+        const w = e?.summary?.weight;
+        const parts = [];
+        if(Number.isFinite(Number(sets))) parts.push(`${Number(sets)} sets`);
+        if(Number.isFinite(Number(reps))) parts.push(`${Number(reps)} reps`);
+        if(Number.isFinite(Number(t))) parts.push(`${formatTime(Number(t) || 0)}`);
+        if(Number.isFinite(Number(w)) && Number(w) > 0) parts.push(`${Number(w)} lb`);
+        topText = parts.join(" • ");
+      }
+    }catch(_){}
+
+    // PR badges
+    const pr = e?.pr || {};
+    const prBadges = [];
+    if(pr?.isPRWeight) prBadges.push("PR W");
+    if(pr?.isPR1RM) prBadges.push("PR 1RM");
+    if(pr?.isPRVolume) prBadges.push("PR Vol");
+    if(pr?.isPRPace) prBadges.push("PR Pace");
+
+    // Lifetime bests (best-effort: only if engine supports it)
+    let lifetime = null;
+    try{
+      if(LogEngine && typeof LogEngine.lifetimeBests === "function" && exerciseId){
+        lifetime = LogEngine.lifetimeBests(type, exerciseId) || null;
+      }
+    }catch(_){}
+
+    items.push({
+      type,
+      exerciseId,
+      name: exName,
+      topText: topText || "",
+      prBadges,
+      lifetime
+    });
+  }
+
+  details = {
+    dayLabel: day?.label || null,
+    dateISO: savedDateISO || null,
+    items
+  };
+}catch(_){}
+
+Social.publishWorkoutCompletedEvent({
+  dateISO: savedDateISO,
+  routineId: routine?.id || null,
+  dayId: day?.id || null,
+  highlights: {
+    exerciseCount: exSet.size,
+    prCount,
+    totalVolume: Math.round(totalVolume * 100) / 100
+  },
+  details
+});
       }
     }catch(_){}
   }
@@ -4047,13 +4145,161 @@ if(ev.type === "workout_completed"){
   if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
 }
 
-      return el("div", { class:"card", style:"margin: 10px 0;" }, [
-        el("div", { class:"rowBetween" }, [
-          el("div", { style:"font-weight:820;", text: title }),
-          el("div", { class:"small", text: when })
-        ]),
-        chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null
-      ].filter(Boolean));
+      function openExerciseHistoryFromFeed(type, exerciseId, exName){
+  try{
+    if(!exerciseId) return;
+    LogEngine.ensure();
+
+    const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
+
+    function prBadges(pr){
+      if(!pr) return "";
+      const b = [];
+      if(pr.isPRWeight) b.push("PR W");
+      if(pr.isPR1RM) b.push("PR 1RM");
+      if(pr.isPRVolume) b.push("PR Vol");
+      if(pr.isPRPace) b.push("PR Pace");
+      return b.join(" • ");
+    }
+
+    function formatEntryDetail(type, entry){
+      try{
+        if(type === "weightlifting"){
+          const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
+          const top = entry.summary?.bestWeight ?? "—";
+          const vol = entry.summary?.totalVolume ?? "—";
+          return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
+        }
+        if(type === "cardio"){
+          const d = entry.summary?.distance ?? "—";
+          const t = formatTime(entry.summary?.timeSec ?? 0);
+          const p = formatPace(entry.summary?.paceSecPerUnit);
+          return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
+        }
+        if(type === "core"){
+          const sets = entry.summary?.sets ?? "—";
+          const reps = entry.summary?.reps ?? "—";
+          const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
+          return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
+        }
+      }catch(_){}
+      return "";
+    }
+
+    const list = el("div", { class:"list" });
+    if(!entries.length){
+      list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
+    }else{
+      entries.slice(0, 12).forEach(e => {
+        list.appendChild(el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text: e.dateISO }),
+            el("div", { class:"meta", text: formatEntryDetail(type, e) })
+          ]),
+          el("div", { class:"actions" }, [
+            el("div", { class:"meta", text: prBadges(e.pr) })
+          ])
+        ]));
+      });
+    }
+
+    Modal.open({
+      title: "History",
+      center: true,
+      bodyNode: el("div", { class:"grid" }, [
+        el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
+        list,
+        el("div", { style:"height:10px" }),
+        el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+      ])
+    });
+  }catch(_){}
+}
+
+function openFeedEventModal(ev, title, who, when){
+  try{
+    const p = ev.payload || {};
+    const d = p.details || null;
+
+    // If details are missing (older events / friend on older build), show a safe fallback.
+    const body = el("div", { class:"grid" }, [
+      el("div", { class:"note", text: when ? `${who} • ${when}` : who }),
+
+      (ev.type === "workout_completed" && d?.dayLabel)
+        ? el("div", { class:"kpi" }, [
+            el("div", { class:"big", text: d.dayLabel }),
+            el("div", { class:"small", text: d.dateISO || (p.dateISO || "") })
+          ])
+        : null,
+
+      (ev.type === "workout_completed" && d?.items?.length)
+        ? el("div", { class:"list" }, d.items.map(it => {
+            const rightBits = [];
+            if(it.topText) rightBits.push(it.topText);
+            if(Array.isArray(it.prBadges) && it.prBadges.length) rightBits.push(it.prBadges.join(" • "));
+
+            // Lifetime display (best-effort)
+            let life = "";
+            try{
+              const L = it.lifetime || null;
+              if(L){
+                if(it.type === "weightlifting"){
+                  const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
+                  const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
+                  const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
+                  life = [bw, b1, bv].filter(Boolean).join(" • ");
+                }else if(it.type === "cardio"){
+                  const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
+                  const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
+                  life = [bp, bd].filter(Boolean).join(" • ");
+                }else if(it.type === "core"){
+                  const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
+                  const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
+                  life = [br, bt].filter(Boolean).join(" • ");
+                }
+              }
+            }catch(_){}
+
+            return el("div", {
+              class:"item",
+              style:"cursor:pointer;",
+              onClick: () => openExerciseHistoryFromFeed(it.type, it.exerciseId, it.name)
+            }, [
+              el("div", { class:"left" }, [
+                el("div", { class:"name", text: it.name || "Exercise" }),
+                life ? el("div", { class:"meta", text: life }) : null
+              ].filter(Boolean)),
+              el("div", { class:"actions" }, [
+                el("div", { class:"meta", text: rightBits.join(" | ") })
+              ])
+            ]);
+          }))
+        : (ev.type === "workout_completed"
+            ? el("div", { class:"note", text:"Details aren’t available for this event yet (older build). New events will include full workout details." })
+            : null),
+
+      el("div", { style:"height:10px" }),
+      el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+    ].filter(Boolean));
+
+    Modal.open({
+      title: (ev.type === "workout_completed") ? "Workout" : "Event",
+      bodyNode: body
+    });
+  }catch(_){}
+}
+
+return el("div", {
+  class:"card",
+  style:"margin: 10px 0; cursor:pointer;",
+  onClick: () => openFeedEventModal(ev, title, who, when)
+}, [
+  el("div", { class:"rowBetween" }, [
+    el("div", { style:"font-weight:820;", text: title }),
+    el("div", { class:"small", text: when })
+  ]),
+  chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null
+].filter(Boolean));
     })) : null
   ].filter(Boolean)));
 
