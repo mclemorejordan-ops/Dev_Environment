@@ -4088,19 +4088,19 @@ if(!ui.__netSub){
 }
   
   // Header / status
-const isOnline = (typeof navigator !== "undefined" && "onLine" in navigator) ? !!navigator.onLine : true;
+const signedIn = !!user;
 
 root.appendChild(el("div", { class:"card" }, [
   el("div", { class:"rowBetween" }, [
     el("h2", { text:"Friends" }),
-    el("div", {
+    configured ? el("div", {
       class:"pill",
-      text: isOnline ? "Online" : "Offline",
-      style: isOnline
+      text: signedIn ? "Signed in" : "Signed out",
+      style: signedIn
         ? "opacity:.95;"
         : "opacity:.95; border: 1px solid rgba(255,92,122,.35); color: rgba(255,92,122,.95);"
-    })
-  ]),
+    }) : null
+  ].filter(Boolean)),
 
   el("div", { style:"height:12px" }),
 
