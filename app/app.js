@@ -135,6 +135,7 @@ function initSocial(){
   let _feed = [];       // newest first
 let _follows = [];    // list of followed user ids (strings)
 let _followers = [];  // list of follower user ids (strings)
+  let _names = {};      // id -> display_name (from profiles)
 let _pollTimer = null;
 let _listeners = new Set();
 
@@ -167,14 +168,25 @@ let _listeners = new Set();
       _user = null;
     }
 
+    // Keep profiles table updated with my display name
+if(_user){
+  try{ await upsertMyProfile(); }catch(_){}
+}
+
     // react to auth changes
     try{
       _sb.auth.onAuthStateChange((_event, session) => {
-        _user = session?.user || null;
-        notify();
-        if(_user) startFeed();
-        else stopFeed();
-      });
+  _user = session?.user || null;
+
+  if(_user){
+    try{ upsertMyProfile(); }catch(_){}
+    startFeed();
+  }else{
+    stopFeed();
+  }
+
+  notify();
+});
     }catch(_){}
 
     return _sb;
@@ -201,6 +213,61 @@ function getFollowers(){ return _followers.slice(); }
   function notify(){
     try{ _listeners.forEach(fn => fn()); }catch(_){}
   }
+
+  function nameFor(id){
+  const k = String(id || "");
+  return _names[k] || null;
+}
+
+async function upsertMyProfile(){
+  const sb = await ensureClient();
+  if(!sb || !_user) return;
+
+  const state = stateRef ? stateRef() : null;
+  const fromState = String(state?.profile?.name || "").trim();
+  const fromEmail = String(_user?.email || "").split("@")[0] || "";
+  const displayName = (fromState || fromEmail || "User").slice(0, 40);
+
+  try{
+    const { error } = await sb.from("profiles").upsert({
+      id: _user.id,
+      display_name: displayName,
+      updated_at: new Date().toISOString()
+    });
+    if(!error){
+      _names[_user.id] = displayName;
+    }
+  }catch(_){}
+}
+
+async function fetchNames(ids){
+  const sb = await ensureClient();
+  if(!sb || !_user) return _names;
+
+  const uniq = Array.from(new Set((ids || [])
+    .map(x => String(x || ""))
+    .filter(Boolean)
+  ));
+
+  if(!uniq.length) return _names;
+
+  try{
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", uniq);
+
+    if(error) throw error;
+
+    (data || []).forEach(r => {
+      const id = String(r.id || "");
+      const dn = String(r.display_name || "").trim();
+      if(id && dn) _names[id] = dn;
+    });
+  }catch(_){}
+
+  return _names;
+}
 
   async function configure({ url, anonKey }){
     const clean = {
@@ -270,6 +337,10 @@ async function signInWithOAuth(provider){
       _user = null;
     }
 
+if(_user){
+  try{ await upsertMyProfile(); }catch(_){}
+}
+    
     // ✅ Important: if we are already signed in on cold-open,
     // start polling so followers/following counts update live.
     if(_user) startFeed();
@@ -550,6 +621,8 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     removeFollower,
     getFollows,
     getFollowers,
+    fetchNames,
+    nameFor,
     fetchFollows,
     fetchFollowers,
     getFeed,
@@ -4233,35 +4306,33 @@ function openConnectionsModal(initialTab){
     }catch(_){}
   }
 
-  // Build id -> displayName lookup from feed
-function buildNameMap(){
-  const map = {};
-  const feed = Social.getFeed ? Social.getFeed() : [];
-  (feed || []).forEach(ev => {
-    const actorId = String(ev?.actorId || "");
-    const dn = String(ev?.payload?.displayName || "").trim();
-    if(actorId && dn) map[actorId] = dn;
-  });
-  return map;
-}
-
 function listRow({ id, actionLabel, onAction }){
-  const nameMap = ui._nameMap || {};
-  const displayName = nameMap[id] || "User";
+  const displayName =
+    (Social.nameFor && Social.nameFor(id))
+    || "User";
 
-  return el("div", { class:"rowBetween", style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
-    // ✅ display name only (no code shown)
+  return el("div", {
+    class:"rowBetween",
+    style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);"
+  }, [
+    // ✅ display name only — never raw ID
     el("div", { class:"small", text: displayName }),
     el("button", { class:"btn sm", onClick: onAction }, [actionLabel])
   ]);
 }
 
-function repaintModal(){
+async function repaintModal(){
   btnFollowing.className = "seg" + (ui.connTab === "following" ? " on" : "");
   btnFollowers.className = "seg" + (ui.connTab === "followers" ? " on" : "");
 
   const follows = Social.getFollows ? Social.getFollows() : [];
   const followers = Social.getFollowers ? Social.getFollowers() : [];
+
+  // Ensure we have display names for the IDs shown in this tab
+try{
+  const ids = (ui.connTab === "following") ? follows : followers;
+  if(Social.fetchNames) await Social.fetchNames(ids);
+}catch(_){}
 
   // 🔥 merge feed names into persistent modal cache
   ui._nameMap = ui._nameMap || {};
