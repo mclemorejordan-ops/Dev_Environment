@@ -4513,39 +4513,89 @@ try{
 }
 
 root.appendChild(el("div", { class:"card" }, [
-  // Header title + auth pill (top-right)
-  el("div", { style:"position:relative; min-height:28px;" }, [
+  root.appendChild(el("div", { class:"card" }, [
+  // Header title + auth pill (top-right) + follower notif pill (bottom-right)
+  el("div", { style:"position:relative; min-height:56px;" }, [
     el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+
     (typeof Social.isSignedIn === "function")
       ? el("div", {
           class:"pill",
           style:"position:absolute; top:0; right:0;",
           text: Social.isSignedIn() ? "Signed in" : "Signed out"
         })
+      : null,
+
+    // 🔔 follower notification pill (bottom-right under Signed in)
+    (user && (ui._followerNotifs || []).length)
+      ? el("div", {
+          class:"pill",
+          style:"position:absolute; right:0; bottom:0; cursor:pointer;",
+          text: (() => {
+            const n = (ui._followerNotifs || []).length;
+            if(n === 1){
+              const fid = String(ui._followerNotifs[0]?.id || "");
+              const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
+              return `${dn} followed you`;
+            }
+            return `${n} new followers`;
+          })(),
+          onClick: () => {
+            try{ openFollowerNotifsModal(); }catch(_){}
+          }
+        })
       : null
   ].filter(Boolean)),
 
   el("div", { style:"height:10px" }),
 
-  // 🔔 NEW FOLLOWER NOTIFICATION PILL (INSERTED HERE)
-  (user && (ui._followerNotifs || []).length)
-    ? el("div", {
-        class:"pill",
-        style:"cursor:pointer;",
-        text: (() => {
-          const n = (ui._followerNotifs || []).length;
-          if(n === 1){
-            const fid = String(ui._followerNotifs[0]?.id || "");
-            const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
-            return `${dn} followed you`;
-          }
-          return `${n} new followers`;
-        })(),
-        onClick: () => {
-          try{ openFollowerNotifsModal(); }catch(_){}
-        }
-      })
+  !configured
+    ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
     : null,
+
+  configured ? el("div", { class:"pillRow", style:"justify-content:center;" }, [
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer;",
+      onClick: async () => {
+        if(Social.fetchFollows) { try{ await Social.fetchFollows(); }catch(_){} }
+        if(Social.fetchFollowers) { try{ await Social.fetchFollowers(); }catch(_){} }
+        openConnectionsModal("following");
+      }
+    }, [
+      el("div", { class:"t", text:"Following" }),
+      el("div", { class:"x", text: String((Social.getFollows ? Social.getFollows() : followsNow).length) })
+    ]),
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer;",
+      onClick: async () => {
+        if(Social.fetchFollows) { try{ await Social.fetchFollows(); }catch(_){} }
+        if(Social.fetchFollowers) { try{ await Social.fetchFollowers(); }catch(_){} }
+        openConnectionsModal("followers");
+      }
+    }, [
+      el("div", { class:"t", text:"Followers" }),
+      el("div", { class:"x", text: String((Social.getFollowers ? Social.getFollowers() : followersNow).length) })
+    ])
+  ]) : null,
+
+  el("div", { style:"height:10px" }),
+
+  // Auth row (still only shows CTA when signed out)
+  configured ? el("div", { class:"btnrow" }, [
+    !user ? el("button", {
+      class:"btn primary",
+      onClick: async () => {
+        try{
+          await Social.signInWithOAuth("google");
+        }catch(e){
+          showToast(e?.message || "Google sign-in failed");
+        }
+      }
+    }, ["Continue with Google"]) : null
+  ].filter(Boolean)) : null
+].filter(Boolean)));
 
   !configured
     ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
