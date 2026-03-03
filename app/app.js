@@ -4071,32 +4071,46 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   const configured = Social.isConfigured && Social.isConfigured();
 
   // Header / status
-  root.appendChild(el("div", { class:"card" }, [
+const isOnline = (typeof navigator !== "undefined" && "onLine" in navigator) ? !!navigator.onLine : true;
+
+root.appendChild(el("div", { class:"card" }, [
+  el("div", { class:"rowBetween" }, [
     el("h2", { text:"Friends" }),
-    el("div", { style:"height:12px" }),
+    el("div", {
+      class:"pill",
+      text: isOnline ? "Online" : "Offline",
+      style: isOnline
+        ? "opacity:.95;"
+        : "opacity:.95; border: 1px solid rgba(255,92,122,.35); color: rgba(255,92,122,.95);"
+    })
+  ]),
 
-    !configured ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set your Supabase URL + anon key in Settings → Friends (Beta)." }) : null,
+  el("div", { style:"height:12px" }),
 
-    configured ? el("div", { class:"note", text: user ? `Signed in as ${user.email || user.id}` : "Not signed in" }) : null,
+  !configured
+    ? el("div", {
+        class:"note",
+        style:"color: rgba(255,92,122,.95);",
+        text:"Social is not configured yet. Set your Supabase URL + anon key in Settings → Friends (Beta)."
+      })
+    : null,
 
-    el("div", { style:"height:10px" }),
+  el("div", { style:"height:10px" }),
 
-        // Auth row (Friends header: sign-out + refresh removed)
-    configured ? el("div", { class:"btnrow" }, [
-
-  !user ? el("button", {
-    class:"btn primary",
-    onClick: async () => {
-      try{
-        await Social.signInWithOAuth("google");
-      }catch(e){
-        showToast(e?.message || "Google sign-in failed");
+  // Auth row (Friends header: sign-out + refresh removed)
+  configured ? el("div", { class:"btnrow" }, [
+    !user ? el("button", {
+      class:"btn primary",
+      onClick: async () => {
+        try{
+          await Social.signInWithOAuth("google");
+        }catch(e){
+          showToast(e?.message || "Google sign-in failed");
+        }
       }
-    }
-  }, ["Continue with Google"]) : null
-
-].filter(Boolean)) : null
-    ].filter(Boolean)));
+    }, ["Continue with Google"]) : null
+  ].filter(Boolean)) : null
+].filter(Boolean)));
 
 
   // Feed
