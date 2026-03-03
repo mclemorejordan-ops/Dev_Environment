@@ -3,6 +3,7 @@
 
 export function initBootstrap({
   getState,
+  Social,
 
   ExerciseLibrary,
   LogEngine,
@@ -44,6 +45,18 @@ export function initBootstrap({
     renderView();
     bindHeaderPills();
     setHeaderPills();
+
+    
+    // ✅ Friends/Social: rehydrate OAuth session after redirect without requiring user to click "Save"
+    // Keep this AFTER first render to avoid any perceived blank/slow boot.
+    try{
+      if(Social && typeof Social.isConfigured === "function" && Social.isConfigured()){
+        await Social.refreshUser?.();
+        if(Social.getUser?.()){
+          try{ Social.startFeed?.(); }catch(_){ }
+        }
+      }
+    }catch(_){ }
 
     // ✅ IMPORTANT: fetch version.json FIRST, so SW registers with the correct ?v=
     await checkForUpdates();
