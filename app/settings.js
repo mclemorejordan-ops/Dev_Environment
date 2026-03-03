@@ -72,35 +72,219 @@ export function initSettings({
         ])
       ]),
 
-      // Social Account
-el("div", { class:"card" }, [
-  el("div", { class:"note", text:"Friends (Beta)" }),
-  el("div", { style:"height:10px" }),
-  el("div", { class:"note", text: Social.getUser() ? `Your code: ${Social.getUser().id}` : "Not signed in" }),
-  el("div", { style:"height:10px" }),
-  el("div", { class:"btnrow" }, [
-    el("button", {
-      class:"btn primary",
-      onClick: async () => {
-        try{
-          await Social.signInWithOAuth("google");
-        }catch(e){
-          showToast("Google sign-in failed");
+      // Friends (Beta)
+el("div", { class:"card" }, (() => {
+  // lightweight local UI state (module-scoped via closure)
+  renderSettingsView._socialUI = renderSettingsView._socialUI || {};
+  const ui = renderSettingsView._socialUI;
+
+  const configured = (typeof Social !== "undefined" && Social.isConfigured) ? Social.isConfigured() : false;
+  const user = (typeof Social !== "undefined" && Social.getUser) ? Social.getUser() : null;
+
+  ui.friendId = ui.friendId ?? "";
+  ui.supabaseUrl = ui.supabaseUrl ?? "";
+  ui.supabaseAnon = ui.supabaseAnon ?? "";
+
+  // Try to read existing config if available
+  try{
+    if(Social && Social.getConfig){
+      const cfg = Social.getConfig() || {};
+      ui.supabaseUrl = ui.supabaseUrl || (cfg.url || "");
+      ui.supabaseAnon = ui.supabaseAnon || (cfg.anonKey || "");
+    }
+  }catch(_){}
+
+  const followList = (Social && Social.getFollows) ? (Social.getFollows() || []) : [];
+
+  const copy = async (txt) => {
+    try{
+      await navigator.clipboard.writeText(String(txt || ""));
+      showToast("Copied");
+    }catch(_){
+      showToast("Copy failed");
+    }
+  };
+
+  const header = [
+    el("div", { class:"note", text:"Friends (Beta)" }),
+    el("div", { style:"height:10px" }),
+    el("div", { class:"note", text:"Share your code, follow friends, and view highlights in Friends." }),
+    el("div", { style:"height:12px" }),
+  ];
+
+  const configUI = [
+    el("div", { class:"setRow" }, [
+      el("div", {}, [
+        el("div", { style:"font-weight:820;", text:"Supabase URL" }),
+        el("div", { class:"meta", text:"https://xxxx.supabase.co" })
+      ]),
+      el("input", {
+        type:"text",
+        value: ui.supabaseUrl,
+        onInput: (e) => { ui.supabaseUrl = e.target.value || ""; }
+      })
+    ]),
+    el("div", { class:"setRow" }, [
+      el("div", {}, [
+        el("div", { style:"font-weight:820;", text:"Supabase anon key" }),
+        el("div", { class:"meta", text:"Settings → API → anon public key" })
+      ]),
+      el("input", {
+        type:"password",
+        value: ui.supabaseAnon,
+        onInput: (e) => { ui.supabaseAnon = e.target.value || ""; }
+      })
+    ]),
+    el("div", { style:"height:10px" }),
+    el("div", { class:"btnrow" }, [
+      el("button", {
+        class:"btn primary",
+        onClick: async () => {
+          try{
+            if(!Social || !Social.configure) throw new Error("Social not available");
+            await Social.configure({ url: ui.supabaseUrl, anonKey: ui.supabaseAnon });
+            showToast("Saved");
+          }catch(e){
+            showToast(e?.message || "Save failed");
+          }
         }
-      }
-    }, ["Continue with Google"]),
-    el("button", {
-      class:"btn",
-      onClick: async () => {
-        try{
-          await Social.signOut();
-          showToast("Signed out");
-          location.reload();
-        }catch(_){}
-      }
-    }, ["Sign out"])
-  ])
-]),
+      }, ["Save"]),
+      el("button", {
+        class:"btn",
+        onClick: async () => {
+          try{
+            if(!Social || !Social.configure) return;
+            await Social.configure({ url:"", anonKey:"" });
+            showToast("Disconnected");
+          }catch(_){
+            showToast("Disconnect failed");
+          }
+        }
+      }, ["Disconnect"])
+    ])
+  ];
+
+  const authUI = [
+    el("div", { style:"height:14px" }),
+    el("div", { class:"note", text: configured ? "Sign-in" : "Sign-in (configure first)" }),
+    el("div", { style:"height:10px" }),
+    configured ? el("div", { class:"btnrow" }, [
+      !user ? el("button", {
+        class:"btn primary",
+        onClick: async () => {
+          try{
+            await Social.signInWithOAuth("google");
+          }catch(e){
+            showToast(e?.message || "Google sign-in failed");
+          }
+        }
+      }, ["Continue with Google"]) : null,
+
+      user ? el("button", {
+        class:"btn",
+        onClick: async () => {
+          try{
+            await Social.signOut();
+            showToast("Signed out");
+          }catch(_){}
+        }
+      }, ["Sign out"]) : null,
+
+      el("button", {
+        class:"btn",
+        onClick: async () => {
+          try{
+            await Social.refreshUser();
+            if(Social.getUser && Social.getUser()){
+              Social.startFeed && Social.startFeed();
+              Social.fetchFollows && await Social.fetchFollows();
+            }
+            showToast("Refreshed");
+          }catch(_){
+            showToast("Refresh failed");
+          }
+        }
+      }, ["Refresh"])
+    ].filter(Boolean)) : null
+  ];
+
+  const codeUI = [
+    el("div", { style:"height:14px" }),
+    el("div", { class:"note", text:"Your friend code" }),
+    el("div", { style:"height:10px" }),
+    el("div", { class:"kpi" }, [
+      el("div", { class:"big", text: user ? user.id : "—" }),
+      el("div", { class:"small", text: user ? "Share this code so friends can follow you." : "Sign in to get your code." })
+    ]),
+    user ? el("div", { class:"btnrow", style:"margin-top:10px;" }, [
+      el("button", { class:"btn", onClick: () => copy(user.id) }, ["Copy code"])
+    ]) : null
+  ].filter(Boolean);
+
+  const followUI = [
+    el("div", { style:"height:14px" }),
+    el("div", { class:"note", text:"Follow a friend" }),
+    el("div", { style:"height:10px" }),
+    el("div", { class:"btnrow" }, [
+      el("input", {
+        type:"text",
+        placeholder:"Paste friend code",
+        value: ui.friendId,
+        onInput: (e) => { ui.friendId = e.target.value || ""; }
+      }),
+      el("button", {
+        class:"btn primary",
+        onClick: async () => {
+          try{
+            if(!user) throw new Error("Sign in first");
+            const id = String(ui.friendId || "").trim();
+            if(!id) throw new Error("Friend code required");
+            await Social.follow(id);
+            ui.friendId = "";
+            Social.fetchFollows && await Social.fetchFollows();
+            showToast("Following");
+          }catch(e){
+            showToast(e?.message || "Follow failed");
+          }
+        }
+      }, ["Follow"])
+    ])
+  ];
+
+  const followingUI = [
+    el("div", { style:"height:14px" }),
+    el("div", { class:"note", text:"Following" }),
+    el("div", { style:"height:10px" }),
+    !followList.length
+      ? el("div", { class:"note", text:"Not following anyone yet." })
+      : el("div", {}, followList.map(fid => (
+          el("div", { class:"rowBetween", style:"margin:8px 0;" }, [
+            el("div", { class:"note", text: fid }),
+            el("button", {
+              class:"btn",
+              onClick: async () => {
+                try{
+                  await Social.unfollow(fid);
+                  Social.fetchFollows && await Social.fetchFollows();
+                  showToast("Unfollowed");
+                }catch(_){
+                  showToast("Unfollow failed");
+                }
+              }
+            }, ["Unfollow"])
+          ])
+        )))
+  ];
+
+  return [
+    ...header,
+    ...configUI,
+    ...authUI,
+    ...codeUI,
+    ...followUI,
+    ...followingUI
+  ];
+})()),
 
       // Data tools
       el("div", { class:"card" }, [
