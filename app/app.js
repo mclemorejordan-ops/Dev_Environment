@@ -3916,7 +3916,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   // Header / status
   root.appendChild(el("div", { class:"card" }, [
     el("h2", { text:"Friends" }),
-    el("div", { class:"note", text:"Events-only feed. Share your friend code, follow friends, and see their activity while the app is open." }),
+    el("div", { class:"note", text:"Events-only feed. Manage friend code + following in Settings → Friends (Beta), then view activity here while the app is open." }),
     el("div", { style:"height:12px" }),
 
     !configured ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set your Supabase URL + anon key in Settings → Friends (Beta)." }) : null,
@@ -3960,52 +3960,12 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 ].filter(Boolean)) : null
     ].filter(Boolean)));
 
-  // Friend code + follow controls
+    // Friend code + follow controls (moved to Settings → Friends (Beta))
   root.appendChild(el("div", { class:"card" }, [
-    el("div", { class:"note", text:"Your friend code" }),
-    el("div", { class:"kpi" }, [
-      el("div", { class:"big", text: user ? user.id : "—" }),
-      el("div", { class:"small", text:"Share this code with friends so they can follow you." })
-    ]),
-    el("div", { style:"height:12px" }),
-
-    el("div", { class:"note", text:"Follow a friend" }),
-    el("div", { class:"btnrow" }, [
-      el("input", {
-        type:"text",
-        placeholder:"Paste friend code (user id)",
-        value: ui.friendId,
-        onInput: (e) => { ui.friendId = e.target.value || ""; }
-      }),
-      el("button", {
-        class:"btn primary",
-        onClick: async () => {
-          try{
-            await Social.follow(ui.friendId);
-            ui.friendId = "";
-            showToast("Following");
-            renderView();
-          }catch(e){
-            showToast(e?.message || "Couldn't follow");
-          }
-        }
-      }, ["Follow"])
-    ]),
-
-    el("div", { style:"height:14px" }),
-
-    el("div", { class:"note", text:"Following" }),
-    el("div", {}, (Social.getFollows() || []).length ? (Social.getFollows() || []).map(fid =>
-      el("div", { class:"rowBetween", style:"padding:8px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
-        el("div", { class:"small", text: fid }),
-        el("button", {
-          class:"btn sm",
-          onClick: async () => {
-            try{ await Social.unfollow(fid); showToast("Unfollowed"); renderView(); }catch(_){}
-          }
-        }, ["Unfollow"])
-      ])
-    ) : [ el("div", { class:"note", text:"Not following anyone yet." }) ])
+    el("div", {
+      class:"note",
+      text:"Friend code + Following are now managed in Settings → Friends (Beta)."
+    })
   ]));
 
   // Feed
@@ -4487,6 +4447,14 @@ const socialCfg = Social.getConfig && Social.getConfig();
 socialUI.supabaseUrl = (socialUI.supabaseUrl ?? socialCfg?.url ?? "");
 socialUI.supabaseAnon = (socialUI.supabaseAnon ?? socialCfg?.anonKey ?? "");
 
+const socialUI = UIState.social || (UIState.social = {});
+const socialCfg = Social.getConfig && Social.getConfig();
+
+// local, non-state inputs
+socialUI.supabaseUrl = (socialUI.supabaseUrl ?? socialCfg?.url ?? "");
+socialUI.supabaseAnon = (socialUI.supabaseAnon ?? socialCfg?.anonKey ?? "");
+socialUI.friendId = socialUI.friendId || "";
+
 const socialBody = el("div", {}, [
   el("div", { class:"note", text:"Connect a free Supabase project to enable the Friends feed (events-only). This does not sync your full app data — it only posts compact activity events." }),
   el("div", { style:"height:10px" }),
@@ -4534,13 +4502,13 @@ const socialBody = el("div", {}, [
     el("button", {
       class:"btn",
       onClick: async () => {
-  try{
-    await Social.configure({ url: "", anonKey: "" });
-    try{ localStorage.setItem(SOCIAL_CFG_KEY, JSON.stringify({ disabled:true })); }catch(_){}
-    showToast("Social disconnected");
-    renderView();
-  }catch(_){}
-}
+        try{
+          await Social.configure({ url: "", anonKey: "" });
+          try{ localStorage.setItem(SOCIAL_CFG_KEY, JSON.stringify({ disabled:true })); }catch(_){}
+          showToast("Social disconnected");
+          renderView();
+        }catch(_){}
+      }
     }, ["Disconnect"])
   ]),
 
@@ -4548,24 +4516,75 @@ const socialBody = el("div", {}, [
 
   el("div", { class:"note", text:"Sign-in" }),
   el("div", { class:"btnrow" }, [
-  el("button", {
-    class:"btn primary",
-    onClick: async () => {
-      try{
-        await Social.signInWithOAuth("google");
-      }catch(e){
-        showToast(e?.message || "Google sign-in failed");
+    el("button", {
+      class:"btn primary",
+      onClick: async () => {
+        try{
+          await Social.signInWithOAuth("google");
+        }catch(e){
+          showToast(e?.message || "Google sign-in failed");
+        }
       }
-    }
-  }, ["Continue with Google"]),
+    }, ["Continue with Google"]),
 
-  el("button", {
-    class:"btn",
-    onClick: async () => {
-      try{ await Social.signOut(); showToast("Signed out"); renderView(); }catch(_){}
-    }
-  }, ["Sign out"])
-]),
+    el("button", {
+      class:"btn",
+      onClick: async () => {
+        try{ await Social.signOut(); showToast("Signed out"); renderView(); }catch(_){}
+      }
+    }, ["Sign out"])
+  ]),
+
+  // ─────────────────────────────
+  // Friend code + follow controls (moved here)
+  // ─────────────────────────────
+  el("div", { style:"height:14px" }),
+
+  el("div", { class:"note", text:"Your friend code" }),
+  el("div", { class:"kpi" }, [
+    el("div", { class:"big", text: (Social.getUser && Social.getUser()) ? Social.getUser().id : "—" }),
+    el("div", { class:"small", text:"Share this code with friends so they can follow you." })
+  ]),
+
+  el("div", { style:"height:12px" }),
+
+  el("div", { class:"note", text:"Follow a friend" }),
+  el("div", { class:"btnrow" }, [
+    el("input", {
+      type:"text",
+      placeholder:"Paste friend code (user id)",
+      value: socialUI.friendId,
+      onInput: (e) => { socialUI.friendId = e.target.value || ""; }
+    }),
+    el("button", {
+      class:"btn primary",
+      onClick: async () => {
+        try{
+          await Social.follow(socialUI.friendId);
+          socialUI.friendId = "";
+          showToast("Following");
+          renderView();
+        }catch(e){
+          showToast(e?.message || "Couldn't follow");
+        }
+      }
+    }, ["Follow"])
+  ]),
+
+  el("div", { style:"height:14px" }),
+
+  el("div", { class:"note", text:"Following" }),
+  el("div", {}, (Social.getFollows() || []).length ? (Social.getFollows() || []).map(fid =>
+    el("div", { class:"rowBetween", style:"padding:8px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
+      el("div", { class:"small", text: fid }),
+      el("button", {
+        class:"btn sm",
+        onClick: async () => {
+          try{ await Social.unfollow(fid); showToast("Unfollowed"); renderView(); }catch(_){}
+        }
+      }, ["Unfollow"])
+    ])
+  ) : [ el("div", { class:"note", text:"Not following anyone yet." }) ]),
 
   el("div", { style:"height:10px" }),
 
