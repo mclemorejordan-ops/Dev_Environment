@@ -4070,6 +4070,23 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
 
+  // ✅ Live Online/Offline pill updates (only re-render on Friends route)
+if(!ui.__netSub){
+  ui.__netSub = true;
+
+  ui.__netHandler = () => {
+    const r = (String(location.hash || "").replace(/^#/, "") || "home");
+    if(r === "friends"){
+      try{ renderView(); }catch(_){}
+    }
+  };
+
+  try{
+    window.addEventListener("online", ui.__netHandler);
+    window.addEventListener("offline", ui.__netHandler);
+  }catch(_){}
+}
+  
   // Header / status
 const isOnline = (typeof navigator !== "undefined" && "onLine" in navigator) ? !!navigator.onLine : true;
 
