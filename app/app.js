@@ -857,65 +857,179 @@ el("div", { class:"card" }, (() => {
     ];
   }
 
-  // Ensure goals object exists (migrateState covers old saves, but keep UI safe)
+  // Ensure goals container exists (migrateState covers old saves, but keep UI safe)
   state.profile.goals = (state.profile.goals && typeof state.profile.goals === "object") ? state.profile.goals : {};
+
+  // Keep existing fields for backward compatibility (even if UI doesn’t use them yet)
   if(!Number.isFinite(state.profile.goals.weeklySessionsTarget)) state.profile.goals.weeklySessionsTarget = 4;
   if(state.profile.goals.targetWeight === undefined) state.profile.goals.targetWeight = null;
 
-  const weeklyInput = el("input", { type:"number", inputmode:"numeric", min:"0", step:"1", placeholder:"4" });
-  weeklyInput.value = String(state.profile.goals.weeklySessionsTarget ?? 4);
+  // ✅ New: goal items list (additive)
+  if(!Array.isArray(state.profile.goals.items)) state.profile.goals.items = [];
 
-  const targetWeightInput = el("input", { type:"number", inputmode:"decimal", step:"0.1", placeholder:"e.g. 185.0" });
-  targetWeightInput.value = (state.profile.goals.targetWeight === null || state.profile.goals.targetWeight === undefined)
-    ? ""
-    : String(state.profile.goals.targetWeight);
+  const goals = state.profile.goals.items;
 
-  // Basic compact styling without touching global input rules
-  const inputStyle = "width: 110px; text-align:right;";
-  weeklyInput.setAttribute("style", inputStyle);
-  targetWeightInput.setAttribute("style", inputStyle);
+  function topWeightSince(exerciseId, sinceTs){
+    let best = null;
+    const arr = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+    for(const e of arr){
+      if(!e) continue;
+      if(e.type !== "weightlifting") continue;
+      if(e.exerciseId !== exerciseId) continue;
+      if((e.createdAt || 0) < sinceTs) continue;
 
-  function saveGoals(){
-    const w = Number(weeklyInput.value || 0);
-    state.profile.goals.weeklySessionsTarget = Number.isFinite(w) ? Math.max(0, Math.round(w)) : 4;
+      const bw = Number(e?.summary?.bestWeight);
+      if(Number.isFinite(bw)){
+        best = (best === null) ? bw : Math.max(best, bw);
+      }
+    }
+    return best;
+  }
 
-    const twRaw = targetWeightInput.value.trim();
-    if(twRaw === ""){
-      state.profile.goals.targetWeight = null;
-    } else {
-      const tw = Number(twRaw);
-      state.profile.goals.targetWeight = Number.isFinite(tw) ? tw : null;
+  function openAddGoalModal(){
+    const list = Array.isArray(state?.exerciseLibrary?.weightlifting) ? state.exerciseLibrary.weightlifting.slice() : [];
+    list.sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+
+    const exerciseSelect = el("select", {});
+    exerciseSelect.appendChild(el("option", { value:"", text:"Select an exercise…" }));
+
+    for(const ex of list){
+      if(!ex || !ex.id) continue;
+      exerciseSelect.appendChild(el("option", { value: ex.id, text: ex.name || "Unnamed" }));
     }
 
+    const targetInput = el("input", {
+      type:"number",
+      inputmode:"decimal",
+      step:"0.5",
+      placeholder:"e.g. 225"
+    });
+
+    function save(){
+      const exerciseId = String(exerciseSelect.value || "").trim();
+      const target = Number(targetInput.value);
+
+      if(!exerciseId){
+        showToast("Pick an exercise");
+        return;
+      }
+      if(!Number.isFinite(target) || target <= 0){
+        showToast("Enter a valid target weight");
+        return;
+      }
+
+      const ex = (state.exerciseLibrary?.weightlifting || []).find(x => x.id === exerciseId);
+      const nameSnap = ex?.name || "Unknown exercise";
+
+      const idFn = (typeof uid === "function") ? uid : (p => `${p || "g"}_${Date.now()}`);
+      goals.push({
+        id: idFn("g"),
+        type: "top_weight",
+        exerciseId,
+        exerciseNameSnap: nameSnap,
+        targetWeight: target,
+        createdAt: Date.now()
+      });
+
+      Storage.save(state);
+      showToast("Goal added");
+      Modal.close();
+      renderView();
+    }
+
+    Modal.open({
+      title: "Add goal",
+      bodyNode: el("div", {}, [
+        el("div", { class:"note", text:"Track your top weight PR since you created this goal." }),
+        el("div", { style:"height:12px" }),
+
+        el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Exercise" }),
+            el("div", { class:"meta", text:"Weightlifting only" })
+          ]),
+          exerciseSelect
+        ]),
+
+        el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Target top weight" }),
+            el("div", { class:"meta", text:"lbs (or your unit)" })
+          ]),
+          targetInput
+        ]),
+
+        el("div", { style:"height:12px" }),
+        el("div", { class:"btnrow" }, [
+          el("button", { class:"btn", onClick: Modal.close }, ["Cancel"]),
+          el("button", { class:"btn primary", onClick: save }, ["Save goal"])
+        ])
+      ])
+    });
+  }
+
+  function removeGoal(goalId){
+    const idx = goals.findIndex(g => g && g.id === goalId);
+    if(idx < 0) return;
+    goals.splice(idx, 1);
     Storage.save(state);
-    showToast("Goals saved");
+    showToast("Goal removed");
     renderView();
   }
 
+  function renderGoalRow(g){
+    const createdAt = Number(g?.createdAt || 0);
+    const target = Number(g?.targetWeight || 0);
+    const current = topWeightSince(g?.exerciseId, createdAt);
+
+    const pct = (Number.isFinite(target) && target > 0 && Number.isFinite(current) && current !== null)
+      ? Math.max(0, Math.min(1, current / target))
+      : 0;
+
+    const title = (g?.exerciseNameSnap || "Goal");
+    const currentTxt = (current == null) ? "—" : String(Number(current).toFixed(1));
+    const targetTxt = (Number.isFinite(target) && target > 0) ? String(Number(target).toFixed(1)) : "—";
+    const pctTxt = `${Math.round(pct * 100)}%`;
+
+    return el("div", {
+      style:"border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); border-radius:16px; padding:12px;"
+    }, [
+      el("div", { class:"homeRow" }, [
+        el("div", {}, [
+          el("div", { style:"font-weight:900; letter-spacing:.2px;", text: title }),
+          el("div", { class:"note", text:`Top weight since goal creation • ${pctTxt}` })
+        ]),
+        el("button", { class:"btn danger", onClick: () => removeGoal(g.id) }, ["Remove"])
+      ]),
+
+      el("div", { style:"height:10px" }),
+
+      // Reuse protein bar styles to avoid new CSS surface area
+      el("div", { class:"proteinBarTrack", style:"height:12px; border-radius:999px; overflow:hidden;" }, [
+        el("div", { class:"proteinBarFill", style:`width:${Math.round(pct * 100)}%; height:100%;` })
+      ]),
+
+      el("div", { style:"height:8px" }),
+      el("div", { class:"note", text:`Current: ${currentTxt} • Target: ${targetTxt}` })
+    ]);
+  }
+
+  const listNode =
+    goals.length === 0
+      ? el("div", { class:"note", text:"No goals yet. Add one to start tracking progress." })
+      : el("div", { style:"display:flex; flex-direction:column; gap:10px; margin-top:10px;" },
+          goals.map(renderGoalRow)
+        );
+
   return [
-    el("h2", { text:"Goals" }),
-    el("div", { class:"note", text:"Set targets for consistency. Saved across app restarts." }),
-
-    el("div", { class:"setRow" }, [
+    el("div", { class:"homeRow" }, [
       el("div", {}, [
-        el("div", { style:"font-weight:820;", text:"Weekly sessions" }),
-        el("div", { class:"meta", text:"Target workouts per week" })
+        el("h2", { text:"Goals" }),
+        el("div", { class:"note", text:"Add goals and watch progress update as you log workouts." })
       ]),
-      weeklyInput
+      el("button", { class:"btn primary", onClick: openAddGoalModal }, ["+ Add goal"])
     ]),
-
-    el("div", { class:"setRow" }, [
-      el("div", {}, [
-        el("div", { style:"font-weight:820;", text:"Target weight" }),
-        el("div", { class:"meta", text:"Leave blank for none" })
-      ]),
-      targetWeightInput
-    ]),
-
-    el("div", { style:"height:10px" }),
-    el("div", { class:"btnrow" }, [
-      el("button", { class:"btn primary", onClick: saveGoals }, ["Save goals"])
-    ])
+    listNode
   ];
 })()),
 
