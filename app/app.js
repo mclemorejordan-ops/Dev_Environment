@@ -3727,10 +3727,7 @@ const profileBody = el("div", {}, [
     nameInput
   ]),
 
-  // 2) Daily Protein (existing row; visibility is already controlled by trackProtein)
-  proteinRow,
-
-  // 3) Week starts on
+  // 2) Week starts on
   el("div", { class:"setRow" }, [
     el("div", {}, [
       el("div", { style:"font-weight:820;", text:"Week starts on" }),
@@ -3739,7 +3736,10 @@ const profileBody = el("div", {}, [
     weekSelect
   ]),
 
-  // 4) Toggles below
+  // 3) Daily Protein
+  proteinRow,
+
+  // 4) Toggles
   trackProteinRow,
 
   el("div", { class:"setRow" }, [
