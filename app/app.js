@@ -765,74 +765,82 @@ const openProteinModal = (dateISO = todayISO) => {
 //   el("button", { class:"btn", onClick: () => navigate("routine") }, ["Open Routine"])
 // ])
 
-...(goal > 0 ? [
-  el("div", { class:"card" }, [
-    el("h2", { text:"Protein" }),
-    el("div", { class:"homeRow" }, [
-      el("div", { class:"kpi" }, [
-        el("div", { class:"big", text: `${left}g left` }),
-        el("div", { class:"small", text:"Tap to log meals for today." })
-      ]),
-      el("div", { onClick: openProteinModal }, [ ring ])
-    ]),
-    el("div", { style:"height:10px" }),
-    el("div", { class:"btnrow" }, [
-      el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
-    ])
-  ])
-] : []),
+// ✅ This Week — combined card (Attendance + Weight + Protein if enabled)
+(() => {
+  const sessionsThisWeek = trainedThisWeek.filter(x => x.trained).length;
 
-el("div", { class:"card" }, [
-  // Header row + action buttons
-  el("div", { class:"homeRow" }, [
+  const sep = () => el("div", {
+    style:"height:1px; background: rgba(255,255,255,.10); margin: 12px 0;"
+  });
+
+  return el("div", { class:"card" }, [
     el("div", {}, [
-      el("h2", { text:"Attendance" }),
+      el("h2", { text:"This Week" }),
       el("div", { class:"note", text: weekLabel })
     ]),
 
-    // ✅ Stack actions: Check in ABOVE View calendar
-    el("div", {
-      style:"display:flex; flex-direction:column; gap:8px; align-items:flex-end;"
-    }, [
+    // Attendance section
+    el("div", { class:"homeRow" }, [
+      el("div", { class:"kpi" }, [
+        el("div", { class:"big", text: `${sessionsThisWeek} sessions` }),
+        el("div", { class:"small", text:"Tap the dots to view your calendar." })
+      ]),
       el("button", {
         class:"btn primary",
         onClick: openCheckIn
-      }, [isTrained(todayISO) ? "Undo check-in" : "Check in"]),
+      }, [isTrained(todayISO) ? "Undo check-in" : "Check in"])
+    ]),
 
+    el("div", { style:"height:10px" }),
+
+    // Dots preview (clickable)
+    el("div", {
+      onClick: () => navigate("attendance"),
+      style:"cursor:pointer;"
+    }, [ dots ]),
+
+    el("div", { style:"height:10px" }),
+
+    el("div", { class:"btnrow" }, [
+      el("button", { class:"btn", onClick: () => navigate("attendance") }, ["View calendar"])
+    ]),
+
+    // Weight section
+    sep(),
+
+    el("div", { class:"homeRow" }, [
+      el("div", { class:"kpi" }, [
+        el("div", { class:"big", text: wLatest ? `${Number(wLatest.weight).toFixed(1)}` : "—" }),
+        el("div", { class:"small", text: wLatest ? `Latest • ${wLatest.dateISO}` : "No weight entries yet." }),
+        el("div", { class:"small", text: `Delta vs previous: ${wDeltaText}` })
+      ]),
       el("button", {
         class:"btn",
-        onClick: () => navigate("attendance")
-      }, ["View calendar"])
-    ])
-  ]),
+        onClick: () => navigate("weight")
+      }, ["Log weight"])
+    ]),
 
+    // Protein section (only if enabled)
+    ...(goal > 0 ? [
+      sep(),
 
-  el("div", { style:"height:10px" }),
+      el("div", { class:"homeRow" }, [
+        el("div", { class:"kpi" }, [
+          el("div", { class:"big", text: `${left}g left` }),
+          el("div", { class:"small", text: `${done} / ${goal}g today` }),
+          el("div", { class:"small", text:"Tap the ring to log meals." })
+        ]),
+        el("div", { onClick: openProteinModal, style:"cursor:pointer;" }, [ ring ])
+      ]),
 
-  // Make the dots preview clickable too
-  el("div", {
-    onClick: () => navigate("attendance"),
-    style:"cursor:pointer;"
-  }, [ dots ]),
+      el("div", { style:"height:10px" }),
 
-  el("div", { style:"height:10px" }),
-  el("div", { class:"note", text:`This week: ${trainedThisWeek.filter(x => x.trained).length} sessions` })
-]),
-              
-// ✅ NEW: Weight card (Weight tab replacement)
-          el("div", { class:"card" }, [
-            el("h2", { text:"Weight" }),
-            el("div", { class:"kpi" }, [
-              el("div", { class:"big", text: wLatest ? `${Number(wLatest.weight).toFixed(1)}` : "—" }),
-              el("div", { class:"small", text: wLatest ? `Latest • ${wLatest.dateISO}` : "No weight entries yet." }),
-              el("div", { class:"small", text: `Delta vs previous: ${wDeltaText}` })
-            ]),
-            el("div", { style:"height:10px" }),
-            el("div", { class:"btnrow" }, [
-              el("button", { class:"btn primary", onClick: () => navigate("weight") }, ["Log weight"])
-            ])
-          ])
-        ]);
+      el("div", { class:"btnrow" }, [
+        el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
+      ])
+    ] : [])
+  ]);
+})(),
       },
       ProteinHistory(){
 
