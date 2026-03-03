@@ -4514,18 +4514,38 @@ try{
 
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right)
-  el("div", { style:"position:relative; min-height:28px;" }, [
-    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
-    (typeof Social.isSignedIn === "function")
-      ? el("div", {
-          class:"pill",
-          style:"position:absolute; top:0; right:0;",
-          text: Social.isSignedIn() ? "Signed in" : "Signed out"
-        })
-      : null
-  ].filter(Boolean)),
+  el("div", { style:"position:relative; min-height:52px;" }, [
+  el("h2", { text:"Friends", style:"margin:0; padding-right:200px;" }),
 
-  el("div", { style:"height:10px" }),
+  // Top-right auth pill
+  (typeof Social.isSignedIn === "function")
+    ? el("div", {
+        class:"pill",
+        style:"position:absolute; top:0; right:0;",
+        text: Social.isSignedIn() ? "Signed in" : "Signed out"
+      })
+    : null,
+
+  // 🔔 Bottom-right notification pill
+  (user && (ui._followerNotifs || []).length)
+    ? el("div", {
+        class:"pill",
+        style:"position:absolute; bottom:0; right:0; cursor:pointer;",
+        text: (() => {
+          const n = (ui._followerNotifs || []).length;
+          if(n === 1){
+            const fid = String(ui._followerNotifs[0]?.id || "");
+            const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
+            return `${dn} followed you`;
+          }
+          return `${n} new followers`;
+        })(),
+        onClick: () => {
+          try{ openFollowerNotifsModal(); }catch(_){}
+        }
+      })
+    : null
+].filter(Boolean)),
 
   // 🔔 NEW FOLLOWER NOTIFICATION PILL (INSERTED HERE)
   (user && (ui._followerNotifs || []).length)
