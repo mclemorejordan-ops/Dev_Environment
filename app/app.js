@@ -5102,24 +5102,6 @@ if(_socialUserNow){
 
   el("div", { style:"height:14px" }),
 
-  el("div", { class:"note", text:"Following" }),
-  el("div", {}, (Social.getFollows() || []).length ? (Social.getFollows() || []).map(fid =>
-    el("div", { class:"rowBetween", style:"padding:8px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
-      el("div", { class:"small", text: fid }),
-      el("button", {
-        class:"btn sm",
-        onClick: async () => {
-          try{ await Social.unfollow(fid); showToast("Unfollowed"); renderView(); }catch(_){}
-        }
-      }, ["Unfollow"])
-    ])
-  ) : [ el("div", { class:"note", text:"Not following anyone yet." }) ]),
-
-  el("div", { style:"height:10px" }),
-
-  el("div", { class:"note", text:"Tip: After you click the email link on this device, come back and tap Refresh on the Friends screen." })
-]);
-
            
         const backupBody = el("div", {}, [
   el("div", { class:"note", text:"Export your full app data as JSON. Import will overwrite your current data in this browser." }),
