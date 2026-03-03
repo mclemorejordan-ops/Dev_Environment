@@ -4514,8 +4514,10 @@ try{
 
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right)
+  root.appendChild(el("div", { class:"card" }, [
+  // Header title + auth pill (top-right)
   el("div", { style:"position:relative; min-height:52px;" }, [
-  el("h2", { text:"Friends", style:"margin:0; padding-right:200px;" }),
+  el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
 
   // Top-right auth pill
   (typeof Social.isSignedIn === "function")
@@ -4547,25 +4549,7 @@ root.appendChild(el("div", { class:"card" }, [
     : null
 ].filter(Boolean)),
 
-  // 🔔 NEW FOLLOWER NOTIFICATION PILL (INSERTED HERE)
-  (user && (ui._followerNotifs || []).length)
-    ? el("div", {
-        class:"pill",
-        style:"cursor:pointer;",
-        text: (() => {
-          const n = (ui._followerNotifs || []).length;
-          if(n === 1){
-            const fid = String(ui._followerNotifs[0]?.id || "");
-            const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
-            return `${dn} followed you`;
-          }
-          return `${n} new followers`;
-        })(),
-        onClick: () => {
-          try{ openFollowerNotifsModal(); }catch(_){}
-        }
-      })
-    : null,
+  el("div", { style:"height:10px" }),
 
   !configured
     ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
