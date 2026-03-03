@@ -535,6 +535,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     signOut,
     refreshUser,
     getUser,
+    isSignedIn: () => !!_user,
 
     // follows + followers + feed
     follow,
@@ -4262,8 +4263,8 @@ root.appendChild(el("div", { class:"card" }, [
     el("h2", { text:"Friends" }),
     // ✅ Your existing signed-in status pill should already be here in your current build.
     // If you already have it, keep it. If not, this is safe to omit.
-    (typeof Social.isSignedIn === "function")
-      ? el("div", { class:"pill", text: Social.isSignedIn() ? "Online" : "Offline" })
+        (typeof Social.isSignedIn === "function")
+      ? el("div", { class:"pill", text: Social.isSignedIn() ? "Signed in" : "Signed out" })
       : null
   ].filter(Boolean)),
 
