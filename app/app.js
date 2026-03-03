@@ -386,6 +386,21 @@ async function signInWithOAuth(provider){
     };
   }
 
+function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights }){
+  const state = stateRef();
+  return {
+    eventType: "workout_completed",
+    payload: {
+      displayName: state?.profile?.name || null,
+      dateISO: dateISO || null,
+      routineId: routineId || null,
+      dayId: dayId || null,
+      highlights: highlights || {}
+    }
+  };
+}
+  
+
   async function flushOutbox(){
     const sb = await ensureClient();
     if(!sb || !_user) return;
@@ -433,6 +448,35 @@ async function signInWithOAuth(provider){
     }
   }
 
+
+async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights }){
+  // Only publish if configured + signed in
+  if(!isConfigured()) return;
+  await ensureClient();
+  if(!_user) return;
+
+  const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights });
+  const row = {
+    actor_id: _user.id,
+    type: ev.eventType,
+    payload: ev.payload
+  };
+
+  // Try immediate insert, else queue
+  try{
+    const sb = await ensureClient();
+    if(!sb) return;
+    const { error } = await sb.from("activity_events").insert(row);
+    if(error) throw error;
+    fetchFeed();
+  }catch(_){
+    const out = readOutbox();
+    out.unshift(row);
+    writeOutbox(out.slice(0, 100));
+  }
+}
+  
+
   // flush queued events when online
   window.addEventListener("online", () => { try{ flushOutbox(); }catch(_){} });
 
@@ -462,6 +506,7 @@ async function signInWithOAuth(provider){
     // publishing
     publishLogEvent,
     flushOutbox,
+    publishWorkoutCompletedEvent,
 
     // UI updates
     onChange
@@ -2264,36 +2309,48 @@ if(type === "weightlifting"){
     err.textContent = "";
   }
 
-  function afterSave(savedDateISO){
-    Modal.close();
+  function afterSave(savedDateISO, wasComplete=false){
+  Modal.close();
 
-    // If the whole day is now logged, auto-complete + attendance
-    if(isDayComplete(savedDateISO, day)){
-      attendanceAdd(savedDateISO);
-      showToast("Day completed ✅");
-    }
+  // If the whole day JUST became complete, auto-complete + attendance + publish (Friends feed)
+  const nowComplete = isDayComplete(savedDateISO, day);
+  if(nowComplete && !wasComplete){
+    attendanceAdd(savedDateISO);
+    showToast("Day completed ✅");
 
-    // Set Next → nudge for next unlogged (same day)
-    const list = (day.exercises || []);
-    const curIdx = list.findIndex(x => x.id === rx.id);
+    // Friends/Social: publish ONE event for the completed workout (not each exercise/set)
+    try{
+      if(Social && typeof Social.publishWorkoutCompletedEvent === "function"){
+        const entries = (state?.logs?.workouts || []).filter(e =>
+          String(e?.dateISO || "") === String(savedDateISO || "") &&
+          String(e?.routineId || "") === String(routine?.id || "") &&
+          String(e?.dayId || "") === String(day?.id || "")
+        );
 
-    // next unlogged AFTER current
-    let next = null;
-    for(let i = curIdx + 1; i < list.length; i++){
-      if(!hasRoutineExerciseLog(savedDateISO, list[i].id)){ next = list[i]; break; }
-    }
-    // if none after, fallback to first unlogged anywhere
-    if(!next){
-      next = list.find(x => !hasRoutineExerciseLog(savedDateISO, x.id)) || null;
-    }
+        const exSet = new Set();
+        let totalVolume = 0;
+        let prCount = 0;
 
-    setNextNudge(next ? {
-      dateISO: savedDateISO,
-      dayOrder: day.order,
-      nextRoutineExerciseId: next.id
-    } : null);
+        for(const e of entries){
+          if(e?.routineExerciseId) exSet.add(String(e.routineExerciseId));
+          if(Number.isFinite(Number(e?.summary?.totalVolume))) totalVolume += Number(e.summary.totalVolume) || 0;
 
-    repaint();
+          const pr = e?.pr || {};
+          prCount += ["isPRWeight","isPR1RM","isPRVolume","isPRPace"].filter(k => pr?.[k]).length;
+        }
+
+        Social.publishWorkoutCompletedEvent({
+          dateISO: savedDateISO,
+          routineId: routine?.id || null,
+          dayId: day?.id || null,
+          highlights: {
+            exerciseCount: exSet.size,
+            prCount,
+            totalVolume: Math.round(totalVolume * 100) / 100
+          }
+        });
+      }
+    }catch(_){}
   }
 
 function buildWeightliftingForm(){
@@ -2371,6 +2428,7 @@ function buildWeightliftingForm(){
       clearErr();
 
       const dateISO = String(dateInput.value || initialDateISO);
+      const wasComplete = isDayComplete(dateISO, day);
 
       const sets = setInputs.map(s => ({
         weight: Number(s.wInput.value) || 0,
@@ -2407,7 +2465,7 @@ function buildWeightliftingForm(){
         pr
       });
 
-      afterSave(dateISO);
+      afterSave(dateISO, wasComplete);
     }
   }, ["Save"]);
 
@@ -3972,12 +4030,21 @@ statsHost.appendChild(el("div", { class:"pill" }, [
       const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
       const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
       const title = (ev.type === "exercise_logged")
-        ? `${who} logged ${p.exerciseName || "an exercise"}`
-        : `${who} posted an event`;
+  ? `${who} logged ${p.exerciseName || "an exercise"}`
+  : (ev.type === "workout_completed")
+    ? `${who} completed a workout`
+    : `${who} posted an event`;
 
-      const chips = [];
-      if(p.workoutType) chips.push(String(p.workoutType));
-      if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
+const chips = [];
+if(ev.type === "workout_completed"){
+  const h = p.highlights || {};
+  if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) chips.push(`${h.exerciseCount} exercises`);
+  if(Number.isFinite(h.prCount) && h.prCount > 0) chips.push(`PRs: ${h.prCount}`);
+  if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${h.totalVolume}`);
+}else{
+  if(p.workoutType) chips.push(String(p.workoutType));
+  if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
+}
 
       return el("div", { class:"card", style:"margin: 10px 0;" }, [
         el("div", { class:"rowBetween" }, [
