@@ -4161,12 +4161,22 @@ function openConnectionsModal(initialTab){
     }catch(_){}
   }
 
-  function listRow({ id, actionLabel, onAction }){
-    return el("div", { class:"rowBetween", style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
-      el("div", { class:"small", text: id }),
-      el("button", { class:"btn sm", onClick: onAction }, [actionLabel])
-    ]);
-  }
+  function listRow({ id, actions }){
+  const right = el("div", { class:"btnrow", style:"justify-content:flex-end; gap:8px; flex-wrap:wrap;" });
+
+  (actions || []).forEach(a => {
+    right.appendChild(el("button", {
+      class: a.class || "btn sm",
+      disabled: !!a.disabled,
+      onClick: a.onClick
+    }, [a.label]));
+  });
+
+  return el("div", { class:"rowBetween", style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
+    el("div", { class:"small", text: id }),
+    right
+  ]);
+}
 
   function repaintModal(){
     btnFollowing.className = "seg" + (ui.connTab === "following" ? " on" : "");
@@ -4190,20 +4200,25 @@ function openConnectionsModal(initialTab){
       }
       follows.forEach(fid => {
         bodyHost.appendChild(listRow({
-          id: fid,
-          actionLabel: "Unfollow",
-          onAction: async () => {
-            try{
-              await Social.unfollow(fid);
-              showToast("Unfollowed");
-              await refreshLists();
-              repaintModal();
-              renderView();
-            }catch(e){
-              showToast(e?.message || "Couldn't unfollow");
-            }
-          }
-        }));
+  id: fid,
+  actions: [
+    {
+      label: "Unfollow",
+      class: "btn sm",
+      onClick: async () => {
+        try{
+          await Social.unfollow(fid);
+          showToast("Unfollowed");
+          await refreshLists();
+          repaintModal();
+          renderView();
+        }catch(e){
+          showToast(e?.message || "Couldn't unfollow");
+        }
+      }
+    }
+  ]
+}));
       });
       return;
     }
@@ -4214,10 +4229,34 @@ function openConnectionsModal(initialTab){
       return;
     }
     followers.forEach(fid => {
-      bodyHost.appendChild(listRow({
-        id: fid,
-        actionLabel: "Remove",
-        onAction: async () => {
+  const isFollowingBack = follows.includes(fid);
+
+  bodyHost.appendChild(el("div", { class:"rowBetween", style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
+    el("div", { class:"small", text: fid }),
+
+    el("div", { class:"btnrow", style:"justify-content:flex-end; gap:8px; flex-wrap:wrap;" }, [
+      // Follow / Follow back
+      !isFollowingBack
+        ? el("button", {
+            class:"btn sm primary",
+            onClick: async () => {
+              try{
+                await Social.follow(fid);
+                showToast("Following");
+                await refreshLists();
+                repaintModal();
+                renderView();
+              }catch(e){
+                showToast(e?.message || "Couldn't follow");
+              }
+            }
+          }, ["Follow back"])
+        : el("button", { class:"btn sm", disabled:true }, ["Following"]),
+
+      // Remove (existing behavior preserved)
+      el("button", {
+        class:"btn sm",
+        onClick: async () => {
           try{
             await Social.removeFollower(fid);
             showToast("Removed");
@@ -4229,9 +4268,10 @@ function openConnectionsModal(initialTab){
             showToast(e?.message || "Couldn't remove (permissions)");
           }
         }
-      }));
-    });
-  }
+      }, ["Remove"])
+    ].filter(Boolean))
+  ]));
+});
 
   Modal.open({
     title: "Connections",
