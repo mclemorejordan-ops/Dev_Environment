@@ -213,16 +213,36 @@ function initSocial(){
   }
 
   async function signInWithOtp(email){
-    const sb = await ensureClient();
-    if(!sb) throw new Error("Social not configured");
-    const e = (email || "").trim();
-    if(!e) throw new Error("Email required");
+  const sb = await ensureClient();
+  if(!sb) throw new Error("Social not configured");
+  const e = (email || "").trim();
+  if(!e) throw new Error("Email required");
 
-    // Magic link / OTP email. Works well for PWAs.
-    const redirectTo = location.origin + location.pathname;
-    const { error } = await sb.auth.signInWithOtp({ email: e, options: { emailRedirectTo: redirectTo } });
-    if(error) throw error;
-  }
+  // Magic link / OTP email. Works well for PWAs.
+  const redirectTo = location.origin + location.pathname;
+  const { error } = await sb.auth.signInWithOtp({
+    email: e,
+    options: { emailRedirectTo: redirectTo }
+  });
+  if(error) throw error;
+}
+
+async function signInWithOAuth(provider){
+  const sb = await ensureClient();
+  if(!sb) throw new Error("Social not configured");
+
+  const p = (provider || "").trim();
+  if(!p) throw new Error("Provider required");
+
+  // OAuth redirect back to this app (hash router friendly)
+  const redirectTo = location.origin + location.pathname;
+
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: p,
+    options: { redirectTo }
+  });
+  if(error) throw error;
+}
 
   async function signOut(){
     const sb = await ensureClient();
@@ -425,6 +445,7 @@ function initSocial(){
     getConfig: () => readSocialConfig(),
     configure,
     signInWithOtp,
+    signInWithOAuth,   // ← ADD THIS LINE
     signOut,
     refreshUser,
     getUser,
@@ -3906,24 +3927,17 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
     // Auth row
     configured ? el("div", { class:"btnrow" }, [
-  !user ? el("input", {
-    type:"email",
-    placeholder:"Email for sign-in link",
-    value: ui.email,
-    onInput: (e) => { ui.email = e.target.value || ""; }
-  }) : null,
 
   !user ? el("button", {
     class:"btn primary",
     onClick: async () => {
       try{
-        await Social.signInWithOtp(ui.email);
-        showToast("Check your email for the sign-in link.");
+        await Social.signInWithOAuth("google");
       }catch(e){
-        showToast(e?.message || "Sign-in failed");
+        showToast(e?.message || "Google sign-in failed");
       }
     }
-  }, ["Send sign-in link"]) : null,
+  }, ["Continue with Google"]) : null,
 
   user ? el("button", {
     class:"btn",
@@ -3942,6 +3956,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
       }catch(_){}
     }
   }, ["Refresh"])
+
 ].filter(Boolean)) : null
     ].filter(Boolean)));
 
@@ -4471,7 +4486,6 @@ const socialCfg = Social.getConfig && Social.getConfig();
 // local, non-state inputs
 socialUI.supabaseUrl = (socialUI.supabaseUrl ?? socialCfg?.url ?? "");
 socialUI.supabaseAnon = (socialUI.supabaseAnon ?? socialCfg?.anonKey ?? "");
-socialUI.socialEmail = (socialUI.socialEmail ?? "");
 
 const socialBody = el("div", {}, [
   el("div", { class:"note", text:"Connect a free Supabase project to enable the Friends feed (events-only). This does not sync your full app data — it only posts compact activity events." }),
@@ -4534,30 +4548,24 @@ const socialBody = el("div", {}, [
 
   el("div", { class:"note", text:"Sign-in" }),
   el("div", { class:"btnrow" }, [
-    el("input", {
-      type:"email",
-      placeholder:"Email for sign-in link",
-      value: socialUI.socialEmail,
-      onInput: (e) => { socialUI.socialEmail = e.target.value || ""; }
-    }),
-    el("button", {
-      class:"btn",
-      onClick: async () => {
-        try{
-          await Social.signInWithOtp(socialUI.socialEmail);
-          showToast("Check your email for the sign-in link.");
-        }catch(e){
-          showToast(e?.message || "Sign-in failed");
-        }
+  el("button", {
+    class:"btn primary",
+    onClick: async () => {
+      try{
+        await Social.signInWithOAuth("google");
+      }catch(e){
+        showToast(e?.message || "Google sign-in failed");
       }
-    }, ["Send link"]),
-    el("button", {
-      class:"btn",
-      onClick: async () => {
-        try{ await Social.signOut(); showToast("Signed out"); renderView(); }catch(_){}
-      }
-    }, ["Sign out"])
-  ]),
+    }
+  }, ["Continue with Google"]),
+
+  el("button", {
+    class:"btn",
+    onClick: async () => {
+      try{ await Social.signOut(); showToast("Signed out"); renderView(); }catch(_){}
+    }
+  }, ["Sign out"])
+]),
 
   el("div", { style:"height:10px" }),
 
