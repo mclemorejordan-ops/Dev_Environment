@@ -291,11 +291,10 @@ async function signInWithOAuth(provider){
 
     try{
       const { data, error } = await sb
-          .from("activity_events")
-          .select("id, actor_id, type, payload, created_at")
-          .eq("type", "workout_completed")
-          .order("created_at", { ascending: false })
-          .limit(50);
+        .from("activity_events")
+        .select("id, actor_id, type, payload, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if(error) throw error;
 
@@ -387,160 +386,6 @@ async function signInWithOAuth(provider){
     };
   }
 
-    // ─────────────────────────────
-  // Workout-session aggregation (Option B)
-  // - Buffers per-exercise saves into a single "workout_completed" event
-  // - Flushes when: session changes OR user is idle for ~90s
-  // - Additive only: stores pending buffer in localStorage
-  // ─────────────────────────────
-  function readPendingWorkout(){
-    try{ return JSON.parse(localStorage.getItem(SOCIAL_PENDING_WORKOUT_KEY) || "null"); }
-    catch(_){ return null; }
-  }
-  function writePendingWorkout(obj){
-    try{
-      if(obj) localStorage.setItem(SOCIAL_PENDING_WORKOUT_KEY, JSON.stringify(obj));
-      else localStorage.removeItem(SOCIAL_PENDING_WORKOUT_KEY);
-    }catch(_){}
-  }
-
-  let _pendingFlushTimer = null;
-
-  function schedulePendingFlush(){
-    try{ if(_pendingFlushTimer) clearTimeout(_pendingFlushTimer); }catch(_){}
-    _pendingFlushTimer = setTimeout(() => { flushPendingWorkout(); }, 90000); // 90s idle
-  }
-
-  function makeSessionKey(entry){
-    const dateISO = entry?.dateISO || "";
-    const routineId = entry?.routineId || "";
-    const dayId = entry?.dayId || "";
-    return `${dateISO}|${routineId}|${dayId}`;
-  }
-
-  function summarizePending(pending){
-    const items = Array.isArray(pending?.items) ? pending.items : [];
-
-    const uniqueExercises = new Set();
-    let prCount = 0;
-
-    let totalVolume = 0;    // weightlifting/core
-    let totalTimeSec = 0;   // cardio
-    let totalDistance = 0;  // cardio
-
-    for(const it of items){
-      if(it.exerciseName) uniqueExercises.add(it.exerciseName);
-
-      prCount += Number(it.prCount || 0);
-
-      const t = it.workoutType || "weightlifting";
-      const s = it.summary || {};
-
-      if(t === "cardio"){
-        if(Number.isFinite(s.timeSec)) totalTimeSec += Number(s.timeSec);
-        if(Number.isFinite(s.distance)) totalDistance += Number(s.distance);
-      }else{
-        if(Number.isFinite(s.totalVolume)) totalVolume += Number(s.totalVolume);
-      }
-    }
-
-    return {
-      exerciseCount: uniqueExercises.size || items.length || 0,
-      prCount,
-      totalVolume: Math.round(totalVolume * 100) / 100,
-      totalTimeSec: Math.floor(totalTimeSec),
-      totalDistance: Math.round(totalDistance * 100) / 100
-    };
-  }
-
-  function queueWorkoutEntry(entry){
-    const state = stateRef();
-    const ev = formatLogEvent(entry); // reuses name + pr calc
-    const p = ev?.payload || {};
-
-    const now = Date.now();
-    const sessionKey = makeSessionKey(entry);
-
-    let pending = readPendingWorkout();
-
-    // If switching to a new session, flush old one first
-    if(pending && pending.sessionKey && pending.sessionKey !== sessionKey){
-      // best-effort flush (async) then start fresh
-      try{ flushPendingWorkout(); }catch(_){}
-      pending = null;
-    }
-
-    if(!pending){
-      pending = {
-        sessionKey,
-        createdAt: now,
-        updatedAt: now,
-        dateISO: p.dateISO || null,
-        routineId: p.routineId || null,
-        dayId: p.dayId || null,
-        displayName: p.displayName || null,
-        items: []
-      };
-    }
-
-    // Keep one latest item per exercise name (reduces spam / size)
-    const key = `${p.workoutType || ""}|${p.exerciseName || ""}`;
-    const nextItem = {
-      key,
-      exerciseName: p.exerciseName || "Exercise",
-      workoutType: p.workoutType || "",
-      summary: p.summary || {},
-      prCount: Number(p.prCount || 0)
-    };
-
-    const idx = pending.items.findIndex(x => x.key === key);
-    if(idx >= 0) pending.items[idx] = nextItem;
-    else pending.items.push(nextItem);
-
-    pending.updatedAt = now;
-    writePendingWorkout(pending);
-
-    schedulePendingFlush();
-  }
-
-  async function flushPendingWorkout(){
-    try{
-      const sb = await ensureClient();
-      if(!sb || !_user) return;
-
-      const pending = readPendingWorkout();
-      if(!pending || !Array.isArray(pending.items) || pending.items.length === 0) return;
-
-      // Clear first to avoid duplicate posts if something else triggers flush
-      writePendingWorkout(null);
-
-      const highlights = summarizePending(pending);
-
-      const row = {
-        actor_id: _user.id,
-        type: "workout_completed",
-        payload: {
-          displayName: pending.displayName || null,
-          dateISO: pending.dateISO || null,
-          routineId: pending.routineId || null,
-          dayId: pending.dayId || null,
-          highlights,
-          details: pending.items || []
-        }
-      };
-
-      try{
-        const { error } = await sb.from("activity_events").insert(row);
-        if(error) throw error;
-        fetchFeed();
-      }catch(_){
-        const out = readOutbox();
-        out.unshift(row);
-        writeOutbox(out.slice(0, 100));
-      }
-    }catch(_){}
-  }
-
   async function flushOutbox(){
     const sb = await ensureClient();
     if(!sb || !_user) return;
@@ -560,16 +405,32 @@ async function signInWithOAuth(provider){
     writeOutbox(keep);
   }
 
-    async function publishLogEvent(entry){
+  async function publishLogEvent(entry){
     // Only publish if configured + signed in
     if(!isConfigured()) return;
     await ensureClient();
     if(!_user) return;
 
-    // Buffer into a workout session instead of posting every exercise
+    const ev = formatLogEvent(entry);
+    const row = {
+      actor_id: _user.id,
+      type: ev.eventType,
+      payload: ev.payload
+    };
+
+    // Try immediate insert, else queue
     try{
-      queueWorkoutEntry(entry);
-    }catch(_){}
+      const sb = await ensureClient();
+      if(!sb) return;
+      const { error } = await sb.from("activity_events").insert(row);
+      if(error) throw error;
+      // refresh quickly
+      fetchFeed();
+    }catch(_){
+      const out = readOutbox();
+      out.unshift(row);
+      writeOutbox(out.slice(0, 100)); // cap
+    }
   }
 
   // flush queued events when online
@@ -4041,140 +3902,159 @@ statsHost.appendChild(el("div", { class:"pill" }, [
       },
 
 
-  Friends(){
+   Friends(){
+  // Events-only friends feed (while app is open)
+  const ui = UIState.social || (UIState.social = {});
+  ui.friendId = ui.friendId || "";
+  ui.email = ui.email || "";
+
   const root = el("div", { class:"grid" });
 
+  const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
 
-
-// Ensure OAuth session is picked up immediately after redirect
-try{
-  if(configured && Social && typeof Social.refreshUser === "function"){
-    Social.refreshUser().then(() => {
-      try{
-        if(Social.getUser && Social.getUser()){
-          Social.startFeed && Social.startFeed();
-        }
-      }catch(_){}
-      try{ renderView(); }catch(_){}
-    });
-  }
-}catch(_){}
-
-    
-  const user = Social.getUser && Social.getUser();
-  const feed = Social.getFeed ? Social.getFeed() : [];
-
+  // Header / status
   root.appendChild(el("div", { class:"card" }, [
     el("h2", { text:"Friends" }),
-    el("div", { class:"note", text:"Workout highlights from people you follow." }),
+    el("div", { class:"note", text:"Events-only feed. Share your friend code, follow friends, and see their activity while the app is open." }),
+    el("div", { style:"height:12px" }),
+
+    !configured ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set your Supabase URL + anon key in Settings → Friends (Beta)." }) : null,
+
+    configured ? el("div", { class:"note", text: user ? `Signed in as ${user.email || user.id}` : "Not signed in" }) : null,
+
     el("div", { style:"height:10px" }),
+
+    // Auth row
+    configured ? el("div", { class:"btnrow" }, [
+
+  !user ? el("button", {
+    class:"btn primary",
+    onClick: async () => {
+      try{
+        await Social.signInWithOAuth("google");
+      }catch(e){
+        showToast(e?.message || "Google sign-in failed");
+      }
+    }
+  }, ["Continue with Google"]) : null,
+
+  user ? el("button", {
+    class:"btn",
+    onClick: async () => {
+      try{ await Social.signOut(); showToast("Signed out"); }catch(_){}
+    }
+  }, ["Sign out"]) : null,
+
+  el("button", {
+    class:"btn",
+    onClick: async () => {
+      try{
+        await Social.refreshUser();
+        if(Social.getUser()) Social.startFeed();
+        showToast("Refreshed");
+      }catch(_){}
+    }
+  }, ["Refresh"])
+
+].filter(Boolean)) : null
+    ].filter(Boolean)));
+
+  // Friend code + follow controls
+  root.appendChild(el("div", { class:"card" }, [
+    el("div", { class:"note", text:"Your friend code" }),
+    el("div", { class:"kpi" }, [
+      el("div", { class:"big", text: user ? user.id : "—" }),
+      el("div", { class:"small", text:"Share this code with friends so they can follow you." })
+    ]),
+    el("div", { style:"height:12px" }),
+
+    el("div", { class:"note", text:"Follow a friend" }),
     el("div", { class:"btnrow" }, [
-      el("button", {
-        class:"btn",
-        onClick: async () => {
-          try{
-            await Social.fetchFeed();
-            showToast("Updated");
-          }catch(_){
-            showToast("Update failed");
-          }
-        }
-      }, ["Refresh"]),
+      el("input", {
+        type:"text",
+        placeholder:"Paste friend code (user id)",
+        value: ui.friendId,
+        onInput: (e) => { ui.friendId = e.target.value || ""; }
+      }),
       el("button", {
         class:"btn primary",
-        onClick: () => navigate("settings")
-      }, ["Manage in Settings"])
-    ])
+        onClick: async () => {
+          try{
+            await Social.follow(ui.friendId);
+            ui.friendId = "";
+            showToast("Following");
+            renderView();
+          }catch(e){
+            showToast(e?.message || "Couldn't follow");
+          }
+        }
+      }, ["Follow"])
+    ]),
+
+    el("div", { style:"height:14px" }),
+
+    el("div", { class:"note", text:"Following" }),
+    el("div", {}, (Social.getFollows() || []).length ? (Social.getFollows() || []).map(fid =>
+      el("div", { class:"rowBetween", style:"padding:8px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
+        el("div", { class:"small", text: fid }),
+        el("button", {
+          class:"btn sm",
+          onClick: async () => {
+            try{ await Social.unfollow(fid); showToast("Unfollowed"); renderView(); }catch(_){}
+          }
+        }, ["Unfollow"])
+      ])
+    ) : [ el("div", { class:"note", text:"Not following anyone yet." }) ])
   ]));
 
+  // Feed
+  const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
-  !user
-    ? el("div", { class:"note", text:"Sign in from Settings → Friends (Beta)." })
-    : (!feed.length
-        ? el("div", { class:"note", text:"No workouts yet." })
-        : el("div", {}, feed.map(ev => {
-            const p = ev.payload || {};
-            const name = p.displayName || "User";
-            const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+    el("div", { class:"rowBetween" }, [
+      el("div", { class:"note", text:"Feed" }),
+      el("button", {
+        class:"btn sm",
+        onClick: async () => {
+          try{ await Social.fetchFeed(); showToast("Updated"); }catch(_){}
+        }
+      }, ["Refresh"])
+    ]),
+    el("div", { style:"height:10px" }),
 
-            const h = p.highlights || {};
-            const chips = [];
-            if(h.exerciseCount) chips.push(`${h.exerciseCount} exercises`);
-            if(h.prCount) chips.push(`${h.prCount} PRs`);
-            if(h.totalVolume) chips.push(`Vol ${h.totalVolume}`);
-            if(h.totalTimeSec) chips.push(`Time ${Math.round(h.totalTimeSec/60)}m`);
+    !user ? el("div", { class:"note", text:"Sign in to see your feed." }) : null,
+    user && !feed.length ? el("div", { class:"note", text:"No events yet. Your activity (and friends you follow) will show here." }) : null,
 
-            return el("div", {
-              class:"card",
-              style:"margin:10px 0; cursor:pointer;",
-              onClick: () => {
-                const details = Array.isArray(p.details) ? p.details : [];
-                const h2 = p.highlights || {};
+    user && feed.length ? el("div", {}, feed.map(ev => {
+      const p = ev.payload || {};
+      const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
+      const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+      const title = (ev.type === "exercise_logged")
+        ? `${who} logged ${p.exerciseName || "an exercise"}`
+        : `${who} posted an event`;
 
-                const body = el("div", {}, [
-                  el("div", { class:"note", text: when }),
-                  el("div", { style:"height:10px" }),
+      const chips = [];
+      if(p.workoutType) chips.push(String(p.workoutType));
+      if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
 
-                  el("div", { class:"card", style:"margin: 0 0 10px 0;" }, [
-                    el("div", { style:"font-weight:820;", text:"Highlights" }),
-                    el("div", {
-                      class:"note",
-                      text: [
-                        (h2.exerciseCount ? `${h2.exerciseCount} exercises` : null),
-                        (h2.prCount ? `${h2.prCount} PRs` : null),
-                        (h2.totalVolume ? `Volume: ${h2.totalVolume}` : null),
-                        (h2.totalTimeSec ? `Time: ${Math.round(h2.totalTimeSec/60)}m` : null),
-                        (h2.totalDistance ? `Distance: ${h2.totalDistance}` : null)
-                      ].filter(Boolean).join(" • ") || "—"
-                    })
-                  ]),
+      return el("div", { class:"card", style:"margin: 10px 0;" }, [
+        el("div", { class:"rowBetween" }, [
+          el("div", { style:"font-weight:820;", text: title }),
+          el("div", { class:"small", text: when })
+        ]),
+        chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null
+      ].filter(Boolean));
+    })) : null
+  ].filter(Boolean)));
 
-                  details.length
-                    ? el("div", {}, details.map(d => {
-                        const ex = d.exerciseName || d.name || "Exercise";
-                        const t = d.workoutType || "";
-                        const s = d.summary || {};
-                        const pr = Number(d.prCount || 0);
-
-                        const lines = [];
-                        if(Number.isFinite(s.totalVolume)) lines.push(`Volume: ${s.totalVolume}`);
-                        if(Number.isFinite(s.bestWeight)) lines.push(`Best: ${s.bestWeight}`);
-                        if(Number.isFinite(s.best1RM)) lines.push(`Est 1RM: ${Math.round(s.best1RM * 100) / 100}`);
-                        if(Number.isFinite(s.distance)) lines.push(`Distance: ${s.distance}`);
-                        if(Number.isFinite(s.timeSec)) lines.push(`Time: ${Math.round(s.timeSec/60)}m`);
-                        if(Number.isFinite(s.paceSecPerUnit)) lines.push(`Pace: ${s.paceSecPerUnit}s/unit`);
-                        if(s.incline !== null && s.incline !== undefined) lines.push(`Incline: ${s.incline}`);
-                        if(lines.length === 0 && Number.isFinite(s.totalVolume)) lines.push(`Total: ${s.totalVolume}`);
-
-                        return el("div", { class:"card", style:"margin:10px 0;" }, [
-                          el("div", { style:"font-weight:820;", text: ex }),
-                          t ? el("div", { class:"meta", text: t }) : null,
-                          pr ? el("div", { class:"note", text: `PRs: ${pr}` }) : null,
-                          el("div", { class:"note", text: lines.length ? lines.join(" • ") : "No summary captured." })
-                        ].filter(Boolean));
-                      }))
-                    : el("div", { class:"note", text:"No extra details were included with this event." })
-                ]);
-
-                Modal.open({ title:"Workout details", bodyNode: body, center:true, size:"md" });
-              }
-            }, [
-              el("div", { class:"rowBetween" }, [
-                el("div", { style:"font-weight:820;", text:`${name} completed a workout` }),
-                el("div", { class:"small", text: when })
-              ]),
-              chips.length
-                ? el("div", { class:"pillrow", style:"margin-top:8px;" },
-                    chips.map(t => el("div", { class:"pill", text:t }))
-                  )
-                : null
-            ].filter(Boolean));
-          })))
-]));
+  // Auto-start polling when entering the view
+  try{
+    if(configured && user) Social.startFeed();
+  }catch(_){}
 
   return root;
 },
+
    
          Settings(){
         // Persist across renders (not saved to Storage)
