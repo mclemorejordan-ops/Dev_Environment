@@ -3906,44 +3906,43 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
     // Auth row
     configured ? el("div", { class:"btnrow" }, [
-      !user ? el("input", {
-        type:"email",
-        placeholder:"Email for sign-in link",
-        value: ui.email,
-        onInput: (e) => { ui.email = e.target.value || ""; }
-      }) : null,
+  !user ? el("input", {
+    type:"email",
+    placeholder:"Email for sign-in link",
+    value: ui.email,
+    onInput: (e) => { ui.email = e.target.value || ""; }
+  }) : null,
 
-      !user ? el("button", {
-        class:"btn primary",
-        onClick: async () => {
-          try{
-            await Social.signInWithOtp(ui.email);
-            showToast("Check your email for the sign-in link.");
-          }catch(e){
-            showToast(e?.message || "Sign-in failed");
-          }
-        }
-      }, ["Send sign-in link"]) : null,
+  !user ? el("button", {
+    class:"btn primary",
+    onClick: async () => {
+      try{
+        await Social.signInWithOtp(ui.email);
+        showToast("Check your email for the sign-in link.");
+      }catch(e){
+        showToast(e?.message || "Sign-in failed");
+      }
+    }
+  }, ["Send sign-in link"]) : null,
 
-      user ? el("button", {
-        class:"btn",
-        onClick: async () => {
-          try{ await Social.signOut(); showToast("Signed out"); }catch(_){}
-        }
-      }, ["Sign out"]) : null,
+  user ? el("button", {
+    class:"btn",
+    onClick: async () => {
+      try{ await Social.signOut(); showToast("Signed out"); }catch(_){}
+    }
+  }, ["Sign out"]) : null,
 
-      configured ? el("button", {
-        class:"btn",
-        onClick: async () => {
-          try{
-            await Social.refreshUser();
-            if(Social.getUser()) Social.startFeed();
-            showToast("Refreshed");
-          }catch(_){}
-        }
-      }, ["Refresh"]) : null
-    ]) : null
-  ].filter(Boolean)));
+  el("button", {
+    class:"btn",
+    onClick: async () => {
+      try{
+        await Social.refreshUser();
+        if(Social.getUser()) Social.startFeed();
+        showToast("Refreshed");
+      }catch(_){}
+    }
+  }, ["Refresh"])
+].filter(Boolean)) : null
 
   // Friend code + follow controls
   root.appendChild(el("div", { class:"card" }, [
