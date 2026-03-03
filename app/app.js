@@ -291,10 +291,11 @@ async function signInWithOAuth(provider){
 
     try{
       const { data, error } = await sb
-        .from("activity_events")
-        .select("id, actor_id, type, payload, created_at")
-        .order("created_at", { ascending: false })
-        .limit(50);
+          .from("activity_events")
+          .select("id, actor_id, type, payload, created_at")
+          .eq("type", "workout_completed")
+          .order("created_at", { ascending: false })
+          .limit(50);
 
       if(error) throw error;
 
@@ -4108,15 +4109,63 @@ try{
                 class:"card",
                 style:"margin:10px 0; cursor:pointer;",
                 onClick: () => {
-                  const body = el("div", {}, [
-                    el("div", { class:"note", text: when }),
-                    el("div", { style:"height:10px" }),
-                    ...(p.details || []).map(d =>
-                      el("div", { class:"note", text: `${d.exerciseName}` })
-                    )
-                  ]);
-                  Modal.open({ title:"Workout details", bodyNode:body });
-                }
+                  onClick: () => {
+  const details = Array.isArray(p.details) ? p.details : [];
+  const h = p.highlights || {};
+
+  const body = el("div", {}, [
+    el("div", { class:"note", text: when }),
+    el("div", { style:"height:10px" }),
+
+    // Highlights
+    el("div", { class:"card", style:"margin: 0 0 10px 0;" }, [
+      el("div", { style:"font-weight:820;", text:"Highlights" }),
+      el("div", { class:"note", text: [
+        (h.exerciseCount ? `${h.exerciseCount} exercises` : null),
+        (h.prCount ? `${h.prCount} PRs` : null),
+        (h.totalVolume ? `Volume: ${h.totalVolume}` : null),
+        (h.totalTimeSec ? `Time: ${Math.round(h.totalTimeSec/60)}m` : null),
+        (h.totalDistance ? `Distance: ${h.totalDistance}` : null)
+      ].filter(Boolean).join(" • ") || "—" })
+    ]),
+
+    // Details
+    details.length
+      ? el("div", {}, details.map(d => {
+          const ex = d.exerciseName || d.name || "Exercise";
+          const t = d.workoutType || "";
+
+          const s = d.summary || {};
+          const pr = Number(d.prCount || 0);
+
+          const lines = [];
+
+          // Weightlifting-style
+          if(Number.isFinite(s.totalVolume)) lines.push(`Volume: ${s.totalVolume}`);
+          if(Number.isFinite(s.bestWeight)) lines.push(`Best: ${s.bestWeight}`);
+          if(Number.isFinite(s.best1RM)) lines.push(`Est 1RM: ${Math.round(s.best1RM * 100) / 100}`);
+
+          // Cardio-style
+          if(Number.isFinite(s.distance)) lines.push(`Distance: ${s.distance}`);
+          if(Number.isFinite(s.timeSec)) lines.push(`Time: ${Math.round(s.timeSec/60)}m`);
+          if(Number.isFinite(s.paceSecPerUnit)) lines.push(`Pace: ${s.paceSecPerUnit}s/unit`);
+          if(s.incline !== null && s.incline !== undefined) lines.push(`Incline: ${s.incline}`);
+
+          // Core fallback (if you only stored totalVolume)
+          if(lines.length === 0 && Number.isFinite(s.totalVolume)) lines.push(`Total: ${s.totalVolume}`);
+
+          return el("div", { class:"card", style:"margin:10px 0;" }, [
+            el("div", { style:"font-weight:820;", text: ex }),
+            t ? el("div", { class:"meta", text: t }) : null,
+            pr ? el("div", { class:"note", text: `PRs: ${pr}` }) : null,
+            el("div", { class:"note", text: lines.length ? lines.join(" • ") : "No summary captured." })
+          ].filter(Boolean));
+        }))
+      : el("div", { class:"note", text:"No extra details were included with this event." })
+  ]);
+
+  Modal.open({ title:"Workout details", bodyNode: body, center:true, size:"md" });
+}
               }, [
                 el("div", { class:"rowBetween" }, [
                   el("div", { style:"font-weight:820;", text:`${name} completed a workout` }),
