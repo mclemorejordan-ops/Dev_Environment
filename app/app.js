@@ -180,9 +180,9 @@ try{
 
 const UIState = window.__GymDashUIState || (window.__GymDashUIState = {
   settings: {
-    q: "",
-    open: { "profile": true, "library": false, "backup": false, "data": false, "debug": false }
-  },
+  q: "",
+  open: { "profile": true, "library": false, "backup": false, "data": false, "support": false, "routines": false }
+},
   libraryManage: {
     q: "",
     type: "weightlifting",
@@ -3642,44 +3642,6 @@ trackProteinSwitch.addEventListener("click", () => {
           renderView();
         }
 
-        // --- Existing import/export helpers (reuse your current functions) ---
-        function openImportPasteModal(){
-          const ta = el("textarea", {
-            style:"width:100%; min-height: 260px; border-radius: 14px; padding: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: rgba(255,255,255,.92); font-size: 12px; outline:none; resize: vertical;",
-            placeholder:"Paste your backup JSON here…"
-          });
-
-          const err = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
-
-          Modal.open({
-            title: "Import from paste",
-            bodyNode: el("div", {}, [
-              el("div", { class:"note", text:"This will overwrite your current data in this browser." }),
-              el("div", { style:"height:10px" }),
-              ta,
-              err,
-              el("div", { style:"height:12px" }),
-              el("div", { class:"btnrow" }, [
-                el("button", {
-                  class:"btn danger",
-                  onClick: () => {
-                    err.style.display = "none";
-                    try{
-                      importBackupJSON(ta.value || "");
-                      Modal.close();
-                      navigate("home");
-                    }catch(e){
-                      err.textContent = e.message || "Import failed.";
-                      err.style.display = "block";
-                    }
-                  }
-                }, ["Import (overwrite)"]),
-                el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
-              ])
-            ])
-          });
-        }
-
         function openImportFileModal(){
           const input = el("input", { type:"file", accept:"application/json,.json" });
           const err = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
@@ -3990,48 +3952,30 @@ const profileBody = el("div", {}, [
           // Export
           // ───────────────
           el("div", { class:"btnrow" }, [
-            el("button", {
-              class:"btn primary",
-              onClick: () => {
-                try{
-                  const txt = exportBackupJSON();
-                  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
-                  downloadTextFile(`gym-dashboard-backup_${stamp}.json`, txt);
-
-                  // ✅ track export for reminder UI (best-effort)
-                  try{ if(typeof setLastExportAt === "function") setLastExportAt(Date.now()); }catch(_){}
-                  showToast("Backup exported");
-                }catch(e){
-                  Modal.open({
-                    title:"Export failed",
-                    bodyNode: el("div", {}, [
-                      el("div", { class:"note", text: e.message || "Could not export backup." }),
-                      el("div", { style:"height:12px" }),
-                      el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-                    ])
-                  });
-                }
-              }
-            }, ["Export JSON backup"]),
-
-            el("button", {
-              class:"btn",
-              onClick: () => {
+          el("button", {
+            class:"btn primary",
+            onClick: () => {
+              try{
+                const txt = exportBackupJSON();
+                const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+                downloadTextFile(`gym-dashboard-backup_${stamp}.json`, txt);
+        
+                // ✅ track export for reminder UI (best-effort)
+                try{ if(typeof setLastExportAt === "function") setLastExportAt(Date.now()); }catch(_){}
+                showToast("Backup exported");
+              }catch(e){
                 Modal.open({
-                  title: "Copy backup JSON",
+                  title:"Export failed",
                   bodyNode: el("div", {}, [
-                    el("div", { class:"note", text:"Copy/paste this JSON anywhere safe." }),
-                    el("div", { style:"height:10px" }),
-                    el("textarea", {
-                      style:"width:100%; min-height: 260px; border-radius: 14px; padding: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: rgba(255,255,255,.92); font-size: 12px; outline:none; resize: vertical;",
-                    }, [exportBackupJSON()]),
+                    el("div", { class:"note", text: e.message || "Could not export backup." }),
                     el("div", { style:"height:12px" }),
-                    el("button", { class:"btn primary", onClick: Modal.close }, ["Done"])
+                    el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
                   ])
                 });
               }
-            }, ["View JSON"])
-          ]),
+            }
+          }, ["Export JSON backup"])
+        ]),
 
 // ───────────────
 // Auto backups (rolling snapshots)
@@ -4242,7 +4186,6 @@ el("div", { class:"btnrow" }, [
           el("div", { class:"note", text:"Import options:" }),
           el("div", { style:"height:8px" }),
           el("div", { class:"btnrow" }, [
-            el("button", { class:"btn danger", onClick: openImportPasteModal }, ["Import (paste JSON)"]),
             el("button", { class:"btn danger", onClick: openImportFileModal }, ["Import (upload file)"])
           ]),
           el("div", { style:"height:10px" }),
@@ -4340,40 +4283,31 @@ el("div", { class:"btnrow" }, [
           el("div", { class:"note", text:`Schema v${state.schemaVersion} • Approx storage: ${bytesToNice(appStorageBytes())}` }),
           el("div", { style:"height:10px" }),
           el("div", { class:"btnrow" }, [
-            el("button", {
-              class:"btn",
-              onClick: () => Modal.open({
-                title: "Current State (JSON)",
-                bodyNode: el("pre", { style:"white-space:pre-wrap; font-size:12px; color: rgba(255,255,255,.85);" }, [
-                  JSON.stringify(state, null, 2)
-                ])
-              })
-            }, ["View state JSON"]),
-            el("button", {
-              class:"btn danger",
-              onClick: () => {
-                Modal.open({
-                  title: "Reset local data",
-                  bodyNode: el("div", {}, [
-                    el("div", { class:"note", text:"This clears everything saved in this browser for the app." }),
-                    el("div", { style:"height:12px" }),
-                    el("div", { class:"btnrow" }, [
-                      el("button", {
-                        class:"btn danger",
-                        onClick: () => {
-                          Storage.reset();
-                          state = Storage.load();
-                          Modal.close();
-                          navigate("home");
-                        }
-                      }, ["Reset"]),
-                      el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
-                    ])
+          el("button", {
+            class:"btn danger",
+            onClick: () => {
+              Modal.open({
+                title: "Reset local data",
+                bodyNode: el("div", {}, [
+                  el("div", { class:"note", text:"This clears everything saved in this browser for the app." }),
+                  el("div", { style:"height:12px" }),
+                  el("div", { class:"btnrow" }, [
+                    el("button", {
+                      class:"btn danger",
+                      onClick: () => {
+                        Storage.reset();
+                        state = Storage.load();
+                        Modal.close();
+                        navigate("home");
+                      }
+                    }, ["Reset"]),
+                    el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
                   ])
-                });
-              }
-            }, ["Reset local data"])
-          ])
+                ])
+              });
+            }
+          }, ["Reset local data"])
+        ])
         ]);
       // --- Support / Report an issue (Formspree) ---
 const supportForm = el("form", {
@@ -4511,35 +4445,25 @@ const root = el("div", { class:"settingsWrap" }, [
       bodyNode: libraryBody
     }),
     makeSection({
-      key:"backup",
-      title:"Backup & Restore",
-      subtitle:"Export/import JSON backups",
-      keywords:["backup","import","export","json","restore"],
-      bodyNode: backupBody
-    }),
-    makeSection({
-      key:"data",
-      title:"Data Tools",
-      subtitle:"Repair duplicates + clear specific data",
-      keywords:["repair","duplicates","clear","logs","attendance"],
-      bodyNode: dataBody
-    }),
-    makeSection({
-      key:"debug",
-      title:"Debug / About",
-      subtitle:"View raw state + reset local data",
-      keywords:["debug","reset","state","storage"],
-      bodyNode: debugBody
-    }),
-    makeSection({
-      key:"support",
-      title:"Support / Report an issue",
-      subtitle:"Send feedback to the developer",
-      keywords:["support","issue","bug","feedback","feature","help","report"],
-      bodyNode: supportBody
-    })
-  ])
-]);
+    key:"backup",
+    title:"Backup / About",
+    subtitle:"Backups, restore, storage info, reset",
+    keywords:["backup","import","export","json","restore","about","reset","storage","schema"],
+    bodyNode: el("div", {}, [
+      backupBody,
+      el("div", { style:"height:14px" }),
+      debugBody
+    ])
+  }),
+      makeSection({
+        key:"support",
+        title:"Support / Report an issue",
+        subtitle:"Send feedback to the developer",
+        keywords:["support","issue","bug","feedback","feature","help","report"],
+        bodyNode: supportBody
+      })
+    ])
+  ]);
         return root;
       }
     }; // ✅ end Views object
