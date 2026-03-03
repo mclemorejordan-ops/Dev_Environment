@@ -841,7 +841,6 @@ const openProteinModal = (dateISO = todayISO) => {
     ] : [])
   ]);
 })(),
-      },
       ProteinHistory(){
 
         const root = el("div", { class:"grid" });
