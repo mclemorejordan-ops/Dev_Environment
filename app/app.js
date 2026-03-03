@@ -4194,34 +4194,36 @@ function openConnectionsModal(initialTab){
     }
 
     if(ui.connTab === "following"){
-      if(!follows.length){
-        bodyHost.appendChild(el("div", { class:"note", text:"Not following anyone yet." }));
-        return;
-      }
-      follows.forEach(fid => {
-        bodyHost.appendChild(listRow({
-  id: fid,
-  actions: [
-    {
-      label: "Unfollow",
-      class: "btn sm",
-      onClick: async () => {
-        try{
-          await Social.unfollow(fid);
-          showToast("Unfollowed");
-          await refreshLists();
-          repaintModal();
-          renderView();
-        }catch(e){
-          showToast(e?.message || "Couldn't unfollow");
+  if(!follows.length){
+    bodyHost.appendChild(el("div", { class:"note", text:"Not following anyone yet." }));
+    return;
+  }
+
+  follows.forEach(fid => {
+    bodyHost.appendChild(listRow({
+      id: fid,
+      actions: [
+        {
+          label: "Unfollow",
+          class: "btn sm",
+          onClick: async () => {
+            try{
+              await Social.unfollow(fid);
+              showToast("Unfollowed");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e){
+              showToast(e?.message || "Couldn't unfollow");
+            }
+          }
         }
-      }
-    }
-  ]
-}));
-      });
-      return;
-    }
+      ]
+    }));
+  });
+
+  return;
+}
 
     // followers tab
     if(!followers.length){
@@ -4231,14 +4233,13 @@ function openConnectionsModal(initialTab){
     followers.forEach(fid => {
   const isFollowingBack = follows.includes(fid);
 
-  bodyHost.appendChild(el("div", { class:"rowBetween", style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
-    el("div", { class:"small", text: fid }),
-
-    el("div", { class:"btnrow", style:"justify-content:flex-end; gap:8px; flex-wrap:wrap;" }, [
-      // Follow / Follow back
+  bodyHost.appendChild(listRow({
+    id: fid,
+    actions: [
       !isFollowingBack
-        ? el("button", {
-            class:"btn sm primary",
+        ? {
+            label: "Follow back",
+            class: "btn sm primary",
             onClick: async () => {
               try{
                 await Social.follow(fid);
@@ -4250,12 +4251,17 @@ function openConnectionsModal(initialTab){
                 showToast(e?.message || "Couldn't follow");
               }
             }
-          }, ["Follow back"])
-        : el("button", { class:"btn sm", disabled:true }, ["Following"]),
+          }
+        : {
+            label: "Following",
+            class: "btn sm",
+            disabled: true,
+            onClick: () => {}
+          },
 
-      // Remove (existing behavior preserved)
-      el("button", {
-        class:"btn sm",
+      {
+        label: "Remove",
+        class: "btn sm",
         onClick: async () => {
           try{
             await Social.removeFollower(fid);
@@ -4264,13 +4270,12 @@ function openConnectionsModal(initialTab){
             repaintModal();
             renderView();
           }catch(e){
-            // If RLS doesn’t allow deleting someone else’s row, this will fail
             showToast(e?.message || "Couldn't remove (permissions)");
           }
         }
-      }, ["Remove"])
-    ].filter(Boolean))
-  ]));
+      }
+    ]
+  }));
 });
 
   Modal.open({
