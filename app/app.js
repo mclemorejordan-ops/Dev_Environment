@@ -4171,7 +4171,6 @@ try{
                 : null
             ].filter(Boolean));
           })))
-      )
 ]));
 
   return root;
