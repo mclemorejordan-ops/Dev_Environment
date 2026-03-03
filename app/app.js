@@ -4561,7 +4561,7 @@ return el("div", {
   }catch(_){}
 
   return root;
-},
+}},
 
    
          Settings(){
