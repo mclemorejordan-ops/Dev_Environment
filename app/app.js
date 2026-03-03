@@ -6268,26 +6268,6 @@ const Router = initRouter({
 const { Routes, renderNav, renderView, getCurrentRoute } = Router;
 navigate = Router.navigate;
 
-
-/********************
- * 7b) Router wiring (Phase 3.3)
- ********************/
-const Router = initRouter({
-  getState: () => state,
-  $,
-  el,
-  Views,
-  destroyProgressChart,
-  destroyWeightChart,
-  bindHeaderPills,
-  setHeaderPills,
-  checkForUpdates
-});
-
-// Pull router funcs, but DO NOT redeclare `navigate` (we already defined it above).
-const { Routes, renderNav, renderView, getCurrentRoute } = Router;
-navigate = Router.navigate;
-
 // ✅ Friends/Social: auto-refresh UI after OAuth redirect (and during feed polling)
 // Only re-render on Friends or Settings routes to avoid extra work elsewhere.
 try{
