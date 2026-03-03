@@ -29,6 +29,7 @@ export function initRouter({
     home: { label: "Home", nav:true },
     routine: { label: "Routine", nav:true },
     progress: { label: "Progress", nav:true },
+    friends: { label: "Friends", nav:true },
     settings: { label: "Settings", nav:true },
 
     // Non-nav routes (opened via buttons/links)
@@ -95,6 +96,7 @@ export function initRouter({
     if(currentRoute === "home") root.appendChild(Views.Home());
     else if(currentRoute === "routine") root.appendChild(Views.Routine());
     else if(currentRoute === "progress") root.appendChild(Views.Progress());
+    else if(currentRoute === "friends") root.appendChild(Views.Friends());
     else if(currentRoute === "settings") root.appendChild(Views.Settings());
     else if(currentRoute === "weight") root.appendChild(Views.Weight());
     else if(currentRoute === "attendance") root.appendChild(Views.Attendance());
@@ -107,7 +109,7 @@ export function initRouter({
     ]));
   }
 
-    function navigate(routeKey){
+  function navigate(routeKey){
     try{ destroyProgressChart && destroyProgressChart(); }catch(_){}
     try{ destroyWeightChart && destroyWeightChart(); }catch(_){}
 
