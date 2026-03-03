@@ -726,20 +726,22 @@ el("div", { style:"height:10px" }),
 //   el("button", { class:"btn", onClick: () => navigate("routine") }, ["Open Routine"])
 // ])
 
-el("div", { class:"card" }, [
-  el("h2", { text:"Protein" }),
-  el("div", { class:"homeRow" }, [
-    el("div", { class:"kpi" }, [
-      el("div", { class:"big", text: `${left}g left` }),
-      el("div", { class:"small", text:"Tap to log meals for today." })
+...(goal > 0 ? [
+  el("div", { class:"card" }, [
+    el("h2", { text:"Protein" }),
+    el("div", { class:"homeRow" }, [
+      el("div", { class:"kpi" }, [
+        el("div", { class:"big", text: `${left}g left` }),
+        el("div", { class:"small", text:"Tap to log meals for today." })
+      ]),
+      el("div", { onClick: openProteinModal }, [ ring ])
     ]),
-    el("div", { onClick: openProteinModal }, [ ring ])
-  ]),
-  el("div", { style:"height:10px" }),
-  el("div", { class:"btnrow" }, [
-    el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
+    el("div", { style:"height:10px" }),
+    el("div", { class:"btnrow" }, [
+      el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
+    ])
   ])
-]),
+] : []),
 
 el("div", { class:"card" }, [
   // Header row + action buttons
