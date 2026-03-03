@@ -23,11 +23,6 @@ export function initWorkouts({ getState, Storage, Social }){
       this.ensure();
       state.logs.workouts.push(entry);
       Storage.save(state);
-
-      // Social (optional): publish a compact activity event
-      try{
-        Social && typeof Social.publishLogEvent === "function" && Social.publishLogEvent(entry);
-      }catch(_){}
     },
 
     entriesForExercise(type, exerciseId){
