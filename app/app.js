@@ -84,6 +84,35 @@ let state = Storage.load();
 const SOCIAL_CFG_KEY = "pc.social.supabase.v1";
 const SOCIAL_OUTBOX_KEY = "pc.social.outbox.v1";
 
+// ─────────────────────────────
+// Friends (Option B): baked-in Supabase config
+// - Sets defaults only if user has NOT configured anything yet
+// - Respects {"disabled":true} to allow a real "Disconnect"
+// ─────────────────────────────
+const SOCIAL_DEFAULT = {
+  // ✅ Replace with YOUR Supabase values (Project Settings → API)
+  url: "https://hnzxnimyugjnyurfydna.supabase.co",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuenhuaW15dWdqbnl1cmZ5ZG5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MDk1OTEsImV4cCI6MjA4ODA4NTU5MX0.JbGkZzBWqIRsDO7DCIGArPs1eJz1fswb09E7N7fTzKg"
+};
+
+function ensureSocialDefaultConfig(){
+  try{
+    const raw = localStorage.getItem(SOCIAL_CFG_KEY);
+    if(raw){
+      // Respect existing config, including explicit disable
+      try{
+        const parsed = JSON.parse(raw);
+        if(parsed && parsed.disabled) return;
+      }catch(_){}
+      return;
+    }
+    if(!SOCIAL_DEFAULT.url || !SOCIAL_DEFAULT.anonKey) return;
+    localStorage.setItem(SOCIAL_CFG_KEY, JSON.stringify(SOCIAL_DEFAULT));
+  }catch(_){}
+}
+
+ensureSocialDefaultConfig();
+
 function readSocialConfig(){
   try{ return JSON.parse(localStorage.getItem(SOCIAL_CFG_KEY) || "null"); }catch(_){ return null; }
 }
@@ -4491,12 +4520,13 @@ const socialBody = el("div", {}, [
     el("button", {
       class:"btn",
       onClick: async () => {
-        try{
-          await Social.configure({ url: "", anonKey: "" });
-          showToast("Social disconnected");
-          renderView();
-        }catch(_){}
-      }
+  try{
+    await Social.configure({ url: "", anonKey: "" });
+    try{ localStorage.setItem(SOCIAL_CFG_KEY, JSON.stringify({ disabled:true })); }catch(_){}
+    showToast("Social disconnected");
+    renderView();
+  }catch(_){}
+}
     }, ["Disconnect"])
   ]),
 
