@@ -515,7 +515,8 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
       // ✅ Goals (persistent)
       goals: {
         weeklySessionsTarget: 4,
-        targetWeight: null
+        targetWeight: null,
+        items: [] // ✅ new additive goals list
       },
 
       // ✅ existing behavior you already added
@@ -848,27 +849,32 @@ const openProteinModal = (dateISO = todayISO) => {
     ]);
 })(),
 
-// ✅ Goals — persistent (saved in state.profile.goals)
+// ✅ Goals — v2 (user-added goals + progress)
 el("div", { class:"card" }, (() => {
   if(!state.profile){
     return [
       el("h2", { text:"Goals" }),
-      el("div", { class:"note", text:"Complete onboarding to set goals." })
+      el("div", { class:"note", text:"Complete onboarding to add goals." })
     ];
   }
 
-  // Ensure goals container exists (migrateState covers old saves, but keep UI safe)
+  // Ensure containers exist (migration covers old saves, this keeps UI safe)
   state.profile.goals = (state.profile.goals && typeof state.profile.goals === "object") ? state.profile.goals : {};
-
-  // Keep existing fields for backward compatibility (even if UI doesn’t use them yet)
-  if(!Number.isFinite(state.profile.goals.weeklySessionsTarget)) state.profile.goals.weeklySessionsTarget = 4;
-  if(state.profile.goals.targetWeight === undefined) state.profile.goals.targetWeight = null;
-
-  // ✅ New: goal items list (additive)
   if(!Array.isArray(state.profile.goals.items)) state.profile.goals.items = [];
 
   const goals = state.profile.goals.items;
 
+  function clamp01(x){ return Math.max(0, Math.min(1, Number(x) || 0)); }
+
+  function pctFrom(start, cur, target){
+    start = Number(start) || 0;
+    cur = Number(cur) || 0;
+    target = Number(target) || 0;
+    if(target === start) return (cur >= target) ? 1 : 0;
+    return clamp01((cur - start) / (target - start));
+  }
+
+  // Strength: top weight SINCE goal creation (summary.bestWeight)
   function topWeightSince(exerciseId, sinceTs){
     let best = null;
     const arr = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
@@ -886,86 +892,9 @@ el("div", { class:"card" }, (() => {
     return best;
   }
 
-  function openAddGoalModal(){
-    const list = Array.isArray(state?.exerciseLibrary?.weightlifting) ? state.exerciseLibrary.weightlifting.slice() : [];
-    list.sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
-
-    const exerciseSelect = el("select", {});
-    exerciseSelect.appendChild(el("option", { value:"", text:"Select an exercise…" }));
-
-    for(const ex of list){
-      if(!ex || !ex.id) continue;
-      exerciseSelect.appendChild(el("option", { value: ex.id, text: ex.name || "Unnamed" }));
-    }
-
-    const targetInput = el("input", {
-      type:"number",
-      inputmode:"decimal",
-      step:"0.5",
-      placeholder:"e.g. 225"
-    });
-
-    function save(){
-      const exerciseId = String(exerciseSelect.value || "").trim();
-      const target = Number(targetInput.value);
-
-      if(!exerciseId){
-        showToast("Pick an exercise");
-        return;
-      }
-      if(!Number.isFinite(target) || target <= 0){
-        showToast("Enter a valid target weight");
-        return;
-      }
-
-      const ex = (state.exerciseLibrary?.weightlifting || []).find(x => x.id === exerciseId);
-      const nameSnap = ex?.name || "Unknown exercise";
-
-      const idFn = (typeof uid === "function") ? uid : (p => `${p || "g"}_${Date.now()}`);
-      goals.push({
-        id: idFn("g"),
-        type: "top_weight",
-        exerciseId,
-        exerciseNameSnap: nameSnap,
-        targetWeight: target,
-        createdAt: Date.now()
-      });
-
-      Storage.save(state);
-      showToast("Goal added");
-      Modal.close();
-      renderView();
-    }
-
-    Modal.open({
-      title: "Add goal",
-      bodyNode: el("div", {}, [
-        el("div", { class:"note", text:"Track your top weight PR since you created this goal." }),
-        el("div", { style:"height:12px" }),
-
-        el("div", { class:"setRow" }, [
-          el("div", {}, [
-            el("div", { style:"font-weight:820;", text:"Exercise" }),
-            el("div", { class:"meta", text:"Weightlifting only" })
-          ]),
-          exerciseSelect
-        ]),
-
-        el("div", { class:"setRow" }, [
-          el("div", {}, [
-            el("div", { style:"font-weight:820;", text:"Target top weight" }),
-            el("div", { class:"meta", text:"lbs (or your unit)" })
-          ]),
-          targetInput
-        ]),
-
-        el("div", { style:"height:12px" }),
-        el("div", { class:"btnrow" }, [
-          el("button", { class:"btn", onClick: Modal.close }, ["Cancel"]),
-          el("button", { class:"btn primary", onClick: save }, ["Save goal"])
-        ])
-      ])
-    });
+  // Weekly sessions: this week count (Attendance)
+  function sessionsThisWeek(){
+    return trainedThisWeek.filter(x => x.trained).length;
   }
 
   function removeGoal(goalId){
@@ -977,55 +906,242 @@ el("div", { class:"card" }, (() => {
     renderView();
   }
 
-  function renderGoalRow(g){
-    const createdAt = Number(g?.createdAt || 0);
-    const target = Number(g?.targetWeight || 0);
-    const current = topWeightSince(g?.exerciseId, createdAt);
+  function openAddGoalModal(){
+    let mode = "strength"; // strength | weight | weekly
 
-    const pct = (Number.isFinite(target) && target > 0 && Number.isFinite(current) && current !== null)
-      ? Math.max(0, Math.min(1, current / target))
-      : 0;
-
-    const title = (g?.exerciseNameSnap || "Goal");
-    const currentTxt = (current == null) ? "—" : String(Number(current).toFixed(1));
-    const targetTxt = (Number.isFinite(target) && target > 0) ? String(Number(target).toFixed(1)) : "—";
-    const pctTxt = `${Math.round(pct * 100)}%`;
-
-    return el("div", {
-      style:"border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); border-radius:16px; padding:12px;"
+    const modeSel = el("select", {
+      onChange: (e) => {
+        mode = String(e.target.value || "strength");
+        repaint();
+      }
     }, [
-      el("div", { class:"homeRow" }, [
-        el("div", {}, [
-          el("div", { style:"font-weight:900; letter-spacing:.2px;", text: title }),
-          el("div", { class:"note", text:`Top weight since goal creation • ${pctTxt}` })
-        ]),
-        el("button", { class:"btn danger", onClick: () => removeGoal(g.id) }, ["Remove"])
-      ]),
-
-      el("div", { style:"height:10px" }),
-
-      // Reuse protein bar styles to avoid new CSS surface area
-      el("div", { class:"proteinBarTrack", style:"height:12px; border-radius:999px; overflow:hidden;" }, [
-        el("div", { class:"proteinBarFill", style:`width:${Math.round(pct * 100)}%; height:100%;` })
-      ]),
-
-      el("div", { style:"height:8px" }),
-      el("div", { class:"note", text:`Current: ${currentTxt} • Target: ${targetTxt}` })
+      el("option", { value:"strength", text:"Strength (Top weight since creation)" }),
+      el("option", { value:"weekly", text:"Weekly sessions (Attendance)" }),
+      el("option", { value:"weight", text:"Bodyweight" })
     ]);
+
+    // Strength inputs
+    const exSel = el("select", {});
+    const targetLift = el("input", { type:"number", inputmode:"decimal", step:"0.5", placeholder:"Target (e.g. 225)" });
+
+    // Weekly sessions inputs
+    const weeklyTarget = el("input", { type:"number", inputmode:"numeric", min:"1", step:"1", placeholder:"Target (e.g. 4)" });
+
+    // Weight inputs
+    const targetWeight = el("input", { type:"number", inputmode:"decimal", step:"0.1", placeholder:"Target weight (e.g. 185.0)" });
+
+    function loadStrengthExercises(){
+      const list = Array.isArray(state?.exerciseLibrary?.weightlifting) ? state.exerciseLibrary.weightlifting.slice() : [];
+      list.sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+
+      exSel.innerHTML = "";
+      exSel.appendChild(el("option", { value:"", text:"Select an exercise…" }));
+      list.forEach(x => {
+        if(!x || !x.id) return;
+        exSel.appendChild(el("option", { value:x.id, text: x.name || "Exercise" }));
+      });
+    }
+    loadStrengthExercises();
+
+    const body = el("div", {}, []);
+
+    function save(){
+      const now = Date.now();
+      const idFn = (typeof uid === "function") ? uid : (p => `${p || "g"}_${Date.now()}`);
+
+      if(mode === "strength"){
+        const exerciseId = String(exSel.value || "").trim();
+        const target = Number(targetLift.value);
+
+        if(!exerciseId){ showToast("Pick an exercise"); return; }
+        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a target weight"); return; }
+
+        const ex = (state.exerciseLibrary?.weightlifting || []).find(x => x.id === exerciseId);
+        const nameSnap = ex?.name || "Strength goal";
+
+        // startValue = 0 so % is "current / target" since creation
+        goals.push({
+          id: idFn("g"),
+          kind: "strength_top_weight_since",
+          title: `${nameSnap} → ${target}`,
+          exerciseId,
+          exerciseNameSnap: nameSnap,
+          startValue: 0,
+          targetValue: target,
+          createdAt: now
+        });
+      }
+
+      if(mode === "weekly"){
+        const target = Number(weeklyTarget.value);
+        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a weekly target"); return; }
+
+        goals.push({
+          id: idFn("g"),
+          kind: "weekly_sessions",
+          title: `Weekly sessions → ${Math.round(target)}`,
+          startValue: 0,
+          targetValue: Math.max(1, Math.round(target)),
+          createdAt: now
+        });
+      }
+
+      if(mode === "weight"){
+        const target = Number(targetWeight.value);
+        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a target weight"); return; }
+
+        const latest = WeightEngine.latest();
+        const start = latest ? Number(latest.weight) : 0;
+
+        // direction auto: if target < start, user is cutting; math handles it
+        goals.push({
+          id: idFn("g"),
+          kind: "bodyweight",
+          title: `Bodyweight → ${target}`,
+          startValue: start,
+          targetValue: target,
+          createdAt: now
+        });
+      }
+
+      Storage.save(state);
+      showToast("Goal added");
+      Modal.close();
+      renderView();
+    }
+
+    function repaint(){
+      body.innerHTML = "";
+
+      body.appendChild(el("div", { class:"setRow" }, [
+        el("div", {}, [
+          el("div", { style:"font-weight:820;", text:"Goal type" }),
+          el("div", { class:"meta", text:"Pick what you want to track" })
+        ]),
+        modeSel
+      ]));
+
+      if(mode === "strength"){
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Exercise" }),
+            el("div", { class:"meta", text:"Top weight since you created this goal" })
+          ]),
+          exSel
+        ]));
+
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Target top weight" }),
+            el("div", { class:"meta", text:"Example: 225" })
+          ]),
+          targetLift
+        ]));
+      }
+
+      if(mode === "weekly"){
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Weekly sessions target" }),
+            el("div", { class:"meta", text:"Based on Attendance check-ins" })
+          ]),
+          weeklyTarget
+        ]));
+      }
+
+      if(mode === "weight"){
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Target bodyweight" }),
+            el("div", { class:"meta", text:"Leave blank cancels (not here — set a number)" })
+          ]),
+          targetWeight
+        ]));
+      }
+
+      body.appendChild(el("div", { style:"height:10px" }));
+      body.appendChild(el("div", { class:"btnrow" }, [
+        el("button", { class:"btn", onClick: () => Modal.close() }, ["Cancel"]),
+        el("button", { class:"btn primary", onClick: save }, ["Add goal"])
+      ]));
+    }
+
+    repaint();
+
+    Modal.open({
+      title: "Add goal",
+      bodyNode: body
+    });
+  }
+
+  function currentValueForGoal(g){
+    if(g.kind === "weekly_sessions"){
+      return sessionsThisWeek();
+    }
+    if(g.kind === "bodyweight"){
+      const latest = WeightEngine.latest();
+      return latest ? Number(latest.weight) : 0;
+    }
+    if(g.kind === "strength_top_weight_since"){
+      const best = topWeightSince(g.exerciseId, Number(g.createdAt || 0));
+      return (best == null) ? 0 : Number(best);
+    }
+    return 0;
+  }
+
+  function metaForGoal(g, cur){
+    if(g.kind === "weekly_sessions"){
+      return `This week: ${cur} / ${Number(g.targetValue||0)}`;
+    }
+    if(g.kind === "bodyweight"){
+      const s = (g.startValue == null) ? "—" : Number(g.startValue).toFixed(1);
+      const t = (g.targetValue == null) ? "—" : Number(g.targetValue).toFixed(1);
+      const c = cur ? Number(cur).toFixed(1) : "—";
+      return `Now: ${c} • Start: ${s} → Target: ${t}`;
+    }
+    if(g.kind === "strength_top_weight_since"){
+      const t = (g.targetValue == null) ? "—" : Number(g.targetValue).toFixed(1);
+      const c = cur ? Number(cur).toFixed(1) : "—";
+      return `Now: ${c} • Target: ${t}`;
+    }
+    return "";
   }
 
   const listNode =
     goals.length === 0
-      ? el("div", { class:"note", text:"No goals yet. Add one to start tracking progress." })
+      ? el("div", { class:"note", text:"No goals yet. Tap Add goal to create one." })
       : el("div", { style:"display:flex; flex-direction:column; gap:10px; margin-top:10px;" },
-          goals.map(renderGoalRow)
+          goals.map(g => {
+            const cur = currentValueForGoal(g);
+            const pct = pctFrom(Number(g.startValue||0), Number(cur||0), Number(g.targetValue||0));
+            const pctTxt = `${Math.round(pct * 100)}%`;
+
+            return el("div", {
+              style:"border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); border-radius:16px; padding:12px;"
+            }, [
+              el("div", { class:"homeRow" }, [
+                el("div", {}, [
+                  el("div", { style:"font-weight:900; letter-spacing:.2px;", text: g.title || "Goal" }),
+                  el("div", { class:"note", text: metaForGoal(g, cur) + ` • ${pctTxt}` })
+                ]),
+                el("button", { class:"btn danger", onClick: () => removeGoal(g.id) }, ["Remove"])
+              ]),
+
+              el("div", { style:"height:10px" }),
+
+              // Reuse protein bar styles (already in CSS)
+              el("div", { class:"proteinBarTrack", style:"height:12px; border-radius:999px; overflow:hidden;" }, [
+                el("div", { class:"proteinBarFill", style:`width:${Math.round(pct * 100)}%; height:100%;` })
+              ])
+            ]);
+          })
         );
 
   return [
     el("div", { class:"homeRow" }, [
       el("div", {}, [
         el("h2", { text:"Goals" }),
-        el("div", { class:"note", text:"Add goals and watch progress update as you log workouts." })
+        el("div", { class:"note", text:"Goals you create. Progress updates automatically from your logs." })
       ]),
       el("button", { class:"btn primary", onClick: openAddGoalModal }, ["+ Add goal"])
     ]),
