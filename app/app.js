@@ -261,13 +261,20 @@ async function signInWithOAuth(provider){
 
   async function refreshUser(){
     const sb = await ensureClient();
-    if(!sb) { _user = null; notify(); return; }
+    if(!sb) { _user = null; stopFeed(); notify(); return; }
+
     try{
       const { data } = await sb.auth.getUser();
       _user = data?.user || null;
     }catch(_){
       _user = null;
     }
+
+    // ✅ Important: if we are already signed in on cold-open,
+    // start polling so followers/following counts update live.
+    if(_user) startFeed();
+    else stopFeed();
+
     notify();
   }
 
