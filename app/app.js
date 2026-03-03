@@ -2996,8 +2996,6 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
         const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
         const proteinInput = el("input", { type:"number", min:"0", step:"1", value: (state.profile?.proteinGoal ?? 150) });
 
-         const proteinInput = el("input", { type:"number", min:"0", step:"1", value: (state.profile?.proteinGoal ?? 150) });
-
 // ⬇️ PASTE THE NEW BLOCK RIGHT HERE
 
 // Protein tracking is "off" when goal is 0
