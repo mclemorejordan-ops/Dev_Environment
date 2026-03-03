@@ -6803,6 +6803,9 @@ try{
 const Bootstrap = initBootstrap({
   getState: () => state,
 
+   // Friends/Social: allow bootstrap to rehydrate OAuth session on app load
+  Social,
+
   ExerciseLibrary,
   LogEngine,
 
