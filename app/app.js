@@ -758,35 +758,6 @@ const openProteinModal = (dateISO = todayISO) => {
   })()
 ]),
 
-// ✅ KPI + action (Edit routine) on the same row
-el("div", { class:"homeRow" }, [
-  el("div", { class:"kpi" }, [
-    el("div", { class:"big", text: workoutTitle }),
-    el("div", { class:"small", text: workoutSub })
-  ]),
-  el("button", {
-    class:"btn",
-    onClick: () => navigate("routine")
-  }, ["Edit routine"])
-]),
-
-
-el("div", { style:"height:10px" }),
-
-/* Planned exercises (unchanged) */
-(workoutExercises.length === 0)
-  ? el("div", {
-      class:"note",
-      text: day?.isRest ? "Rest day is enabled." : "Add exercises in Routine Editor."
-    })
-  : el("div", { class:"list" }, workoutExercises.slice(0,6).map(n =>
-      el("div", { class:"item" }, [
-        el("div", { class:"left" }, [ el("div", { class:"name", text: n }) ]),
-        el("div", { class:"actions" }, [ el("div", { class:"meta", text:"Planned" }) ])
-      ])
-    ))
-]),
-
 // ✅ Removed from Today's Workout card:
 // el("div", { style:"height:10px" }),
 // el("div", { class:"btnrow" }, [
