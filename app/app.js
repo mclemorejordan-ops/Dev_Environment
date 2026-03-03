@@ -4514,25 +4514,24 @@ try{
 
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right)
-  root.appendChild(el("div", { class:"card" }, [
-  // Header title + auth pill (top-right)
-  el("div", { style:"position:relative; min-height:52px;" }, [
-  el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+  el("div", { style:"position:relative; min-height:28px;" }, [
+    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+    (typeof Social.isSignedIn === "function")
+      ? el("div", {
+          class:"pill",
+          style:"position:absolute; top:0; right:0;",
+          text: Social.isSignedIn() ? "Signed in" : "Signed out"
+        })
+      : null
+  ].filter(Boolean)),
 
-  // Top-right auth pill
-  (typeof Social.isSignedIn === "function")
-    ? el("div", {
-        class:"pill",
-        style:"position:absolute; top:0; right:0;",
-        text: Social.isSignedIn() ? "Signed in" : "Signed out"
-      })
-    : null,
+  el("div", { style:"height:10px" }),
 
-  // 🔔 Bottom-right notification pill
+  // 🔔 NEW FOLLOWER NOTIFICATION PILL (INSERTED HERE)
   (user && (ui._followerNotifs || []).length)
     ? el("div", {
         class:"pill",
-        style:"position:absolute; bottom:0; right:0; cursor:pointer;",
+        style:"cursor:pointer;",
         text: (() => {
           const n = (ui._followerNotifs || []).length;
           if(n === 1){
@@ -4546,10 +4545,7 @@ root.appendChild(el("div", { class:"card" }, [
           try{ openFollowerNotifsModal(); }catch(_){}
         }
       })
-    : null
-].filter(Boolean)),
-
-  el("div", { style:"height:10px" }),
+    : null,
 
   !configured
     ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
