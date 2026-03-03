@@ -506,11 +506,17 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
       }
     }
 
-    const profile = {
+        const profile = {
       name: cleanName,
       proteinGoal: trackProtein ? Math.round(cleanProtein) : 0, // ✅ NEW behavior
       weekStartsOn,
       hideRestDays: !!hideRestDays,
+
+      // ✅ Goals (persistent)
+      goals: {
+        weeklySessionsTarget: 4,
+        targetWeight: null
+      },
 
       // ✅ existing behavior you already added
       show3DPreview: true
@@ -839,8 +845,80 @@ const openProteinModal = (dateISO = todayISO) => {
         el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
       ])
         ] : [])
-  ]);
+    ]);
 })(),
+
+// ✅ Goals — persistent (saved in state.profile.goals)
+el("div", { class:"card" }, (() => {
+  if(!state.profile){
+    return [
+      el("h2", { text:"Goals" }),
+      el("div", { class:"note", text:"Complete onboarding to set goals." })
+    ];
+  }
+
+  // Ensure goals object exists (migrateState covers old saves, but keep UI safe)
+  state.profile.goals = (state.profile.goals && typeof state.profile.goals === "object") ? state.profile.goals : {};
+  if(!Number.isFinite(state.profile.goals.weeklySessionsTarget)) state.profile.goals.weeklySessionsTarget = 4;
+  if(state.profile.goals.targetWeight === undefined) state.profile.goals.targetWeight = null;
+
+  const weeklyInput = el("input", { type:"number", inputmode:"numeric", min:"0", step:"1", placeholder:"4" });
+  weeklyInput.value = String(state.profile.goals.weeklySessionsTarget ?? 4);
+
+  const targetWeightInput = el("input", { type:"number", inputmode:"decimal", step:"0.1", placeholder:"e.g. 185.0" });
+  targetWeightInput.value = (state.profile.goals.targetWeight === null || state.profile.goals.targetWeight === undefined)
+    ? ""
+    : String(state.profile.goals.targetWeight);
+
+  // Basic compact styling without touching global input rules
+  const inputStyle = "width: 110px; text-align:right;";
+  weeklyInput.setAttribute("style", inputStyle);
+  targetWeightInput.setAttribute("style", inputStyle);
+
+  function saveGoals(){
+    const w = Number(weeklyInput.value || 0);
+    state.profile.goals.weeklySessionsTarget = Number.isFinite(w) ? Math.max(0, Math.round(w)) : 4;
+
+    const twRaw = targetWeightInput.value.trim();
+    if(twRaw === ""){
+      state.profile.goals.targetWeight = null;
+    } else {
+      const tw = Number(twRaw);
+      state.profile.goals.targetWeight = Number.isFinite(tw) ? tw : null;
+    }
+
+    Storage.save(state);
+    showToast("Goals saved");
+    renderView();
+  }
+
+  return [
+    el("h2", { text:"Goals" }),
+    el("div", { class:"note", text:"Set targets for consistency. Saved across app restarts." }),
+
+    el("div", { class:"setRow" }, [
+      el("div", {}, [
+        el("div", { style:"font-weight:820;", text:"Weekly sessions" }),
+        el("div", { class:"meta", text:"Target workouts per week" })
+      ]),
+      weeklyInput
+    ]),
+
+    el("div", { class:"setRow" }, [
+      el("div", {}, [
+        el("div", { style:"font-weight:820;", text:"Target weight" }),
+        el("div", { class:"meta", text:"Leave blank for none" })
+      ]),
+      targetWeightInput
+    ]),
+
+    el("div", { style:"height:10px" }),
+    el("div", { class:"btnrow" }, [
+      el("button", { class:"btn primary", onClick: saveGoals }, ["Save goals"])
+    ])
+  ];
+})()),
+
     ]);
 },
       ProteinHistory(){
