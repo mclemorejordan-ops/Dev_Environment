@@ -4334,13 +4334,6 @@ try{
   if(Social.fetchNames) await Social.fetchNames(ids);
 }catch(_){}
 
-  // 🔥 merge feed names into persistent modal cache
-  ui._nameMap = ui._nameMap || {};
-  const freshMap = buildNameMap();
-  Object.keys(freshMap).forEach(k => {
-    ui._nameMap[k] = freshMap[k];
-  });
-
   bodyHost.innerHTML = "";
   bodyHost.appendChild(el("div", { style:"height:10px" }));
 
