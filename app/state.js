@@ -74,6 +74,28 @@ export function migrateState(saved){
   if(!Array.isArray(merged.logs.protein)) merged.logs.protein = [];
   if(!Array.isArray(merged.attendance)) merged.attendance = [];
 
+
+    // ✅ Goals (additive + safe)
+  if(merged.profile && typeof merged.profile === "object"){
+    if(!merged.profile.goals || typeof merged.profile.goals !== "object"){
+      merged.profile.goals = {};
+    }
+
+    // Weekly sessions target (default 4)
+    if(!Number.isFinite(merged.profile.goals.weeklySessionsTarget)){
+      merged.profile.goals.weeklySessionsTarget = 4;
+    }
+
+    // Target weight (nullable)
+    if(merged.profile.goals.targetWeight === undefined){
+      merged.profile.goals.targetWeight = null;
+    }
+    if(merged.profile.goals.targetWeight !== null && !Number.isFinite(Number(merged.profile.goals.targetWeight))){
+      merged.profile.goals.targetWeight = null;
+    }
+  }
+  
+  
   // Always stamp latest schema
   merged.schemaVersion = SCHEMA_VERSION;
 
