@@ -838,7 +838,9 @@ const openProteinModal = (dateISO = todayISO) => {
       el("div", { class:"btnrow" }, [
         el("button", { class:"btn primary", onClick: openProteinModal }, ["Log meals"])
       ])
-    ] : [])
+        ] : [])
+  ]);
+})(),
     ]);
 },
       ProteinHistory(){
