@@ -450,40 +450,7 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
 
   const nameInput = el("input", { type:"text", placeholder:"Jordan" });
   const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
-
-  // Protein tracking is "off" when goal is 0
-let trackProtein = Number(state.profile?.proteinGoal || 0) > 0;
-
-const trackProteinSwitch = el("div", {
-  class: "switch" + (trackProtein ? " on" : "")
-});
-
-// Build the protein goal row so we can hide/show it
-const proteinRow = el("div", { class:"setRow" }, [
-  el("div", {}, [
-    el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
-    el("div", { class:"meta", text:"grams/day" })
-  ]),
-  proteinInput
-]);
-
-proteinRow.style.display = trackProtein ? "" : "none";
-
-const trackProteinRow = el("div", { class:"setRow" }, [
-  el("div", {}, [
-    el("div", { style:"font-weight:820;", text:"Track protein" }),
-    el("div", { class:"meta", text:"Optional — turn off to disable protein goals" })
-  ]),
-  trackProteinSwitch
-]);
-
-trackProteinSwitch.addEventListener("click", () => {
-  trackProtein = !trackProtein;
-  trackProteinSwitch.classList.toggle("on", trackProtein);
-  proteinRow.style.display = trackProtein ? "" : "none";
-});
-      
-      
+         
   const weekSelect = el("select", {});
   weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
   weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
@@ -3028,7 +2995,42 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
         // --- Profile controls ---
         const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
         const proteinInput = el("input", { type:"number", min:"0", step:"1", value: (state.profile?.proteinGoal ?? 150) });
-           
+
+         const proteinInput = el("input", { type:"number", min:"0", step:"1", value: (state.profile?.proteinGoal ?? 150) });
+
+// ⬇️ PASTE THE NEW BLOCK RIGHT HERE
+
+// Protein tracking is "off" when goal is 0
+let trackProtein = Number(state.profile?.proteinGoal || 0) > 0;
+
+const trackProteinSwitch = el("div", {
+  class: "switch" + (trackProtein ? " on" : "")
+});
+
+// Protein goal row (hide/show)
+const proteinRow = el("div", { class:"setRow" }, [
+  el("div", {}, [
+    el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
+    el("div", { class:"meta", text:"grams/day" })
+  ]),
+  proteinInput
+]);
+proteinRow.style.display = trackProtein ? "" : "none";
+
+// Track protein row
+const trackProteinRow = el("div", { class:"setRow" }, [
+  el("div", {}, [
+    el("div", { style:"font-weight:820;", text:"Track protein" }),
+    el("div", { class:"meta", text:"Optional — turn off to disable protein goals" })
+  ]),
+  trackProteinSwitch
+]);
+
+trackProteinSwitch.addEventListener("click", () => {
+  trackProtein = !trackProtein;
+  trackProteinSwitch.classList.toggle("on", trackProtein);
+  proteinRow.style.display = trackProtein ? "" : "none";
+});
            
         const weekSelect = el("select", {});
         weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
