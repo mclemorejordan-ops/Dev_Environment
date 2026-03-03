@@ -2352,6 +2352,7 @@ if(type === "weightlifting"){
       }
     }catch(_){}
   }
+ }   
 
 function buildWeightliftingForm(){
   const rowsHost = el("div", { class:"logsetWLCard" }, []);
