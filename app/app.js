@@ -187,6 +187,12 @@ const UIState = window.__GymDashUIState || (window.__GymDashUIState = {
     q: "",
     type: "weightlifting",
     equipment: "all"
+  },
+
+  // Home-only UI prefs (safe: does not touch app state schema)
+  home: {
+    // Default collapsed for Today’s workout planned list
+    todayWorkoutCollapsed: true
   }
 });
 
@@ -688,7 +694,69 @@ const openProteinModal = (dateISO = todayISO) => {
 
         return el("div", { class:"grid cols2" }, [
           el("div", { class:"card" }, [
-            el("h2", { text:"Today’s workout" }),
+  // Header row with collapse toggle
+  el("div", { class:"cardHeadRow" }, [
+    el("h2", { text:"Today’s workout" }),
+
+    (() => {
+      // Ensure home UI state exists + default collapsed
+      UIState.home = UIState.home || {};
+      if(typeof UIState.home.todayWorkoutCollapsed !== "boolean"){
+        UIState.home.todayWorkoutCollapsed = true;
+      }
+
+      const label = UIState.home.todayWorkoutCollapsed ? "Show ▸" : "Hide ▾";
+
+      return el("button", {
+        class:"btn sm ghost",
+        onClick: () => {
+          UIState.home.todayWorkoutCollapsed = !UIState.home.todayWorkoutCollapsed;
+          renderView();
+        }
+      }, [label]);
+    })()
+  ]),
+
+  // ✅ KPI + action (Edit routine) on the same row
+  el("div", { class:"homeRow" }, [
+    el("div", { class:"kpi" }, [
+      el("div", { class:"big", text: workoutTitle }),
+      el("div", { class:"small", text: workoutSub })
+    ]),
+    el("button", {
+      class:"btn",
+      onClick: () => navigate("routine")
+    }, ["Edit routine"])
+  ]),
+
+  // Collapsible body (planned exercises)
+  (() => {
+    UIState.home = UIState.home || {};
+    if(typeof UIState.home.todayWorkoutCollapsed !== "boolean"){
+      UIState.home.todayWorkoutCollapsed = true;
+    }
+
+    return el("div", {
+      class:"collapseBody",
+      style: UIState.home.todayWorkoutCollapsed ? "display:none;" : ""
+    }, [
+      el("div", { style:"height:10px" }),
+
+      /* Planned exercises */
+      (workoutExercises.length === 0)
+        ? el("div", {
+            class:"note",
+            text: day?.isRest ? "Rest day is enabled." : "Add exercises in Routine Editor."
+          })
+        : el("div", { class:"list" }, workoutExercises.slice(0,6).map(n =>
+            el("div", { class:"item" }, [
+              el("div", { class:"left" }, [ el("div", { class:"name", text: n }) ]),
+              el("div", { class:"actions" }, [ el("div", { class:"meta", text:"Planned" }) ])
+            ])
+          ))
+    ]);
+  })()
+]),
 
 // ✅ KPI + action (Edit routine) on the same row
 el("div", { class:"homeRow" }, [
