@@ -4513,39 +4513,40 @@ try{
 }
 
 root.appendChild(el("div", { class:"card" }, [
-  // Header title + auth pill (top-right)
-  el("div", { style:"position:relative; min-height:28px;" }, [
-    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+  // Header title + auth pill (top-right) + follower notif pill (bottom-right under auth)
+  el("div", { style:"position:relative; min-height:56px;" }, [
+    el("h2", { text:"Friends", style:"margin:0; padding-right:160px;" }),
+
     (typeof Social.isSignedIn === "function")
       ? el("div", {
           class:"pill",
           style:"position:absolute; top:0; right:0;",
           text: Social.isSignedIn() ? "Signed in" : "Signed out"
         })
+      : null,
+
+    // 🔔 NEW FOLLOWER NOTIFICATION PILL (BOTTOM-RIGHT HEADER)
+    (user && (ui._followerNotifs || []).length)
+      ? el("div", {
+          class:"pill",
+          style:"position:absolute; right:0; bottom:0; cursor:pointer;",
+          text: (() => {
+            const n = (ui._followerNotifs || []).length;
+            if(n === 1){
+              const fid = String(ui._followerNotifs[0]?.id || "");
+              const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
+              return `${dn} followed you`;
+            }
+            return `${n} new followers`;
+          })(),
+          onClick: () => {
+            try{ openFollowerNotifsModal(); }catch(_){}
+          }
+        })
       : null
   ].filter(Boolean)),
 
   el("div", { style:"height:10px" }),
-
-  // 🔔 NEW FOLLOWER NOTIFICATION PILL (INSERTED HERE)
-  (user && (ui._followerNotifs || []).length)
-    ? el("div", {
-        class:"pill",
-        style:"cursor:pointer;",
-        text: (() => {
-          const n = (ui._followerNotifs || []).length;
-          if(n === 1){
-            const fid = String(ui._followerNotifs[0]?.id || "");
-            const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
-            return `${dn} followed you`;
-          }
-          return `${n} new followers`;
-        })(),
-        onClick: () => {
-          try{ openFollowerNotifsModal(); }catch(_){}
-        }
-      })
-    : null,
 
   !configured
     ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
