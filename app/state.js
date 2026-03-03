@@ -75,7 +75,7 @@ export function migrateState(saved){
   if(!Array.isArray(merged.attendance)) merged.attendance = [];
 
 
-    // ✅ Goals (additive + safe)
+      // ✅ Goals (additive + safe)
   if(merged.profile && typeof merged.profile === "object"){
     if(!merged.profile.goals || typeof merged.profile.goals !== "object"){
       merged.profile.goals = {};
@@ -92,6 +92,11 @@ export function migrateState(saved){
     }
     if(merged.profile.goals.targetWeight !== null && !Number.isFinite(Number(merged.profile.goals.targetWeight))){
       merged.profile.goals.targetWeight = null;
+    }
+
+    // ✅ Goal items list (new, additive)
+    if(!Array.isArray(merged.profile.goals.items)){
+      merged.profile.goals.items = [];
     }
   }
   
