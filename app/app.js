@@ -4325,15 +4325,7 @@ el("div", { style:"position:relative; min-height:28px;" }, [
   // Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
-    el("div", { class:"rowBetween" }, [
-      el("div", { class:"note", text:"Feed" }),
-      el("button", {
-        class:"btn sm",
-        onClick: async () => {
-          try{ await Social.fetchFeed(); showToast("Updated"); }catch(_){}
-        }
-      }, ["Refresh"])
-    ]),
+    el("div", { class:"note", text:"Feed" }),
     el("div", { style:"height:10px" }),
 
     !user ? el("div", { class:"note", text:"Sign in to see your feed." }) : null,
