@@ -133,9 +133,10 @@ function initSocial(){
   let _cfg = readSocialConfig();
   let _user = null;
   let _feed = [];       // newest first
-  let _follows = [];    // list of followed user ids (strings)
-  let _pollTimer = null;
-  let _listeners = new Set();
+let _follows = [];    // list of followed user ids (strings)
+let _followers = [];  // list of follower user ids (strings)
+let _pollTimer = null;
+let _listeners = new Set();
 
   async function loadSupabaseModule(){
     if(_mod) return _mod;
@@ -183,9 +184,14 @@ function initSocial(){
     _cfg = readSocialConfig();
     return !!(_cfg?.url && _cfg?.anonKey);
   }
+
+  
   function getUser(){ return _user; }
-  function getFeed(){ return _feed.slice(); }
-  function getFollows(){ return _follows.slice(); }
+function getFeed(){ return _feed.slice(); }
+function getFollows(){ return _follows.slice(); }
+function getFollowers(){ return _followers.slice(); }
+  
+  
 
   function onChange(fn){
     if(typeof fn !== "function") return () => {};
@@ -281,13 +287,31 @@ async function signInWithOAuth(provider){
       return [];
     }
   }
+  
+  async function fetchFollowers(){
+  const sb = await ensureClient();
+  if(!sb || !_user) { _followers = []; return []; }
+  try{
+    const { data, error } = await sb
+      .from("follows")
+      .select("follower_id")
+      .eq("followee_id", _user.id);
+    if(error) throw error;
+    _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
+    return _followers;
+  }catch(_){
+    _followers = [];
+    return [];
+  }
+}
 
   async function fetchFeed(){
     const sb = await ensureClient();
     if(!sb || !_user) { _feed = []; notify(); return; }
 
-    // Ensure we know who we're following (used by RLS + UI)
-    await fetchFollows();
+      // Ensure we know who we're following + who follows us (UI header counts)
+  await fetchFollows();
+  await fetchFollowers();
 
     try{
       const { data, error } = await sb
@@ -351,6 +375,23 @@ async function signInWithOAuth(provider){
     if(error) throw error;
     await fetchFeed();
   }
+  
+  async function removeFollower(followerId){
+  const sb = await ensureClient();
+  if(!sb || !_user) return;
+  const id = (followerId || "").trim();
+  if(!id) return;
+
+  // Remove the row where THEY follow YOU
+  const { error } = await sb
+    .from("follows")
+    .delete()
+    .eq("follower_id", id)
+    .eq("followee_id", _user.id);
+
+  if(error) throw error;
+  await fetchFeed();
+}
 
   // stateRef is injected later (avoid circular init)
   let stateRef = () => null;
@@ -495,10 +536,14 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     refreshUser,
     getUser,
 
-    // follows + feed
+    // follows + followers + feed
     follow,
     unfollow,
+    removeFollower,
     getFollows,
+    getFollowers,
+    fetchFollows,
+    fetchFollowers,
     getFeed,
     startFeed,
     stopFeed,
@@ -4087,34 +4132,177 @@ if(!ui.__netSub){
   }catch(_){}
 }
   
-  // Header / status
-const signedIn = !!user;
+// Header / status + Following/Followers (Instagram-style)
+const followsNow = Social.getFollows ? Social.getFollows() : [];
+const followersNow = Social.getFollowers ? Social.getFollowers() : [];
+
+function openConnectionsModal(initialTab){
+  ui.connTab = initialTab || ui.connTab || "following";
+
+  const tabRow = el("div", { class:"segRow" });
+  const btnFollowing = el("button", {
+    class: "seg" + (ui.connTab === "following" ? " on" : ""),
+    onClick: () => { ui.connTab = "following"; repaintModal(); }
+  }, ["Following"]);
+  const btnFollowers = el("button", {
+    class: "seg" + (ui.connTab === "followers" ? " on" : ""),
+    onClick: () => { ui.connTab = "followers"; repaintModal(); }
+  }, ["Followers"]);
+  tabRow.appendChild(btnFollowing);
+  tabRow.appendChild(btnFollowers);
+
+  const bodyHost = el("div", {});
+
+  async function refreshLists(){
+    try{
+      if(Social.fetchFollows) await Social.fetchFollows();
+      if(Social.fetchFollowers) await Social.fetchFollowers();
+    }catch(_){}
+  }
+
+  function listRow({ id, actionLabel, onAction }){
+    return el("div", { class:"rowBetween", style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
+      el("div", { class:"small", text: id }),
+      el("button", { class:"btn sm", onClick: onAction }, [actionLabel])
+    ]);
+  }
+
+  function repaintModal(){
+    btnFollowing.className = "seg" + (ui.connTab === "following" ? " on" : "");
+    btnFollowers.className = "seg" + (ui.connTab === "followers" ? " on" : "");
+
+    const follows = Social.getFollows ? Social.getFollows() : [];
+    const followers = Social.getFollowers ? Social.getFollowers() : [];
+
+    bodyHost.innerHTML = "";
+    bodyHost.appendChild(el("div", { style:"height:10px" }));
+
+    if(!user){
+      bodyHost.appendChild(el("div", { class:"note", text:"Sign in to manage connections." }));
+      return;
+    }
+
+    if(ui.connTab === "following"){
+      if(!follows.length){
+        bodyHost.appendChild(el("div", { class:"note", text:"Not following anyone yet." }));
+        return;
+      }
+      follows.forEach(fid => {
+        bodyHost.appendChild(listRow({
+          id: fid,
+          actionLabel: "Unfollow",
+          onAction: async () => {
+            try{
+              await Social.unfollow(fid);
+              showToast("Unfollowed");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e){
+              showToast(e?.message || "Couldn't unfollow");
+            }
+          }
+        }));
+      });
+      return;
+    }
+
+    // followers tab
+    if(!followers.length){
+      bodyHost.appendChild(el("div", { class:"note", text:"No followers yet." }));
+      return;
+    }
+    followers.forEach(fid => {
+      bodyHost.appendChild(listRow({
+        id: fid,
+        actionLabel: "Remove",
+        onAction: async () => {
+          try{
+            await Social.removeFollower(fid);
+            showToast("Removed");
+            await refreshLists();
+            repaintModal();
+            renderView();
+          }catch(e){
+            // If RLS doesn’t allow deleting someone else’s row, this will fail
+            showToast(e?.message || "Couldn't remove (permissions)");
+          }
+        }
+      }));
+    });
+  }
+
+  Modal.open({
+    title: "Connections",
+    bodyNode: el("div", {}, [
+      el("div", { class:"note", text:"Following / Followers" }),
+      el("div", { style:"height:10px" }),
+      tabRow,
+      bodyHost,
+      el("div", { style:"height:10px" }),
+      el("div", { class:"btnrow" }, [
+        el("button", {
+          class:"btn",
+          onClick: async () => {
+            await refreshLists();
+            repaintModal();
+            showToast("Updated");
+          }
+        }, ["Refresh"])
+      ])
+    ])
+  });
+
+  // Initial paint
+  repaintModal();
+}
 
 root.appendChild(el("div", { class:"card" }, [
   el("div", { class:"rowBetween" }, [
     el("h2", { text:"Friends" }),
-    configured ? el("div", {
-      class:"pill",
-      text: signedIn ? "Signed in" : "Signed out",
-      style: signedIn
-        ? "opacity:.95;"
-        : "opacity:.95; border: 1px solid rgba(255,92,122,.35); color: rgba(255,92,122,.95);"
-    }) : null
+    // ✅ Your existing signed-in status pill should already be here in your current build.
+    // If you already have it, keep it. If not, this is safe to omit.
+    (typeof Social.isSignedIn === "function")
+      ? el("div", { class:"pill", text: Social.isSignedIn() ? "Online" : "Offline" })
+      : null
   ].filter(Boolean)),
-
-  el("div", { style:"height:12px" }),
-
-  !configured
-    ? el("div", {
-        class:"note",
-        style:"color: rgba(255,92,122,.95);",
-        text:"Social is not configured yet. Set your Supabase URL + anon key in Settings → Friends (Beta)."
-      })
-    : null,
 
   el("div", { style:"height:10px" }),
 
-  // Auth row (Friends header: sign-out + refresh removed)
+  !configured
+    ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
+    : null,
+
+  configured ? el("div", { class:"pillRow" }, [
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer;",
+      onClick: async () => {
+        if(Social.fetchFollows) { try{ await Social.fetchFollows(); }catch(_){} }
+        if(Social.fetchFollowers) { try{ await Social.fetchFollowers(); }catch(_){} }
+        openConnectionsModal("following");
+      }
+    }, [
+      el("div", { class:"t", text:"Following" }),
+      el("div", { class:"x", text: String((Social.getFollows ? Social.getFollows() : followsNow).length) })
+    ]),
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer;",
+      onClick: async () => {
+        if(Social.fetchFollows) { try{ await Social.fetchFollows(); }catch(_){} }
+        if(Social.fetchFollowers) { try{ await Social.fetchFollowers(); }catch(_){} }
+        openConnectionsModal("followers");
+      }
+    }, [
+      el("div", { class:"t", text:"Followers" }),
+      el("div", { class:"x", text: String((Social.getFollowers ? Social.getFollowers() : followersNow).length) })
+    ])
+  ]) : null,
+
+  el("div", { style:"height:10px" }),
+
+  // Auth row (still only shows CTA when signed out)
   configured ? el("div", { class:"btnrow" }, [
     !user ? el("button", {
       class:"btn primary",
