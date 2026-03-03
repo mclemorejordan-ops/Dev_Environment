@@ -4175,8 +4175,7 @@ try{
 ]));
 
   return root;
-}
-};
+},
    
          Settings(){
         // Persist across renders (not saved to Storage)
