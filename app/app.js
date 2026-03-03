@@ -4439,14 +4439,6 @@ const profileBody = el("div", {}, [
           el("div", { class:"note", text:"Tip: Exercises removed from the library will still display in old logs using the saved name snapshot." })
         ]);
 
-
-const socialUI = UIState.social || (UIState.social = {});
-const socialCfg = Social.getConfig && Social.getConfig();
-
-// local, non-state inputs
-socialUI.supabaseUrl = (socialUI.supabaseUrl ?? socialCfg?.url ?? "");
-socialUI.supabaseAnon = (socialUI.supabaseAnon ?? socialCfg?.anonKey ?? "");
-
 const socialUI = UIState.social || (UIState.social = {});
 const socialCfg = Social.getConfig && Social.getConfig();
 
