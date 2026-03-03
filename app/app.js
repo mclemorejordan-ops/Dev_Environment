@@ -4089,98 +4089,90 @@ try{
   ]));
 
   root.appendChild(el("div", { class:"card" }, [
-    !user
-      ? el("div", { class:"note", text:"Sign in from Settings → Friends (Beta)." })
-      : (!feed.length
-          ? el("div", { class:"note", text:"No workouts yet." })
-          : el("div", {}, feed.map(ev => {
-              const p = ev.payload || {};
-              const name = p.displayName || "User";
-              const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+  !user
+    ? el("div", { class:"note", text:"Sign in from Settings → Friends (Beta)." })
+    : (!feed.length
+        ? el("div", { class:"note", text:"No workouts yet." })
+        : el("div", {}, feed.map(ev => {
+            const p = ev.payload || {};
+            const name = p.displayName || "User";
+            const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
 
-              const h = p.highlights || {};
-              const chips = [];
-              if(h.exerciseCount) chips.push(`${h.exerciseCount} exercises`);
-              if(h.prCount) chips.push(`${h.prCount} PRs`);
-              if(h.totalVolume) chips.push(`Vol ${h.totalVolume}`);
-              if(h.totalTimeSec) chips.push(`Time ${Math.round(h.totalTimeSec/60)}m`);
+            const h = p.highlights || {};
+            const chips = [];
+            if(h.exerciseCount) chips.push(`${h.exerciseCount} exercises`);
+            if(h.prCount) chips.push(`${h.prCount} PRs`);
+            if(h.totalVolume) chips.push(`Vol ${h.totalVolume}`);
+            if(h.totalTimeSec) chips.push(`Time ${Math.round(h.totalTimeSec/60)}m`);
 
-              return el("div", {
-  class:"card",
-  style:"margin:10px 0; cursor:pointer;",
-  onClick: () => {
-    const details = Array.isArray(p.details) ? p.details : [];
-    const h2 = p.highlights || {};
+            return el("div", {
+              class:"card",
+              style:"margin:10px 0; cursor:pointer;",
+              onClick: () => {
+                const details = Array.isArray(p.details) ? p.details : [];
+                const h2 = p.highlights || {};
 
-    const body = el("div", {}, [
-      el("div", { class:"note", text: when }),
-      el("div", { style:"height:10px" }),
+                const body = el("div", {}, [
+                  el("div", { class:"note", text: when }),
+                  el("div", { style:"height:10px" }),
 
-      // Highlights
-      el("div", { class:"card", style:"margin: 0 0 10px 0;" }, [
-        el("div", { style:"font-weight:820;", text:"Highlights" }),
-        el("div", {
-          class:"note",
-          text: [
-            (h2.exerciseCount ? `${h2.exerciseCount} exercises` : null),
-            (h2.prCount ? `${h2.prCount} PRs` : null),
-            (h2.totalVolume ? `Volume: ${h2.totalVolume}` : null),
-            (h2.totalTimeSec ? `Time: ${Math.round(h2.totalTimeSec/60)}m` : null),
-            (h2.totalDistance ? `Distance: ${h2.totalDistance}` : null)
-          ].filter(Boolean).join(" • ") || "—"
-        })
-      ]),
+                  el("div", { class:"card", style:"margin: 0 0 10px 0;" }, [
+                    el("div", { style:"font-weight:820;", text:"Highlights" }),
+                    el("div", {
+                      class:"note",
+                      text: [
+                        (h2.exerciseCount ? `${h2.exerciseCount} exercises` : null),
+                        (h2.prCount ? `${h2.prCount} PRs` : null),
+                        (h2.totalVolume ? `Volume: ${h2.totalVolume}` : null),
+                        (h2.totalTimeSec ? `Time: ${Math.round(h2.totalTimeSec/60)}m` : null),
+                        (h2.totalDistance ? `Distance: ${h2.totalDistance}` : null)
+                      ].filter(Boolean).join(" • ") || "—"
+                    })
+                  ]),
 
-      // Details
-      details.length
-        ? el("div", {}, details.map(d => {
-            const ex = d.exerciseName || d.name || "Exercise";
-            const t = d.workoutType || "";
-            const s = d.summary || {};
-            const pr = Number(d.prCount || 0);
+                  details.length
+                    ? el("div", {}, details.map(d => {
+                        const ex = d.exerciseName || d.name || "Exercise";
+                        const t = d.workoutType || "";
+                        const s = d.summary || {};
+                        const pr = Number(d.prCount || 0);
 
-            const lines = [];
+                        const lines = [];
+                        if(Number.isFinite(s.totalVolume)) lines.push(`Volume: ${s.totalVolume}`);
+                        if(Number.isFinite(s.bestWeight)) lines.push(`Best: ${s.bestWeight}`);
+                        if(Number.isFinite(s.best1RM)) lines.push(`Est 1RM: ${Math.round(s.best1RM * 100) / 100}`);
+                        if(Number.isFinite(s.distance)) lines.push(`Distance: ${s.distance}`);
+                        if(Number.isFinite(s.timeSec)) lines.push(`Time: ${Math.round(s.timeSec/60)}m`);
+                        if(Number.isFinite(s.paceSecPerUnit)) lines.push(`Pace: ${s.paceSecPerUnit}s/unit`);
+                        if(s.incline !== null && s.incline !== undefined) lines.push(`Incline: ${s.incline}`);
+                        if(lines.length === 0 && Number.isFinite(s.totalVolume)) lines.push(`Total: ${s.totalVolume}`);
 
-            // Weightlifting-style
-            if (Number.isFinite(s.totalVolume)) lines.push(`Volume: ${s.totalVolume}`);
-            if (Number.isFinite(s.bestWeight)) lines.push(`Best: ${s.bestWeight}`);
-            if (Number.isFinite(s.best1RM)) lines.push(`Est 1RM: ${Math.round(s.best1RM * 100) / 100}`);
+                        return el("div", { class:"card", style:"margin:10px 0;" }, [
+                          el("div", { style:"font-weight:820;", text: ex }),
+                          t ? el("div", { class:"meta", text: t }) : null,
+                          pr ? el("div", { class:"note", text: `PRs: ${pr}` }) : null,
+                          el("div", { class:"note", text: lines.length ? lines.join(" • ") : "No summary captured." })
+                        ].filter(Boolean));
+                      }))
+                    : el("div", { class:"note", text:"No extra details were included with this event." })
+                ]);
 
-            // Cardio-style
-            if (Number.isFinite(s.distance)) lines.push(`Distance: ${s.distance}`);
-            if (Number.isFinite(s.timeSec)) lines.push(`Time: ${Math.round(s.timeSec/60)}m`);
-            if (Number.isFinite(s.paceSecPerUnit)) lines.push(`Pace: ${s.paceSecPerUnit}s/unit`);
-            if (s.incline !== null && s.incline !== undefined) lines.push(`Incline: ${s.incline}`);
-
-            // Core fallback
-            if (lines.length === 0 && Number.isFinite(s.totalVolume)) lines.push(`Total: ${s.totalVolume}`);
-
-            return el("div", { class:"card", style:"margin:10px 0;" }, [
-              el("div", { style:"font-weight:820;", text: ex }),
-              t ? el("div", { class:"meta", text: t }) : null,
-              pr ? el("div", { class:"note", text: `PRs: ${pr}` }) : null,
-              el("div", { class:"note", text: lines.length ? lines.join(" • ") : "No summary captured." })
-            ]);
-          }))
-        : el("div", { class:"note", text:"No extra details were included with this event." })
-    ]);
-
-    Modal.open({ title:"Workout details", bodyNode: body, center:true, size:"md" });
-  }
-}, [
-  el("div", { class:"rowBetween" }, [
-    el("div", { style:"font-weight:820;", text:`${name} completed a workout` }),
-    el("div", { class:"small", text: when })
-  ]),
-  chips.length
-    ? el("div", { class:"pillrow", style:"margin-top:8px;" },
-        chips.map(t => el("div", { class:"pill", text:t }))
+                Modal.open({ title:"Workout details", bodyNode: body, center:true, size:"md" });
+              }
+            }, [
+              el("div", { class:"rowBetween" }, [
+                el("div", { style:"font-weight:820;", text:`${name} completed a workout` }),
+                el("div", { class:"small", text: when })
+              ]),
+              chips.length
+                ? el("div", { class:"pillrow", style:"margin-top:8px;" },
+                    chips.map(t => el("div", { class:"pill", text:t }))
+                  )
+                : null
+            ].filter(Boolean));
+          })))
       )
-    : null
-]);
-            }))
-        )
-  ]));
+]));
 
   return root;
 }
