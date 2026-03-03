@@ -4259,14 +4259,17 @@ function openConnectionsModal(initialTab){
 }
 
 root.appendChild(el("div", { class:"card" }, [
-  el("div", { class:"rowBetween" }, [
-    el("h2", { text:"Friends" }),
-    // ✅ Your existing signed-in status pill should already be here in your current build.
-    // If you already have it, keep it. If not, this is safe to omit.
-        (typeof Social.isSignedIn === "function")
-      ? el("div", { class:"pill", text: Social.isSignedIn() ? "Signed in" : "Signed out" })
-      : null
-  ].filter(Boolean)),
+  // Header title + auth pill (top-right)
+el("div", { style:"position:relative; min-height:28px;" }, [
+  el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+  (typeof Social.isSignedIn === "function")
+    ? el("div", {
+        class:"pill",
+        style:"position:absolute; top:0; right:0;",
+        text: Social.isSignedIn() ? "Signed in" : "Signed out"
+      })
+    : null
+].filter(Boolean)),
 
   el("div", { style:"height:10px" }),
 
@@ -4274,7 +4277,7 @@ root.appendChild(el("div", { class:"card" }, [
     ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
     : null,
 
-  configured ? el("div", { class:"pillRow" }, [
+  configured ? el("div", { class:"pillRow", style:"justify-content:center;" }, [
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
