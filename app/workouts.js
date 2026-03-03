@@ -2,11 +2,11 @@
  * workouts.js — extracted from app.js (Phase 2.8)
  * - LogEngine (workout log + PRs)
  * - removeWorkoutEntryById helper
- * 
+ *
  * State safety: does NOT rename containers.
  ********************/
 
-export function initWorkouts({ getState, Storage }){
+export function initWorkouts({ getState, Storage, Social }){
   function round2(n){
     return Math.round((Number(n) || 0) * 100) / 100;
   }
@@ -23,6 +23,11 @@ export function initWorkouts({ getState, Storage }){
       this.ensure();
       state.logs.workouts.push(entry);
       Storage.save(state);
+
+      // Social (optional): publish a compact activity event
+      try{
+        Social && typeof Social.publishLogEvent === "function" && Social.publishLogEvent(entry);
+      }catch(_){}
     },
 
     entriesForExercise(type, exerciseId){
