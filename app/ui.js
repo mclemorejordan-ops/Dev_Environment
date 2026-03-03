@@ -20,7 +20,13 @@ export const el = (tag, attrs = {}, children = []) => {
       n.setAttribute(k, v);
     }
   }
-  children.forEach(c => n.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
+children.forEach(c => {
+  if(c === null || c === undefined || c === false) return;
+  n.appendChild(typeof c === "string"
+    ? document.createTextNode(c)
+    : c
+  );
+});
   return n;
 };
 
