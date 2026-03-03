@@ -72,6 +72,36 @@ export function initSettings({
         ])
       ]),
 
+      // Social Account
+el("div", { class:"card" }, [
+  el("div", { class:"note", text:"Friends (Beta)" }),
+  el("div", { style:"height:10px" }),
+  el("div", { class:"note", text: Social.getUser() ? `Your code: ${Social.getUser().id}` : "Not signed in" }),
+  el("div", { style:"height:10px" }),
+  el("div", { class:"btnrow" }, [
+    el("button", {
+      class:"btn primary",
+      onClick: async () => {
+        try{
+          await Social.signInWithOAuth("google");
+        }catch(e){
+          showToast("Google sign-in failed");
+        }
+      }
+    }, ["Continue with Google"]),
+    el("button", {
+      class:"btn",
+      onClick: async () => {
+        try{
+          await Social.signOut();
+          showToast("Signed out");
+          location.reload();
+        }catch(_){}
+      }
+    }, ["Sign out"])
+  ])
+]),
+
       // Data tools
       el("div", { class:"card" }, [
         el("div", { class:"note", text:"Data" }),
