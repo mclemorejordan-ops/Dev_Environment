@@ -3925,7 +3925,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
     el("div", { style:"height:10px" }),
 
-    // Auth row
+        // Auth row (Friends header: sign-out + refresh removed)
     configured ? el("div", { class:"btnrow" }, [
 
   !user ? el("button", {
@@ -3937,25 +3937,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
         showToast(e?.message || "Google sign-in failed");
       }
     }
-  }, ["Continue with Google"]) : null,
-
-  user ? el("button", {
-    class:"btn",
-    onClick: async () => {
-      try{ await Social.signOut(); showToast("Signed out"); }catch(_){}
-    }
-  }, ["Sign out"]) : null,
-
-  el("button", {
-    class:"btn",
-    onClick: async () => {
-      try{
-        await Social.refreshUser();
-        if(Social.getUser()) Social.startFeed();
-        showToast("Refreshed");
-      }catch(_){}
-    }
-  }, ["Refresh"])
+  }, ["Continue with Google"]) : null
 
 ].filter(Boolean)) : null
     ].filter(Boolean)));
