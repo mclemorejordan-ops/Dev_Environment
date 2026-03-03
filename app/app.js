@@ -866,16 +866,15 @@ el("div", { class:"card" }, (() => {
 
   function clamp01(x){ return Math.max(0, Math.min(1, Number(x) || 0)); }
 
-  function pctFrom(start, cur, target){
-    start = Number(start) || 0;
+  function pctRatio(cur, target){
     cur = Number(cur) || 0;
     target = Number(target) || 0;
-    if(target === start) return (cur >= target) ? 1 : 0;
-    return clamp01((cur - start) / (target - start));
+    if(!(target > 0)) return 0;
+    return clamp01(cur / target);
   }
 
-  // Strength: top weight SINCE goal creation (summary.bestWeight)
-  function topWeightSince(exerciseId, sinceTs){
+  // Strength: top weight since goal creation (bestWeight)
+  function bestStrengthSince(exerciseId, sinceTs){
     let best = null;
     const arr = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
     for(const e of arr){
@@ -892,7 +891,61 @@ el("div", { class:"card" }, (() => {
     return best;
   }
 
-  // Weekly sessions: this week count (Attendance)
+  // Cardio: best distance since goal creation (totalDistance)
+  function bestCardioDistanceSince(exerciseId, sinceTs){
+    let best = null;
+    const arr = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+    for(const e of arr){
+      if(!e) continue;
+      if(e.type !== "cardio") continue;
+      if(e.exerciseId !== exerciseId) continue;
+      if((e.createdAt || 0) < sinceTs) continue;
+
+      const v = Number(e?.summary?.totalDistance);
+      if(Number.isFinite(v)){
+        best = (best === null) ? v : Math.max(best, v);
+      }
+    }
+    return best;
+  }
+
+  // Cardio: best time since goal creation (totalTime)
+  function bestCardioTimeSince(exerciseId, sinceTs){
+    let best = null;
+    const arr = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+    for(const e of arr){
+      if(!e) continue;
+      if(e.type !== "cardio") continue;
+      if(e.exerciseId !== exerciseId) continue;
+      if((e.createdAt || 0) < sinceTs) continue;
+
+      const v = Number(e?.summary?.totalTime);
+      if(Number.isFinite(v)){
+        best = (best === null) ? v : Math.max(best, v);
+      }
+    }
+    return best;
+  }
+
+  // Core: best total volume since goal creation (totalVolume)
+  function bestCoreVolumeSince(exerciseId, sinceTs){
+    let best = null;
+    const arr = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+    for(const e of arr){
+      if(!e) continue;
+      if(e.type !== "core") continue;
+      if(e.exerciseId !== exerciseId) continue;
+      if((e.createdAt || 0) < sinceTs) continue;
+
+      const v = Number(e?.summary?.totalVolume);
+      if(Number.isFinite(v)){
+        best = (best === null) ? v : Math.max(best, v);
+      }
+    }
+    return best;
+  }
+
+  // Weekly sessions: this week attendance count
   function sessionsThisWeek(){
     return trainedThisWeek.filter(x => x.trained).length;
   }
@@ -907,66 +960,143 @@ el("div", { class:"card" }, (() => {
   }
 
   function openAddGoalModal(){
-    let mode = "strength"; // strength | weight | weekly
+    let mode = "strength"; // strength | weekly | weight | cardioDist | cardioTime | coreVol
 
     const modeSel = el("select", {
-      onChange: (e) => {
-        mode = String(e.target.value || "strength");
-        repaint();
-      }
+      onChange: (e) => { mode = String(e.target.value || "strength"); repaint(); }
     }, [
-      el("option", { value:"strength", text:"Strength (Top weight since creation)" }),
+      el("option", { value:"strength", text:"Strength — Top weight (since creation)" }),
+      el("option", { value:"cardioDist", text:"Cardio — Distance (since creation)" }),
+      el("option", { value:"cardioTime", text:"Cardio — Time (since creation)" }),
+      el("option", { value:"coreVol", text:"Core — Volume (since creation)" }),
       el("option", { value:"weekly", text:"Weekly sessions (Attendance)" }),
       el("option", { value:"weight", text:"Bodyweight" })
     ]);
 
-    // Strength inputs
-    const exSel = el("select", {});
-    const targetLift = el("input", { type:"number", inputmode:"decimal", step:"0.5", placeholder:"Target (e.g. 225)" });
+    const body = el("div", {}, []);
 
-    // Weekly sessions inputs
+    // Shared inputs
+    const targetNum = el("input", { type:"number", inputmode:"decimal", step:"0.1", placeholder:"Target" });
     const weeklyTarget = el("input", { type:"number", inputmode:"numeric", min:"1", step:"1", placeholder:"Target (e.g. 4)" });
-
-    // Weight inputs
     const targetWeight = el("input", { type:"number", inputmode:"decimal", step:"0.1", placeholder:"Target weight (e.g. 185.0)" });
 
-    function loadStrengthExercises(){
-      const list = Array.isArray(state?.exerciseLibrary?.weightlifting) ? state.exerciseLibrary.weightlifting.slice() : [];
-      list.sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+    // Exercise selects
+    const strengthSel = el("select", {});
+    const cardioSel = el("select", {});
+    const coreSel = el("select", {});
 
-      exSel.innerHTML = "";
-      exSel.appendChild(el("option", { value:"", text:"Select an exercise…" }));
-      list.forEach(x => {
+    function loadSelect(sel, list){
+      sel.innerHTML = "";
+      sel.appendChild(el("option", { value:"", text:"Select an exercise…" }));
+      (list || []).forEach(x => {
         if(!x || !x.id) return;
-        exSel.appendChild(el("option", { value:x.id, text: x.name || "Exercise" }));
+        sel.appendChild(el("option", { value:x.id, text: x.name || "Exercise" }));
       });
     }
-    loadStrengthExercises();
 
-    const body = el("div", {}, []);
+    const wl = Array.isArray(state?.exerciseLibrary?.weightlifting) ? state.exerciseLibrary.weightlifting.slice() : [];
+    wl.sort((a,b) => String(a?.name||"").localeCompare(String(b?.name||"")));
+    loadSelect(strengthSel, wl);
+
+    const cd = Array.isArray(state?.exerciseLibrary?.cardio) ? state.exerciseLibrary.cardio.slice() : [];
+    cd.sort((a,b) => String(a?.name||"").localeCompare(String(b?.name||"")));
+    loadSelect(cardioSel, cd);
+
+    const co = Array.isArray(state?.exerciseLibrary?.core) ? state.exerciseLibrary.core.slice() : [];
+    co.sort((a,b) => String(a?.name||"").localeCompare(String(b?.name||"")));
+    loadSelect(coreSel, co);
 
     function save(){
       const now = Date.now();
       const idFn = (typeof uid === "function") ? uid : (p => `${p || "g"}_${Date.now()}`);
 
+      function addGoal(g){
+        goals.push(g);
+        Storage.save(state);
+        showToast("Goal added");
+        Modal.close();
+        renderView();
+      }
+
       if(mode === "strength"){
-        const exerciseId = String(exSel.value || "").trim();
-        const target = Number(targetLift.value);
+        const exerciseId = String(strengthSel.value || "").trim();
+        const target = Number(targetNum.value);
 
         if(!exerciseId){ showToast("Pick an exercise"); return; }
-        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a target weight"); return; }
+        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a valid target"); return; }
 
-        const ex = (state.exerciseLibrary?.weightlifting || []).find(x => x.id === exerciseId);
-        const nameSnap = ex?.name || "Strength goal";
+        const ex = wl.find(x => x.id === exerciseId);
+        const nameSnap = ex?.name || "Strength";
 
-        // startValue = 0 so % is "current / target" since creation
-        goals.push({
+        addGoal({
           id: idFn("g"),
           kind: "strength_top_weight_since",
           title: `${nameSnap} → ${target}`,
           exerciseId,
           exerciseNameSnap: nameSnap,
-          startValue: 0,
+          targetValue: target,
+          createdAt: now
+        });
+      }
+
+      if(mode === "cardioDist"){
+        const exerciseId = String(cardioSel.value || "").trim();
+        const target = Number(targetNum.value);
+
+        if(!exerciseId){ showToast("Pick an exercise"); return; }
+        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a valid distance target"); return; }
+
+        const ex = cd.find(x => x.id === exerciseId);
+        const nameSnap = ex?.name || "Cardio";
+
+        addGoal({
+          id: idFn("g"),
+          kind: "cardio_distance_since",
+          title: `${nameSnap} distance → ${target}`,
+          exerciseId,
+          exerciseNameSnap: nameSnap,
+          targetValue: target,
+          createdAt: now
+        });
+      }
+
+      if(mode === "cardioTime"){
+        const exerciseId = String(cardioSel.value || "").trim();
+        const target = Number(targetNum.value);
+
+        if(!exerciseId){ showToast("Pick an exercise"); return; }
+        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a valid time target"); return; }
+
+        const ex = cd.find(x => x.id === exerciseId);
+        const nameSnap = ex?.name || "Cardio";
+
+        addGoal({
+          id: idFn("g"),
+          kind: "cardio_time_since",
+          title: `${nameSnap} time → ${target}`,
+          exerciseId,
+          exerciseNameSnap: nameSnap,
+          targetValue: target,
+          createdAt: now
+        });
+      }
+
+      if(mode === "coreVol"){
+        const exerciseId = String(coreSel.value || "").trim();
+        const target = Number(targetNum.value);
+
+        if(!exerciseId){ showToast("Pick an exercise"); return; }
+        if(!Number.isFinite(target) || target <= 0){ showToast("Enter a valid volume target"); return; }
+
+        const ex = co.find(x => x.id === exerciseId);
+        const nameSnap = ex?.name || "Core";
+
+        addGoal({
+          id: idFn("g"),
+          kind: "core_volume_since",
+          title: `${nameSnap} volume → ${target}`,
+          exerciseId,
+          exerciseNameSnap: nameSnap,
           targetValue: target,
           createdAt: now
         });
@@ -976,11 +1106,10 @@ el("div", { class:"card" }, (() => {
         const target = Number(weeklyTarget.value);
         if(!Number.isFinite(target) || target <= 0){ showToast("Enter a weekly target"); return; }
 
-        goals.push({
+        addGoal({
           id: idFn("g"),
           kind: "weekly_sessions",
           title: `Weekly sessions → ${Math.round(target)}`,
-          startValue: 0,
           targetValue: Math.max(1, Math.round(target)),
           createdAt: now
         });
@@ -993,8 +1122,7 @@ el("div", { class:"card" }, (() => {
         const latest = WeightEngine.latest();
         const start = latest ? Number(latest.weight) : 0;
 
-        // direction auto: if target < start, user is cutting; math handles it
-        goals.push({
+        addGoal({
           id: idFn("g"),
           kind: "bodyweight",
           title: `Bodyweight → ${target}`,
@@ -1003,11 +1131,6 @@ el("div", { class:"card" }, (() => {
           createdAt: now
         });
       }
-
-      Storage.save(state);
-      showToast("Goal added");
-      Modal.close();
-      renderView();
     }
 
     function repaint(){
@@ -1016,26 +1139,72 @@ el("div", { class:"card" }, (() => {
       body.appendChild(el("div", { class:"setRow" }, [
         el("div", {}, [
           el("div", { style:"font-weight:820;", text:"Goal type" }),
-          el("div", { class:"meta", text:"Pick what you want to track" })
+          el("div", { class:"meta", text:"Choose what you want to track" })
         ]),
         modeSel
       ]));
 
       if(mode === "strength"){
+        targetNum.placeholder = "Target top weight (e.g. 225)";
+        targetNum.step = "0.5";
         body.appendChild(el("div", { class:"setRow" }, [
           el("div", {}, [
             el("div", { style:"font-weight:820;", text:"Exercise" }),
-            el("div", { class:"meta", text:"Top weight since you created this goal" })
+            el("div", { class:"meta", text:"Weightlifting only" })
           ]),
-          exSel
+          strengthSel
         ]));
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [ el("div", { style:"font-weight:820;", text:"Target" }), el("div", { class:"meta", text:"Top weight since goal creation" }) ]),
+          targetNum
+        ]));
+      }
 
+      if(mode === "cardioDist"){
+        targetNum.placeholder = "Target distance (e.g. 3.0)";
+        targetNum.step = "0.1";
         body.appendChild(el("div", { class:"setRow" }, [
           el("div", {}, [
-            el("div", { style:"font-weight:820;", text:"Target top weight" }),
-            el("div", { class:"meta", text:"Example: 225" })
+            el("div", { style:"font-weight:820;", text:"Exercise" }),
+            el("div", { class:"meta", text:"Cardio only" })
           ]),
-          targetLift
+          cardioSel
+        ]));
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [ el("div", { style:"font-weight:820;", text:"Target" }), el("div", { class:"meta", text:"Best single-workout distance since creation" }) ]),
+          targetNum
+        ]));
+      }
+
+      if(mode === "cardioTime"){
+        targetNum.placeholder = "Target time (minutes, e.g. 30)";
+        targetNum.step = "1";
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Exercise" }),
+            el("div", { class:"meta", text:"Cardio only" })
+          ]),
+          cardioSel
+        ]));
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [ el("div", { style:"font-weight:820;", text:"Target" }), el("div", { class:"meta", text:"Best single-workout time since creation" }) ]),
+          targetNum
+        ]));
+      }
+
+      if(mode === "coreVol"){
+        targetNum.placeholder = "Target volume (e.g. 100)";
+        targetNum.step = "1";
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Exercise" }),
+            el("div", { class:"meta", text:"Core only" })
+          ]),
+          coreSel
+        ]));
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [ el("div", { style:"font-weight:820;", text:"Target" }), el("div", { class:"meta", text:"Best single-workout volume since creation" }) ]),
+          targetNum
         ]));
       }
 
@@ -1053,7 +1222,7 @@ el("div", { class:"card" }, (() => {
         body.appendChild(el("div", { class:"setRow" }, [
           el("div", {}, [
             el("div", { style:"font-weight:820;", text:"Target bodyweight" }),
-            el("div", { class:"meta", text:"Leave blank cancels (not here — set a number)" })
+            el("div", { class:"meta", text:"Current vs target" })
           ]),
           targetWeight
         ]));
@@ -1068,13 +1237,12 @@ el("div", { class:"card" }, (() => {
 
     repaint();
 
-    Modal.open({
-      title: "Add goal",
-      bodyNode: body
-    });
+    Modal.open({ title: "Add goal", bodyNode: body });
   }
 
-  function currentValueForGoal(g){
+  function currentForGoal(g){
+    const since = Number(g?.createdAt || 0);
+
     if(g.kind === "weekly_sessions"){
       return sessionsThisWeek();
     }
@@ -1083,27 +1251,50 @@ el("div", { class:"card" }, (() => {
       return latest ? Number(latest.weight) : 0;
     }
     if(g.kind === "strength_top_weight_since"){
-      const best = topWeightSince(g.exerciseId, Number(g.createdAt || 0));
-      return (best == null) ? 0 : Number(best);
+      const v = bestStrengthSince(g.exerciseId, since);
+      return (v == null) ? 0 : Number(v);
     }
+    if(g.kind === "cardio_distance_since"){
+      const v = bestCardioDistanceSince(g.exerciseId, since);
+      return (v == null) ? 0 : Number(v);
+    }
+    if(g.kind === "cardio_time_since"){
+      const v = bestCardioTimeSince(g.exerciseId, since);
+      return (v == null) ? 0 : Number(v);
+    }
+    if(g.kind === "core_volume_since"){
+      const v = bestCoreVolumeSince(g.exerciseId, since);
+      return (v == null) ? 0 : Number(v);
+    }
+
     return 0;
   }
 
   function metaForGoal(g, cur){
+    const t = Number(g?.targetValue || 0);
+
     if(g.kind === "weekly_sessions"){
-      return `This week: ${cur} / ${Number(g.targetValue||0)}`;
+      return `This week: ${cur} / ${t}`;
     }
     if(g.kind === "bodyweight"){
       const s = (g.startValue == null) ? "—" : Number(g.startValue).toFixed(1);
-      const t = (g.targetValue == null) ? "—" : Number(g.targetValue).toFixed(1);
       const c = cur ? Number(cur).toFixed(1) : "—";
-      return `Now: ${c} • Start: ${s} → Target: ${t}`;
+      const tt = t ? Number(t).toFixed(1) : "—";
+      return `Now: ${c} • Start: ${s} → Target: ${tt}`;
     }
     if(g.kind === "strength_top_weight_since"){
-      const t = (g.targetValue == null) ? "—" : Number(g.targetValue).toFixed(1);
-      const c = cur ? Number(cur).toFixed(1) : "—";
-      return `Now: ${c} • Target: ${t}`;
+      return `Now: ${cur ? Number(cur).toFixed(1) : "—"} • Target: ${t ? Number(t).toFixed(1) : "—"}`;
     }
+    if(g.kind === "cardio_distance_since"){
+      return `Now: ${cur ? Number(cur).toFixed(2) : "—"} • Target: ${t ? Number(t).toFixed(2) : "—"}`;
+    }
+    if(g.kind === "cardio_time_since"){
+      return `Now: ${cur ? Number(cur).toFixed(0) : "—"} • Target: ${t ? Number(t).toFixed(0) : "—"}`;
+    }
+    if(g.kind === "core_volume_since"){
+      return `Now: ${cur ? Number(cur).toFixed(0) : "—"} • Target: ${t ? Number(t).toFixed(0) : "—"}`;
+    }
+
     return "";
   }
 
@@ -1112,8 +1303,17 @@ el("div", { class:"card" }, (() => {
       ? el("div", { class:"note", text:"No goals yet. Tap Add goal to create one." })
       : el("div", { style:"display:flex; flex-direction:column; gap:10px; margin-top:10px;" },
           goals.map(g => {
-            const cur = currentValueForGoal(g);
-            const pct = pctFrom(Number(g.startValue||0), Number(cur||0), Number(g.targetValue||0));
+            const cur = currentForGoal(g);
+            const pct =
+              (g.kind === "bodyweight")
+                ? (function(){
+                    const start = Number(g.startValue || 0);
+                    const target = Number(g.targetValue || 0);
+                    if(target === start) return 0;
+                    return clamp01((cur - start) / (target - start));
+                  })()
+                : pctRatio(cur, Number(g.targetValue || 0));
+
             const pctTxt = `${Math.round(pct * 100)}%`;
 
             return el("div", {
@@ -1122,16 +1322,14 @@ el("div", { class:"card" }, (() => {
               el("div", { class:"homeRow" }, [
                 el("div", {}, [
                   el("div", { style:"font-weight:900; letter-spacing:.2px;", text: g.title || "Goal" }),
-                  el("div", { class:"note", text: metaForGoal(g, cur) + ` • ${pctTxt}` })
+                  el("div", { class:"note", text: `${metaForGoal(g, cur)} • ${pctTxt}` })
                 ]),
                 el("button", { class:"btn danger", onClick: () => removeGoal(g.id) }, ["Remove"])
               ]),
 
               el("div", { style:"height:10px" }),
-
-              // Reuse protein bar styles (already in CSS)
-              el("div", { class:"proteinBarTrack", style:"height:12px; border-radius:999px; overflow:hidden;" }, [
-                el("div", { class:"proteinBarFill", style:`width:${Math.round(pct * 100)}%; height:100%;` })
+              el("div", { class:"proteinBar", style:"height:12px;" }, [
+                el("div", { class:"proteinBarFill", style:`width:${Math.round(pct * 100)}%` })
               ])
             ]);
           })
