@@ -4512,7 +4512,6 @@ try{
   repaintModal();
 }
 
-root.appendChild(el("div", { class:"card" }, [
   root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right) + follower notif pill (bottom-right)
   el("div", { style:"position:relative; min-height:56px;" }, [
