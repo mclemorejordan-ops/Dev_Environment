@@ -4217,70 +4217,158 @@ if(!ui.__netSub){
 const followsNow = Social.getFollows ? Social.getFollows() : [];
 const followersNow = Social.getFollowers ? Social.getFollowers() : [];
 
-// Followers list with Follow Back + Unfollow (with display names)
-if(user && followersNow.length){
+// Followers notifications pill (replaces Followers card)
+// - Detects NEW follower IDs (not seen before) and adds UI-only notifications
+// - No storage/state schema changes
+(function trackNewFollowers(){
+  if(!user) return;
 
-  // Build displayName lookup from feed (actorId → displayName)
-  const feed = Social.getFeed ? Social.getFeed() : [];
-  const nameMap = {};
-  (feed || []).forEach(ev => {
-    const actorId = ev?.actorId;
-    const dn = ev?.payload?.displayName;
-    if(actorId && dn && !nameMap[actorId]) nameMap[actorId] = dn;
+  ui._seenFollowerIds = ui._seenFollowerIds || {};
+  ui._followerNotifs = ui._followerNotifs || [];
+
+  // First time on this device/session: baseline current followers (no notifications)
+  if(!ui._followersBaselineDone){
+    (followersNow || []).forEach(id => { ui._seenFollowerIds[String(id || "")] = true; });
+    ui._followersBaselineDone = true;
+    return;
+  }
+
+  const newIds = [];
+  (followersNow || []).forEach(id => {
+    const fid = String(id || "");
+    if(!fid) return;
+    if(!ui._seenFollowerIds[fid]){
+      ui._seenFollowerIds[fid] = true;
+      ui._followerNotifs.unshift({ id: fid, at: Date.now() });
+      newIds.push(fid);
+    }
   });
 
-  const followersCard = el("div", { class:"card" }, [
-    el("h2", { text:"Followers" }),
+  // cap
+  ui._followerNotifs = (ui._followerNotifs || []).slice(0, 25);
 
-    el("div", { class:"list" },
-      followersNow.map(fid => {
-        const alreadyFollowing = followsNow.includes(fid);
-        const displayName = nameMap[fid] || (fid.slice(0,8) + "...");
+  // Best-effort fetch display names, then re-render Friends so the pill shows names
+  if(newIds.length){
+    try{
+      setTimeout(() => {
+        try{
+          if(Social.fetchNames){
+            Social.fetchNames(newIds)
+              .then(() => { try{ renderView(); }catch(_){} })
+              .catch(() => {});
+          }
+        }catch(_){}
+      }, 0);
+    }catch(_){}
+  }
+})();
+
+function openFollowerNotifsModal(){
+  if(!user){
+    showToast("Sign in to view notifications");
+    return;
+  }
+
+  const body = el("div", {});
+  const titleNote = el("div", { class:"note", text:"New followers (tap actions to interact)" });
+  const listHost = el("div", {});
+  const btnRowHost = el("div", { class:"btnrow" });
+
+  body.appendChild(titleNote);
+  body.appendChild(el("div", { style:"height:10px" }));
+  body.appendChild(listHost);
+  body.appendChild(el("div", { style:"height:10px" }));
+  body.appendChild(btnRowHost);
+
+  function repaint(){
+    const notifs = ui._followerNotifs || [];
+    const follows = Social.getFollows ? Social.getFollows() : [];
+
+    listHost.innerHTML = "";
+    btnRowHost.innerHTML = "";
+
+    if(!notifs.length){
+      listHost.appendChild(el("div", { class:"note", text:"No new follower notifications." }));
+      return;
+    }
+
+    // Ensure we have names for everyone in the list (best-effort)
+    try{
+      const ids = notifs.map(n => n?.id).filter(Boolean);
+      if(Social.fetchNames) Social.fetchNames(ids).catch(() => {});
+    }catch(_){}
+
+    listHost.appendChild(el("div", { class:"list" },
+      notifs.map(n => {
+        const fid = String(n?.id || "");
+        const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
+        const alreadyFollowing = follows.includes(fid);
 
         return el("div", { class:"item" }, [
-
           el("div", { class:"left" }, [
-            el("div", { class:"name", text: displayName }),
-            el("div", { class:"meta", text: fid.slice(0,8) + "…" })
+            el("div", { class:"name", text: dn }),
+            el("div", { class:"meta", text:"followed you" })
           ]),
 
           el("div", { class:"actions" }, [
-
-            // If already following → show Unfollow
             alreadyFollowing
               ? el("button", {
                   class:"btn danger sm",
                   onClick: async () => {
                     try{
                       await Social.unfollow(fid);
+                      showToast("Unfollowed");
                       renderView();
+                      repaint();
                     }catch(e){
-                      showToast(e.message || "Unfollow failed");
+                      showToast(e?.message || "Couldn't unfollow");
                     }
                   }
                 }, ["Unfollow"])
-
-              // If not following → show Follow Back
               : el("button", {
                   class:"btn primary sm",
                   onClick: async () => {
                     try{
                       await Social.follow(fid);
+                      showToast("Following");
                       renderView();
+                      repaint();
                     }catch(e){
-                      showToast(e.message || "Follow failed");
+                      showToast(e?.message || "Follow failed");
                     }
                   }
-                }, ["Follow Back"])
+                }, ["Follow back"]),
 
+            el("button", {
+              class:"btn sm",
+              onClick: () => {
+                ui._followerNotifs = (ui._followerNotifs || []).filter(x => String(x?.id||"") !== fid);
+                showToast("Dismissed");
+                repaint();
+              }
+            }, ["Dismiss"])
           ])
         ]);
       })
-    )
-  ]);
+    ));
 
-  root.appendChild(followersCard);
-}    
+    btnRowHost.appendChild(el("button", {
+      class:"btn",
+      onClick: () => {
+        ui._followerNotifs = [];
+        showToast("Cleared");
+        repaint();
+      }
+    }, ["Clear all"]));
+  }
+
+  Modal.open({
+    title: "Follower notifications",
+    bodyNode: body
+  });
+
+  repaint();
+} 
 
 function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
@@ -4418,18 +4506,38 @@ try{
 
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right)
-el("div", { style:"position:relative; min-height:28px;" }, [
-  el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
-  (typeof Social.isSignedIn === "function")
-    ? el("div", {
-        class:"pill",
-        style:"position:absolute; top:0; right:0;",
-        text: Social.isSignedIn() ? "Signed in" : "Signed out"
-      })
-    : null
-].filter(Boolean)),
+  el("div", { style:"position:relative; min-height:28px;" }, [
+    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+    (typeof Social.isSignedIn === "function")
+      ? el("div", {
+          class:"pill",
+          style:"position:absolute; top:0; right:0;",
+          text: Social.isSignedIn() ? "Signed in" : "Signed out"
+        })
+      : null
+  ].filter(Boolean)),
 
   el("div", { style:"height:10px" }),
+
+  // 🔔 NEW FOLLOWER NOTIFICATION PILL (INSERTED HERE)
+  (user && (ui._followerNotifs || []).length)
+    ? el("div", {
+        class:"pill",
+        style:"cursor:pointer;",
+        text: (() => {
+          const n = (ui._followerNotifs || []).length;
+          if(n === 1){
+            const fid = String(ui._followerNotifs[0]?.id || "");
+            const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
+            return `${dn} followed you`;
+          }
+          return `${n} new followers`;
+        })(),
+        onClick: () => {
+          try{ openFollowerNotifsModal(); }catch(_){}
+        }
+      })
+    : null,
 
   !configured
     ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
