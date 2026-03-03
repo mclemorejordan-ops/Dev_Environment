@@ -459,6 +459,18 @@ select option{
       color: var(--muted);
       line-height: 1.35;
     }
+
+      /* Card header row (used for Home collapsible sections) */
+.cardHeadRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+.cardHeadRow h2{
+  margin: 0; /* override default card h2 bottom margin for header rows */
+}
+
     /* Home Dashboard */
     .homeRow{
       display:flex;
