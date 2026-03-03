@@ -3943,6 +3943,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
     }
   }, ["Refresh"])
 ].filter(Boolean)) : null
+    ].filter(Boolean)));
 
   // Friend code + follow controls
   root.appendChild(el("div", { class:"card" }, [
