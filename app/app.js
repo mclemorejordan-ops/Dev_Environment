@@ -421,6 +421,7 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
     Onboarding(){
   let hideRestDays = true;
   let selectedTpl = "ppl";
+  let trackProtein = true; // ✅ NEW: default ON for onboarding toggle
 
   const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
@@ -2995,8 +2996,6 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
         // --- Profile controls ---
         const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
         const proteinInput = el("input", { type:"number", min:"0", step:"1", value: (state.profile?.proteinGoal ?? 150) });
-
-// ⬇️ PASTE THE NEW BLOCK RIGHT HERE
 
 // Protein tracking is "off" when goal is 0
 let trackProtein = Number(state.profile?.proteinGoal || 0) > 0;
