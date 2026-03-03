@@ -4144,6 +4144,43 @@ if(!ui.__netSub){
 const followsNow = Social.getFollows ? Social.getFollows() : [];
 const followersNow = Social.getFollowers ? Social.getFollowers() : [];
 
+// Followers list with Follow Back
+if(user && followersNow.length){
+  const followersCard = el("div", { class:"card" }, [
+    el("h2", { text:"Followers" }),
+
+    el("div", { class:"list" },
+      followersNow.map(fid => {
+        const alreadyFollowing = followsNow.includes(fid);
+
+        return el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text: fid.slice(0,8) + "..." })
+          ]),
+
+          el("div", { class:"actions" }, [
+            alreadyFollowing
+              ? el("div", { class:"meta", text:"Following" })
+              : el("button", {
+                  class:"btn primary sm",
+                  onClick: async () => {
+                    try{
+                      await Social.follow(fid);
+                      renderView();
+                    }catch(e){
+                      showToast(e.message || "Follow failed");
+                    }
+                  }
+                }, ["Follow Back"])
+          ])
+        ]);
+      })
+    )
+  ]);
+
+  root.appendChild(followersCard);
+}     
+
 function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
 
