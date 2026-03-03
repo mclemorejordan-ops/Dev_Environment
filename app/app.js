@@ -76,6 +76,352 @@ import { initBootstrap } from "./bootstrap.js";
 let state = Storage.load();
 
 
+/********************
+ * Social (Friends) — Events-only (Phase Social v1)
+ * - Uses Supabase (optional) to publish + read compact activity events
+ * - Additive only: does NOT change existing state/storage schema
+ ********************/
+const SOCIAL_CFG_KEY = "pc.social.supabase.v1";
+const SOCIAL_OUTBOX_KEY = "pc.social.outbox.v1";
+
+function readSocialConfig(){
+  try{ return JSON.parse(localStorage.getItem(SOCIAL_CFG_KEY) || "null"); }catch(_){ return null; }
+}
+function writeSocialConfig(cfg){
+  try{ localStorage.setItem(SOCIAL_CFG_KEY, JSON.stringify(cfg || null)); }catch(_){}
+}
+
+function readOutbox(){
+  try{ return JSON.parse(localStorage.getItem(SOCIAL_OUTBOX_KEY) || "[]"); }catch(_){ return []; }
+}
+function writeOutbox(items){
+  try{ localStorage.setItem(SOCIAL_OUTBOX_KEY, JSON.stringify(items || [])); }catch(_){}
+}
+
+function initSocial(){
+  let _mod = null;
+  let _sb = null;
+  let _cfg = readSocialConfig();
+  let _user = null;
+  let _feed = [];       // newest first
+  let _follows = [];    // list of followed user ids (strings)
+  let _pollTimer = null;
+  let _listeners = new Set();
+
+  async function loadSupabaseModule(){
+    if(_mod) return _mod;
+    // Supabase JS v2 as ESM via jsDelivr (allowed by CSP)
+    _mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    return _mod;
+  }
+
+  async function ensureClient(){
+    _cfg = readSocialConfig();
+    if(!_cfg?.url || !_cfg?.anonKey){
+      _sb = null;
+      _user = null;
+      return null;
+    }
+    if(_sb) return _sb;
+
+    const mod = await loadSupabaseModule();
+    _sb = mod.createClient(_cfg.url, _cfg.anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+
+    // keep cached user current
+    try{
+      const { data } = await _sb.auth.getUser();
+      _user = data?.user || null;
+    }catch(_){
+      _user = null;
+    }
+
+    // react to auth changes
+    try{
+      _sb.auth.onAuthStateChange((_event, session) => {
+        _user = session?.user || null;
+        notify();
+        if(_user) startFeed();
+        else stopFeed();
+      });
+    }catch(_){}
+
+    return _sb;
+  }
+
+  function isConfigured(){
+    _cfg = readSocialConfig();
+    return !!(_cfg?.url && _cfg?.anonKey);
+  }
+  function getUser(){ return _user; }
+  function getFeed(){ return _feed.slice(); }
+  function getFollows(){ return _follows.slice(); }
+
+  function onChange(fn){
+    if(typeof fn !== "function") return () => {};
+    _listeners.add(fn);
+    return () => _listeners.delete(fn);
+  }
+  function notify(){
+    try{ _listeners.forEach(fn => fn()); }catch(_){}
+  }
+
+  async function configure({ url, anonKey }){
+    const clean = {
+      url: (url || "").trim(),
+      anonKey: (anonKey || "").trim()
+    };
+    writeSocialConfig(clean.url && clean.anonKey ? clean : null);
+    // reset
+    _cfg = readSocialConfig();
+    _sb = null;
+    _user = null;
+    stopFeed();
+    notify();
+    await ensureClient();
+    notify();
+  }
+
+  async function signInWithOtp(email){
+    const sb = await ensureClient();
+    if(!sb) throw new Error("Social not configured");
+    const e = (email || "").trim();
+    if(!e) throw new Error("Email required");
+
+    // Magic link / OTP email. Works well for PWAs.
+    const redirectTo = location.origin + location.pathname;
+    const { error } = await sb.auth.signInWithOtp({ email: e, options: { emailRedirectTo: redirectTo } });
+    if(error) throw error;
+  }
+
+  async function signOut(){
+    const sb = await ensureClient();
+    if(!sb) return;
+    try{ await sb.auth.signOut(); }catch(_){}
+    _user = null;
+    stopFeed();
+    notify();
+  }
+
+  async function refreshUser(){
+    const sb = await ensureClient();
+    if(!sb) { _user = null; notify(); return; }
+    try{
+      const { data } = await sb.auth.getUser();
+      _user = data?.user || null;
+    }catch(_){
+      _user = null;
+    }
+    notify();
+  }
+
+  async function fetchFollows(){
+    const sb = await ensureClient();
+    if(!sb || !_user) { _follows = []; return []; }
+    try{
+      const { data, error } = await sb
+        .from("follows")
+        .select("followee_id")
+        .eq("follower_id", _user.id);
+      if(error) throw error;
+      _follows = (data || []).map(r => String(r.followee_id || "")).filter(Boolean);
+      return _follows;
+    }catch(_){
+      _follows = [];
+      return [];
+    }
+  }
+
+  async function fetchFeed(){
+    const sb = await ensureClient();
+    if(!sb || !_user) { _feed = []; notify(); return; }
+
+    // Ensure we know who we're following (used by RLS + UI)
+    await fetchFollows();
+
+    try{
+      const { data, error } = await sb
+        .from("activity_events")
+        .select("id, actor_id, type, payload, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if(error) throw error;
+
+      _feed = (data || []).map(r => ({
+        id: r.id,
+        actorId: r.actor_id,
+        type: r.type,
+        payload: r.payload || {},
+        createdAt: r.created_at
+      }));
+    }catch(_){
+      // keep last known feed if query fails
+    }
+    notify();
+  }
+
+  function startFeed(){
+    stopFeed();
+    if(!_user) return;
+    fetchFeed();
+    _pollTimer = setInterval(fetchFeed, 12000); // 12s: feels live, low cost
+  }
+
+  function stopFeed(){
+    if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
+  }
+
+  async function follow(userId){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+    const id = (userId || "").trim();
+    if(!id) throw new Error("Friend code required");
+    if(id === _user.id) throw new Error("You can't follow yourself");
+
+    const { error } = await sb.from("follows").insert({
+      follower_id: _user.id,
+      followee_id: id
+    });
+    if(error) throw error;
+    await fetchFeed();
+  }
+
+  async function unfollow(userId){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+    const id = (userId || "").trim();
+    if(!id) return;
+
+    const { error } = await sb
+      .from("follows")
+      .delete()
+      .eq("follower_id", _user.id)
+      .eq("followee_id", id);
+    if(error) throw error;
+    await fetchFeed();
+  }
+
+  // stateRef is injected later (avoid circular init)
+  let stateRef = () => null;
+  function bindStateGetter(fn){ stateRef = (typeof fn === "function") ? fn : (() => null); }
+
+  function formatLogEvent(entry){
+    const state = stateRef();
+    const lib = state?.library;
+    const exName = (() => {
+      try{
+        const ex = (lib?.exercises || []).find(x => String(x.id||"") === String(entry.exerciseId||""));
+        return ex?.name || "Exercise";
+      }catch(_){ return "Exercise"; }
+    })();
+
+    const type = String(entry?.type || "");
+    const summary = entry?.summary || {};
+    const pr = entry?.pr || {};
+    const prCount = ["isPRWeight","isPR1RM","isPRVolume","isPRPace"].filter(k => pr?.[k]).length;
+
+    return {
+      eventType: "exercise_logged",
+      payload: {
+        displayName: state?.profile?.name || null,
+        exerciseName: exName,
+        workoutType: type,
+        dateISO: entry?.dateISO || null,
+        routineId: entry?.routineId || null,
+        dayId: entry?.dayId || null,
+        summary,
+        prCount
+      }
+    };
+  }
+
+  async function flushOutbox(){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+
+    const items = readOutbox();
+    if(!items.length) return;
+
+    const keep = [];
+    for(const it of items){
+      try{
+        const { error } = await sb.from("activity_events").insert(it);
+        if(error) throw error;
+      }catch(_){
+        keep.push(it);
+      }
+    }
+    writeOutbox(keep);
+  }
+
+  async function publishLogEvent(entry){
+    // Only publish if configured + signed in
+    if(!isConfigured()) return;
+    await ensureClient();
+    if(!_user) return;
+
+    const ev = formatLogEvent(entry);
+    const row = {
+      actor_id: _user.id,
+      type: ev.eventType,
+      payload: ev.payload
+    };
+
+    // Try immediate insert, else queue
+    try{
+      const sb = await ensureClient();
+      if(!sb) return;
+      const { error } = await sb.from("activity_events").insert(row);
+      if(error) throw error;
+      // refresh quickly
+      fetchFeed();
+    }catch(_){
+      const out = readOutbox();
+      out.unshift(row);
+      writeOutbox(out.slice(0, 100)); // cap
+    }
+  }
+
+  // flush queued events when online
+  window.addEventListener("online", () => { try{ flushOutbox(); }catch(_){} });
+
+  return {
+    // wiring
+    bindStateGetter,
+
+    // config/auth
+    isConfigured,
+    getConfig: () => readSocialConfig(),
+    configure,
+    signInWithOtp,
+    signOut,
+    refreshUser,
+    getUser,
+
+    // follows + feed
+    follow,
+    unfollow,
+    getFollows,
+    getFeed,
+    startFeed,
+    stopFeed,
+    fetchFeed,
+
+    // publishing
+    publishLogEvent,
+    flushOutbox,
+
+    // UI updates
+    onChange
+  };
+}
+
+const Social = initSocial();
+Social.bindStateGetter(() => state);
+
+
 // 1) Init Backup FIRST so we have the functions
 const Backup = initBackup({
   getState: () => state,
@@ -112,7 +458,7 @@ const { renderSettingsView } = Settings;
 
 const Logs = initLogs({ getState: () => state, Storage, uid });
 
-const { LogEngine, removeWorkoutEntryById } = initWorkouts({ getState: () => state, Storage });
+const { LogEngine, removeWorkoutEntryById } = initWorkouts({ getState: () => state, Storage, Social });
 
 
 const Attendance = initAttendance({
@@ -3504,6 +3850,168 @@ statsHost.appendChild(el("div", { class:"pill" }, [
           }
         }
       },
+
+
+   Friends(){
+  // Events-only friends feed (while app is open)
+  const ui = UIState.social || (UIState.social = {});
+  ui.friendId = ui.friendId || "";
+  ui.email = ui.email || "";
+
+  const root = el("div", { class:"grid" });
+
+  const user = Social.getUser && Social.getUser();
+  const configured = Social.isConfigured && Social.isConfigured();
+
+  // Header / status
+  root.appendChild(el("div", { class:"card" }, [
+    el("h2", { text:"Friends" }),
+    el("div", { class:"note", text:"Events-only feed. Share your friend code, follow friends, and see their activity while the app is open." }),
+    el("div", { style:"height:12px" }),
+
+    !configured ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set your Supabase URL + anon key in Settings → Friends (Beta)." }) : null,
+
+    configured ? el("div", { class:"note", text: user ? `Signed in as ${user.email || user.id}` : "Not signed in" }) : null,
+
+    el("div", { style:"height:10px" }),
+
+    // Auth row
+    configured ? el("div", { class:"btnrow" }, [
+      !user ? el("input", {
+        type:"email",
+        placeholder:"Email for sign-in link",
+        value: ui.email,
+        onInput: (e) => { ui.email = e.target.value || ""; }
+      }) : null,
+
+      !user ? el("button", {
+        class:"btn primary",
+        onClick: async () => {
+          try{
+            await Social.signInWithOtp(ui.email);
+            showToast("Check your email for the sign-in link.");
+          }catch(e){
+            showToast(e?.message || "Sign-in failed");
+          }
+        }
+      }, ["Send sign-in link"]) : null,
+
+      user ? el("button", {
+        class:"btn",
+        onClick: async () => {
+          try{ await Social.signOut(); showToast("Signed out"); }catch(_){}
+        }
+      }, ["Sign out"]) : null,
+
+      configured ? el("button", {
+        class:"btn",
+        onClick: async () => {
+          try{
+            await Social.refreshUser();
+            if(Social.getUser()) Social.startFeed();
+            showToast("Refreshed");
+          }catch(_){}
+        }
+      }, ["Refresh"]) : null
+    ]) : null
+  ].filter(Boolean)));
+
+  // Friend code + follow controls
+  root.appendChild(el("div", { class:"card" }, [
+    el("div", { class:"note", text:"Your friend code" }),
+    el("div", { class:"kpi" }, [
+      el("div", { class:"big", text: user ? user.id : "—" }),
+      el("div", { class:"small", text:"Share this code with friends so they can follow you." })
+    ]),
+    el("div", { style:"height:12px" }),
+
+    el("div", { class:"note", text:"Follow a friend" }),
+    el("div", { class:"btnrow" }, [
+      el("input", {
+        type:"text",
+        placeholder:"Paste friend code (user id)",
+        value: ui.friendId,
+        onInput: (e) => { ui.friendId = e.target.value || ""; }
+      }),
+      el("button", {
+        class:"btn primary",
+        onClick: async () => {
+          try{
+            await Social.follow(ui.friendId);
+            ui.friendId = "";
+            showToast("Following");
+            renderView();
+          }catch(e){
+            showToast(e?.message || "Couldn't follow");
+          }
+        }
+      }, ["Follow"])
+    ]),
+
+    el("div", { style:"height:14px" }),
+
+    el("div", { class:"note", text:"Following" }),
+    el("div", {}, (Social.getFollows() || []).length ? (Social.getFollows() || []).map(fid =>
+      el("div", { class:"rowBetween", style:"padding:8px 0; border-bottom: 1px solid rgba(255,255,255,.06);" }, [
+        el("div", { class:"small", text: fid }),
+        el("button", {
+          class:"btn sm",
+          onClick: async () => {
+            try{ await Social.unfollow(fid); showToast("Unfollowed"); renderView(); }catch(_){}
+          }
+        }, ["Unfollow"])
+      ])
+    ) : [ el("div", { class:"note", text:"Not following anyone yet." }) ])
+  ]));
+
+  // Feed
+  const feed = Social.getFeed ? Social.getFeed() : [];
+  root.appendChild(el("div", { class:"card" }, [
+    el("div", { class:"rowBetween" }, [
+      el("div", { class:"note", text:"Feed" }),
+      el("button", {
+        class:"btn sm",
+        onClick: async () => {
+          try{ await Social.fetchFeed(); showToast("Updated"); }catch(_){}
+        }
+      }, ["Refresh"])
+    ]),
+    el("div", { style:"height:10px" }),
+
+    !user ? el("div", { class:"note", text:"Sign in to see your feed." }) : null,
+    user && !feed.length ? el("div", { class:"note", text:"No events yet. Your activity (and friends you follow) will show here." }) : null,
+
+    user && feed.length ? el("div", {}, feed.map(ev => {
+      const p = ev.payload || {};
+      const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
+      const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+      const title = (ev.type === "exercise_logged")
+        ? `${who} logged ${p.exerciseName || "an exercise"}`
+        : `${who} posted an event`;
+
+      const chips = [];
+      if(p.workoutType) chips.push(String(p.workoutType));
+      if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
+
+      return el("div", { class:"card", style:"margin: 10px 0;" }, [
+        el("div", { class:"rowBetween" }, [
+          el("div", { style:"font-weight:820;", text: title }),
+          el("div", { class:"small", text: when })
+        ]),
+        chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null
+      ].filter(Boolean));
+    })) : null
+  ].filter(Boolean)));
+
+  // Auto-start polling when entering the view
+  try{
+    if(configured && user) Social.startFeed();
+  }catch(_){}
+
+  return root;
+},
+
+   
          Settings(){
         // Persist across renders (not saved to Storage)
 const ui = UIState.settings || (UIState.settings = {});
@@ -3927,6 +4435,106 @@ const profileBody = el("div", {}, [
           el("div", { class:"note", text:"Tip: Exercises removed from the library will still display in old logs using the saved name snapshot." })
         ]);
 
+
+const socialUI = UIState.social || (UIState.social = {});
+const socialCfg = Social.getConfig && Social.getConfig();
+
+// local, non-state inputs
+socialUI.supabaseUrl = (socialUI.supabaseUrl ?? socialCfg?.url ?? "");
+socialUI.supabaseAnon = (socialUI.supabaseAnon ?? socialCfg?.anonKey ?? "");
+socialUI.socialEmail = (socialUI.socialEmail ?? "");
+
+const socialBody = el("div", {}, [
+  el("div", { class:"note", text:"Connect a free Supabase project to enable the Friends feed (events-only). This does not sync your full app data — it only posts compact activity events." }),
+  el("div", { style:"height:10px" }),
+
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Supabase URL" }),
+      el("div", { class:"meta", text:"Project URL (https://xxxx.supabase.co)" })
+    ]),
+    el("input", {
+      type:"text",
+      value: socialUI.supabaseUrl,
+      onInput: (e) => { socialUI.supabaseUrl = e.target.value || ""; }
+    })
+  ]),
+
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Supabase anon key" }),
+      el("div", { class:"meta", text:"Settings → API → anon public key" })
+    ]),
+    el("input", {
+      type:"password",
+      value: socialUI.supabaseAnon,
+      onInput: (e) => { socialUI.supabaseAnon = e.target.value || ""; }
+    })
+  ]),
+
+  el("div", { style:"height:10px" }),
+
+  el("div", { class:"btnrow" }, [
+    el("button", {
+      class:"btn primary",
+      onClick: async () => {
+        try{
+          await Social.configure({ url: socialUI.supabaseUrl, anonKey: socialUI.supabaseAnon });
+          showToast("Social configured");
+          renderView();
+        }catch(e){
+          showToast(e?.message || "Couldn't save social config");
+        }
+      }
+    }, ["Save"]),
+
+    el("button", {
+      class:"btn",
+      onClick: async () => {
+        try{
+          await Social.configure({ url: "", anonKey: "" });
+          showToast("Social disconnected");
+          renderView();
+        }catch(_){}
+      }
+    }, ["Disconnect"])
+  ]),
+
+  el("div", { style:"height:14px" }),
+
+  el("div", { class:"note", text:"Sign-in" }),
+  el("div", { class:"btnrow" }, [
+    el("input", {
+      type:"email",
+      placeholder:"Email for sign-in link",
+      value: socialUI.socialEmail,
+      onInput: (e) => { socialUI.socialEmail = e.target.value || ""; }
+    }),
+    el("button", {
+      class:"btn",
+      onClick: async () => {
+        try{
+          await Social.signInWithOtp(socialUI.socialEmail);
+          showToast("Check your email for the sign-in link.");
+        }catch(e){
+          showToast(e?.message || "Sign-in failed");
+        }
+      }
+    }, ["Send link"]),
+    el("button", {
+      class:"btn",
+      onClick: async () => {
+        try{ await Social.signOut(); showToast("Signed out"); renderView(); }catch(_){}
+      }
+    }, ["Sign out"])
+  ]),
+
+  el("div", { style:"height:10px" }),
+
+  el("div", { class:"note", text:"Tip: After you click the email link on this device, come back and tap Refresh on the Friends screen." })
+]);
+
+           
         const backupBody = el("div", {}, [
   el("div", { class:"note", text:"Export your full app data as JSON. Import will overwrite your current data in this browser." }),
 
@@ -4438,6 +5046,13 @@ const root = el("div", { class:"settingsWrap" }, [
       subtitle:"Manage exercises (add/edit/delete)",
       keywords:["exercise","library","weightlifting","cardio","core"],
       bodyNode: libraryBody
+    }),
+    makeSection({
+    key:"social",
+    title:"Friends (Beta)",
+    subtitle:"Connect Supabase + follow friends + feed",
+    keywords:["friends","social","supabase","feed","follow","events"],
+    bodyNode: socialBody
     }),
     makeSection({
     key:"backup",
