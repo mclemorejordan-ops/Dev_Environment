@@ -4218,31 +4218,39 @@ const followsNow = Social.getFollows ? Social.getFollows() : [];
 const followersNow = Social.getFollowers ? Social.getFollowers() : [];
 
 // Followers notifications pill (replaces Followers card)
-// - Detects NEW follower IDs (not seen before) and adds UI-only notifications
-// - No storage/state schema changes
+// - Detects NEW follower IDs by diffing previous followers snapshot vs current
+// - Works for: first-time follows AND unfollow→refollow (your test case)
+// - UI-only (no storage/state schema changes)
 (function trackNewFollowers(){
   if(!user) return;
 
-  ui._seenFollowerIds = ui._seenFollowerIds || {};
   ui._followerNotifs = ui._followerNotifs || [];
 
-  // First time on this device/session: baseline current followers (no notifications)
-  if(!ui._followersBaselineDone){
-    (followersNow || []).forEach(id => { ui._seenFollowerIds[String(id || "")] = true; });
-    ui._followersBaselineDone = true;
+  // Build current follower set
+  const curSet = {};
+  (followersNow || []).forEach(id => {
+    const fid = String(id || "");
+    if(fid) curSet[fid] = true;
+  });
+
+  // First time in this session: baseline only (no notifications)
+  if(!ui._prevFollowersSet){
+    ui._prevFollowersSet = curSet;
     return;
   }
 
+  // Diff: additions = current - previous
+  const prevSet = ui._prevFollowersSet || {};
   const newIds = [];
-  (followersNow || []).forEach(id => {
-    const fid = String(id || "");
-    if(!fid) return;
-    if(!ui._seenFollowerIds[fid]){
-      ui._seenFollowerIds[fid] = true;
+  Object.keys(curSet).forEach(fid => {
+    if(!prevSet[fid]){
       ui._followerNotifs.unshift({ id: fid, at: Date.now() });
       newIds.push(fid);
     }
   });
+
+  // Update snapshot every render so unfollow→refollow can trigger later
+  ui._prevFollowersSet = curSet;
 
   // cap
   ui._followerNotifs = (ui._followerNotifs || []).slice(0, 25);
