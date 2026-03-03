@@ -3717,56 +3717,64 @@ trackProteinSwitch.addEventListener("click", () => {
         }
 
         // --- Section bodies ---
-        const profileBody = el("div", {}, [
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Name" }),
-              el("div", { class:"meta", text:"Shown on Home" })
-            ]),
-            nameInput
-          ]),
-          
-          trackProteinRow,
-          proteinRow,
-          
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Week starts on" }),
-              el("div", { class:"meta", text:"Affects Home week view" })
-            ]),
-            weekSelect
-          ]),
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Hide rest days" }),
-              el("div", { class:"meta", text:"Keep Home focused on training days" })
-            ]),
-            hideRestSwitch
-          ]),
-          el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"3D Preview" }),
-              el("div", { class:"meta", text:"Show/hide the 3D routine card preview on the Routine page" })
-            ]),
-            show3DSwitch
-          ]),
-          el("div", { style:"height:12px" }),
-          el("div", { class:"btnrow" }, [
-            el("button", { class:"btn primary", onClick: () => {
-              try{ saveProfile(); }
-              catch(e){
-                Modal.open({
-                  title:"Save failed",
-                  bodyNode: el("div", {}, [
-                    el("div", { class:"note", text: e?.message || "Could not save settings." }),
-                    el("div", { style:"height:12px" }),
-                    el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-                  ])
-                });
-              }
-            }}, ["Save changes"])
+const profileBody = el("div", {}, [
+  // 1) Name
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Name" }),
+      el("div", { class:"meta", text:"Shown on Home" })
+    ]),
+    nameInput
+  ]),
+
+  // 2) Daily Protein (existing row; visibility is already controlled by trackProtein)
+  proteinRow,
+
+  // 3) Week starts on
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Week starts on" }),
+      el("div", { class:"meta", text:"Affects Home week view" })
+    ]),
+    weekSelect
+  ]),
+
+  // 4) Toggles below
+  trackProteinRow,
+
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Hide rest days" }),
+      el("div", { class:"meta", text:"Keep Home focused on training days" })
+    ]),
+    hideRestSwitch
+  ]),
+
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"3D Preview" }),
+      el("div", { class:"meta", text:"Show/hide the 3D routine card preview on the Routine page" })
+    ]),
+    show3DSwitch
+  ]),
+
+  el("div", { style:"height:12px" }),
+  el("div", { class:"btnrow" }, [
+    el("button", { class:"btn primary", onClick: () => {
+      try{ saveProfile(); }
+      catch(e){
+        Modal.open({
+          title:"Save failed",
+          bodyNode: el("div", {}, [
+            el("div", { class:"note", text: e?.message || "Could not save settings." }),
+            el("div", { style:"height:12px" }),
+            el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
           ])
-        ]);
+        });
+      }
+    }}, ["Save changes"])
+  ])
+]);
 
                 // ────────────────────────────
         // Routines section (Recovery + Management)
