@@ -4073,7 +4073,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   // Header / status
   root.appendChild(el("div", { class:"card" }, [
     el("h2", { text:"Friends" }),
-    el("div", { class:"note", text:"Events-only feed. Manage friend code + following in Settings → Friends (Beta), then view activity here while the app is open." }),
     el("div", { style:"height:12px" }),
 
     !configured ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set your Supabase URL + anon key in Settings → Friends (Beta)." }) : null,
@@ -4099,13 +4098,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 ].filter(Boolean)) : null
     ].filter(Boolean)));
 
-    // Friend code + follow controls (moved to Settings → Friends (Beta))
-  root.appendChild(el("div", { class:"card" }, [
-    el("div", {
-      class:"note",
-      text:"Friend code + Following are now managed in Settings → Friends (Beta)."
-    })
-  ]));
 
   // Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
