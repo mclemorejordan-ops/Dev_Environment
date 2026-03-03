@@ -420,7 +420,6 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
  const Views = {   
     Onboarding(){
   let hideRestDays = true;
-  let trackProtein = true; // ✅ NEW: Protein is optional via toggle
   let selectedTpl = "ppl";
 
   const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
@@ -3029,8 +3028,9 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
         // --- Profile controls ---
         const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
         const proteinInput = el("input", { type:"number", min:"0", step:"1", value: (state.profile?.proteinGoal ?? 150) });
-
-               const weekSelect = el("select", {});
+           
+           
+        const weekSelect = el("select", {});
         weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
         weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
 
