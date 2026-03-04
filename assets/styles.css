@@ -1055,8 +1055,9 @@ select option{
 
 .connBadges{
   display:flex;
-  gap:4px;
+  gap:8px;
   flex-wrap:nowrap;
+  align-items:center;
 }
 
 .connBadge{
@@ -1071,8 +1072,21 @@ select option{
 }
 
 .connBadge.mutual{
-  border-color: rgba(124,92,255,.30);
-  background: rgba(124,92,255,.16);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  height:34px;
+  padding:0 12px;
+
+  font-size:13px;
+  font-weight:750;
+
+  border-radius:12px;
+
+  border:1px solid rgba(124,92,255,.35);
+  background:rgba(124,92,255,.16);
+  color:rgba(255,255,255,.90);
 }
 
 .connMeta{
