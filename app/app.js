@@ -5852,16 +5852,16 @@ onClick: () => openExerciseHistoryFromFeed(
   ].join(";");
 
   const likeBtn = el("button", {
-    style: iconBtnStyle + (liked ? " filter:saturate(1.1);" : " opacity:.92;"),
-    onClick: async (e) => {
-      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-      try{
-        await Social.toggleFeedLike(eventId);
-      }catch(err){
-        showToast(err?.message || "Could not like");
-      }
+  style: iconBtnStyle + (liked ? " color: rgba(255,92,122,.92);" : " opacity:.92;"),
+  onClick: async (e) => {
+    try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+    try{
+      await Social.toggleFeedLike(eventId);
+    }catch(err){
+      showToast(err?.message || "Could not like");
     }
-  }, [ liked ? "❤️" : "🤍" ]);
+  }
+}, [ liked ? "♥" : "♡" ]);
 
   const commentBtn = el("button", {
     style: iconBtnStyle + " opacity:.92;",
