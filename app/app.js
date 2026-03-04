@@ -261,6 +261,109 @@ try{
   }
 }
 
+  // ─────────────────────────────
+// Feed Comments (DB-backed threads)
+// ─────────────────────────────
+let _commentCounts = {}; // eventId -> number
+
+function getCommentCount(eventId){
+  const k = String(eventId ?? "");
+  return Number(_commentCounts[k] || 0) || 0;
+}
+
+// Fetch comment counts for a list of feed event ids (via view)
+async function fetchFeedCommentCounts(eventIds){
+  const sb = await ensureClient();
+  if(!sb || !_user) { _commentCounts = {}; return; }
+
+  const ids = (eventIds || []).map(x => (
+    (typeof x === "number") ? x : String(x || "").trim()
+  )).filter(x => (x !== "" && x != null));
+
+  if(!ids.length){ _commentCounts = {}; return; }
+
+  try{
+    const { data, error } = await sb
+      .from("feed_comment_counts")
+      .select("event_id, comment_count")
+      .in("event_id", ids);
+
+    if(error) throw error;
+
+    const next = {};
+    (data || []).forEach(r => {
+      const k = String(r.event_id ?? "");
+      next[k] = Number(r.comment_count || 0) || 0;
+    });
+    _commentCounts = next;
+  }catch(_){
+    // keep last known values if query fails
+  }
+}
+
+// Fetch comments for one event (includes threading via parent_id)
+async function fetchFeedComments(eventId){
+  const sb = await ensureClient();
+  if(!sb || !_user) return [];
+
+  try{
+    const { data, error } = await sb
+      .from("feed_comments")
+      .select("id, event_id, user_id, parent_id, body, created_at")
+      .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
+      .order("created_at", { ascending: true });
+
+    if(error) throw error;
+    return (data || []).map(r => ({
+      id: r.id,
+      eventId: r.event_id,
+      userId: r.user_id,
+      parentId: r.parent_id,
+      body: r.body || "",
+      createdAt: r.created_at
+    }));
+  }catch(_){
+    return [];
+  }
+}
+
+async function addFeedComment({ eventId, body, parentId }){
+  const sb = await ensureClient();
+  if(!sb || !_user) throw new Error("Not signed in");
+
+  const text = String(body || "").trim();
+  if(!text) throw new Error("Comment is empty");
+
+  const row = {
+    event_id: eventId,
+    user_id: _user.id,
+    body: text
+  };
+  if(parentId) row.parent_id = parentId;
+
+  const { error } = await sb.from("feed_comments").insert(row);
+  if(error) throw error;
+
+  // Refresh counts for this event
+  await fetchFeedCommentCounts([eventId]);
+  notify();
+}
+
+async function deleteFeedComment(commentId, eventId){
+  const sb = await ensureClient();
+  if(!sb || !_user) throw new Error("Not signed in");
+  if(!commentId) return;
+
+  const { error } = await sb
+    .from("feed_comments")
+    .delete()
+    .eq("id", commentId);
+
+  if(error) throw error;
+
+  await fetchFeedCommentCounts([eventId]);
+  notify();
+}
   
   let _follows = [];    // list of followed user ids (strings)
   let _followers = [];  // list of follower user ids (strings)
@@ -536,6 +639,15 @@ if(_user){
         payload: r.payload || {},
         createdAt: r.created_at
       }));
+      try{
+        const ids = (_feed || []).map(x => x.id);
+        const actors = (_feed || []).map(x => x.actorId);
+
+        await fetchNames(actors);
+        await fetchFeedLikes(ids);
+        await fetchFeedCommentCounts(ids);
+      }catch(_){}
+      
     }catch(_){
       // keep last known feed if query fails
     }
@@ -769,6 +881,13 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     didILike,
     fetchFeedLikes,
     toggleFeedLike,
+
+    // comments
+    getCommentCount,
+    fetchFeedCommentCounts,
+    fetchFeedComments,
+    addFeedComment,
+    deleteFeedComment,
 
     // UI updates
     onChange   
@@ -5420,6 +5539,196 @@ onClick: () => openExerciseHistoryFromFeed(
     });
   }catch(_){ }
 }
+
+        function openCommentsModal({ eventId, title, who }){
+  try{
+    const me = Social.getUser ? Social.getUser() : null;
+
+    let replyTo = null; // { id, name } or null
+    const listHost = el("div", {}, [ el("div", { class:"note", text:"Loading comments…" }) ]);
+
+    const input = el("textarea", {
+      placeholder: "Add a comment…",
+      style: [
+        "width:100%",
+        "min-height:54px",
+        "max-height:120px",
+        "resize:none",
+        "padding:10px 12px",
+        "border-radius:12px",
+        "border:1px solid rgba(255,255,255,.14)",
+        "background: rgba(0,0,0,.20)",
+        "color: rgba(255,255,255,.92)",
+        "outline:none"
+      ].join(";")
+    });
+
+    const sendBtn = el("button", {
+      class:"btn primary",
+      style:"white-space:nowrap;",
+      onClick: async () => {
+        const text = String(input.value || "").trim();
+        if(!text) return;
+
+        try{
+          sendBtn.disabled = true;
+          await Social.addFeedComment({
+            eventId,
+            body: text,
+            parentId: replyTo?.id || null
+          });
+          input.value = "";
+          replyTo = null;
+          await repaint();
+          renderView(); // update counts on cards
+        }catch(e){
+          showToast(e?.message || "Could not comment");
+        }finally{
+          sendBtn.disabled = false;
+        }
+      }
+    }, ["Send"]);
+
+    const replyPill = el("div", { style:"display:none; margin-bottom:8px;" });
+
+    function setReplyTo(next){
+      replyTo = next;
+      if(replyTo){
+        replyPill.style.display = "";
+        replyPill.innerHTML = "";
+        replyPill.appendChild(el("div", {
+          style:"display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:999px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);"
+        }, [
+          el("div", { style:"font-size:12px; font-weight:800; opacity:.92;", text:`Replying to ${replyTo.name || "User"}` }),
+          el("button", {
+            class:"btn",
+            style:"padding:6px 10px; font-size:12px;",
+            onClick: () => setReplyTo(null)
+          }, ["Cancel"])
+        ]));
+      }else{
+        replyPill.style.display = "none";
+        replyPill.innerHTML = "";
+      }
+    }
+
+    function timeAgo(iso){
+      try{
+        const d = new Date(iso);
+        const s = Math.floor((Date.now() - d.getTime())/1000);
+        if(s < 60) return `${s}s`;
+        const m = Math.floor(s/60);
+        if(m < 60) return `${m}m`;
+        const h = Math.floor(m/60);
+        if(h < 24) return `${h}h`;
+        const day = Math.floor(h/24);
+        return `${day}d`;
+      }catch(_){
+        return "";
+      }
+    }
+
+    function buildThread(comments){
+      const byParent = {};
+      const byId = {};
+      (comments || []).forEach(c => { byId[c.id] = c; });
+
+      (comments || []).forEach(c => {
+        const p = c.parentId || "__root__";
+        (byParent[p] = byParent[p] || []).push(c);
+      });
+
+      // ensure stable order (already asc, but keep safe)
+      Object.keys(byParent).forEach(k => {
+        byParent[k].sort((a,b) => String(a.createdAt||"").localeCompare(String(b.createdAt||"")));
+      });
+
+      function renderNode(c, depth){
+        const name = Social.nameFor ? (Social.nameFor(c.userId) || "User") : "User";
+        const mine = !!(me && c.userId === me.id);
+
+        const card = el("div", {
+          style:[
+            "padding:10px 12px",
+            "border-radius:14px",
+            "border:1px solid rgba(255,255,255,.10)",
+            "background: rgba(255,255,255,.05)",
+            depth ? `margin-left:${Math.min(18, depth*12)}px` : ""
+          ].filter(Boolean).join(";")
+        }, [
+          el("div", { style:"display:flex; justify-content:space-between; gap:10px; align-items:center;" }, [
+            el("div", { style:"font-weight:900; font-size:12px;", text: name }),
+            el("div", { style:"opacity:.7; font-size:12px;", text: timeAgo(c.createdAt) })
+          ]),
+          el("div", { style:"margin-top:6px; white-space:pre-wrap; opacity:.92;", text: c.body || "" }),
+          el("div", { style:"margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;" }, [
+            el("button", {
+              class:"btn",
+              style:"padding:6px 10px; font-size:12px; border-radius:999px;",
+              onClick: () => setReplyTo({ id: c.id, name })
+            }, ["Reply"]),
+            mine ? el("button", {
+              class:"btn",
+              style:"padding:6px 10px; font-size:12px; border-radius:999px; opacity:.9;",
+              onClick: async () => {
+                try{
+                  await Social.deleteFeedComment(c.id, eventId);
+                  await repaint();
+                  renderView();
+                }catch(e){
+                  showToast(e?.message || "Could not delete");
+                }
+              }
+            }, ["Delete"]) : null
+          ].filter(Boolean))
+        ]);
+
+        const replies = (byParent[c.id] || []).map(r => renderNode(r, depth+1));
+        return el("div", { style:"display:flex; flex-direction:column; gap:8px;" }, [card, ...replies]);
+      }
+
+      const roots = (byParent["__root__"] || []);
+      if(!roots.length){
+        return el("div", { class:"note", text:"No comments yet. Be the first." });
+      }
+
+      return el("div", { style:"display:flex; flex-direction:column; gap:10px;" }, roots.map(r => renderNode(r, 0)));
+    }
+
+    async function repaint(){
+      listHost.innerHTML = "";
+      listHost.appendChild(el("div", { class:"note", text:"Loading comments…" }));
+
+      const comments = await Social.fetchFeedComments(eventId);
+      try{
+        const ids = Array.from(new Set((comments || []).map(c => c.userId).filter(Boolean)));
+        if(ids.length && Social.fetchNames) await Social.fetchNames(ids);
+      }catch(_){}
+
+      listHost.innerHTML = "";
+      listHost.appendChild(buildThread(comments));
+    }
+
+    const body = el("div", { class:"grid" }, [
+      el("div", { class:"note", text: `${title || "Event"} • ${who || ""}`.trim() }),
+      listHost,
+      el("div", { style:"height:10px" }),
+      replyPill,
+      el("div", { style:"display:flex; gap:10px; align-items:flex-end;" }, [
+        el("div", { style:"flex:1;" }, [input]),
+        sendBtn
+      ])
+    ]);
+
+    Modal.open({
+      title: "Comments",
+      bodyNode: body
+    });
+
+    repaint();
+  }catch(_){}
+}
+        
         // Avatar (initial)
         const initial = (String(who || "U").trim()[0] || "U").toUpperCase();
         const avatar = el("div", {
@@ -5457,11 +5766,12 @@ onClick: () => openExerciseHistoryFromFeed(
   badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
 ) : null),
 
-// ✅ Interaction Row (DB-backed Like + count)
+// ✅ Interaction Row (DB-backed Like + count + Comments)
 (() => {
   const eventId = ev.id;
   const liked = (Social.didILike ? Social.didILike(eventId) : false);
   const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : 0);
+  const commentCount = (Social.getCommentCount ? Social.getCommentCount(eventId) : 0);
 
   const btnStyle = "padding:6px 10px; font-size:12px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:999px;";
 
@@ -5479,11 +5789,15 @@ onClick: () => openExerciseHistoryFromFeed(
 
   const commentBtn = el("button", {
     style: btnStyle,
-    onClick: (e) => {
+    onClick: async (e) => {
       try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-      showToast("Comments coming soon");
+      try{
+        // Ensure counts are fresh before opening
+        if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
+      }catch(_){}
+      openCommentsModal({ eventId, title, who });
     }
-  }, ["💬 Comment"]);
+  }, [ `💬 ${commentCount}` ]);
 
   const shareBtn = el("button", {
     style: btnStyle,
