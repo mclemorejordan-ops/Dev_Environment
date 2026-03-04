@@ -182,11 +182,8 @@ async function fetchFeedLikes(eventIds){
     // ✅ MERGE counts (do not wipe other posts)
     const nextCounts = { ..._likeCounts };
 
-    // Keep optimistic value if we already have one; only set 0 if unseen
-    ids.forEach(id => {
-      const k = String(id);
-      if(!(k in nextCounts)) nextCounts[k] = 0;
-    });
+    // default requested ids to 0 unless returned by the view
+    ids.forEach(id => { nextCounts[String(id)] = 0; });
 
     (cData || []).forEach(r => {
       const k = String(r.event_id ?? "");
