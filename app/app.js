@@ -4404,7 +4404,8 @@ function openFollowerNotifsModal(){
   repaint();
 } 
 
-function openConnectionsModal(initialTab){
+
+     function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
   ui.connSearch = ui.connSearch || "";
   ui.connAddCode = ui.connAddCode || "";
@@ -4490,7 +4491,6 @@ function openConnectionsModal(initialTab){
         }
       }, ["Unfollow"]));
     }else{
-      // followers tab: follow back / unfollow (depending on current follows)
       if(followsSet.has(id)){
         actions.push(el("button", {
           class:"btn danger sm",
@@ -4558,9 +4558,8 @@ function openConnectionsModal(initialTab){
       if(navigator?.clipboard?.writeText){
         return navigator.clipboard.writeText(t);
       }
-    }catch(_){}
+    }catch(_){ }
 
-    // Fallback: execCommand
     return new Promise((resolve, reject) => {
       try{
         const ta = document.createElement("textarea");
@@ -4624,8 +4623,7 @@ function openConnectionsModal(initialTab){
         showToast("Friend added");
         ui.connAddCode = "";
         friendCodeInput.value = "";
-        await refreshLists();
-        // return to Connections modal with same tab/search
+
         ui.connTab = returnTab;
         ui.connSearch = returnSearch;
         openConnectionsModal(returnTab);
@@ -4689,7 +4687,7 @@ function openConnectionsModal(initialTab){
         ]),
 
         el("div", { style:"height:10px" }),
-        el("div", { class:"btnrow" }, [
+        el("div", { class:"btnrow connFooterRow" }, [
           el("button", {
             class:"btn",
             onClick: () => {
@@ -4700,6 +4698,7 @@ function openConnectionsModal(initialTab){
           }, ["Back"]),
           el("button", {
             class:"btn",
+            style:"margin-left:auto;",
             onClick: () => {
               ui.connTab = returnTab;
               ui.connSearch = returnSearch;
@@ -4725,13 +4724,11 @@ function openConnectionsModal(initialTab){
     const mutualIds = Array.from(followersSet).filter(id => followsSet.has(id));
     const mutualCount = mutualIds.length;
 
-    // Update top pills (and highlight active)
     statsRow.innerHTML = "";
     statsRow.appendChild(statPill({ tab:"following", label:"Following", value: follows.length }));
     statsRow.appendChild(statPill({ tab:"followers", label:"Followers", value: followers.length }));
     statsRow.appendChild(statPill({ tab:"mutual", label:"Mutual", value: mutualCount }));
 
-    // Ensure we have display names for the IDs shown in this tab (best-effort)
     try{
       const ids = (ui.connTab === "following") ? follows
         : (ui.connTab === "followers") ? followers
@@ -4762,7 +4759,6 @@ function openConnectionsModal(initialTab){
       return;
     }
 
-    // Filter + sort by display name for a clean UX (UI-only)
     const items = baseList
       .map(x => String(x))
       .filter(id => {
@@ -4793,28 +4789,19 @@ function openConnectionsModal(initialTab){
     bodyNode: el("div", { class:"connModal" }, [
       el("div", { class:"note", text:"Search, follow back, unfollow, or remove followers." }),
       el("div", { style:"height:10px" }),
-
-      // ✅ Add Friend button (opens popup)
-      el("div", { class:"connActionRow" }, [ addFriendBtn ]),
-      el("div", { style:"height:10px" }),
-
       statsRow,
       el("div", { style:"height:10px" }),
       searchWrap,
       el("div", { style:"height:10px" }),
       bodyHost,
       el("div", { style:"height:10px" }),
-      el("div", { class:"btnrow" }, [
+
+      // Footer: Add Friend (left) + Done (right)
+      el("div", { class:"btnrow connFooterRow" }, [
+        addFriendBtn,
         el("button", {
           class:"btn",
-          onClick: async () => {
-            await refreshLists();
-            repaintModal();
-            showToast("Refreshed");
-          }
-        }, ["Refresh"]),
-        el("button", {
-          class:"btn",
+          style:"margin-left:auto;",
           onClick: () => Modal.close()
         }, ["Done"])
       ])
@@ -4823,7 +4810,8 @@ function openConnectionsModal(initialTab){
 
   refreshLists().then(repaintModal);
 }
-
+     
+     
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right) + bell badge (bottom-right)
   el("div", { style:"position:relative; min-height:52px;" }, [
