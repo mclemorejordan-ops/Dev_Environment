@@ -135,11 +135,14 @@ function initSocial(){
   let _feed = [];       // newest first
 
 
-  // ─────────────────────────────
+// ─────────────────────────────
 // Feed Likes (DB-backed)
 // ─────────────────────────────
-let _likeCounts = {};      // eventId -> number
-let _likedByMe = new Set();// eventIds I liked (strings)
+let _likeCounts = {};       // eventId -> number
+let _likedByMe = new Set(); // eventIds I liked (strings)
+
+// ✅ prevents double-tap / double-fire on iPhone
+let _likeBusy = new Set();  // eventIds currently toggling (strings)
 
 function getLikeCount(eventId){
   const k = String(eventId ?? "");
@@ -212,6 +215,10 @@ async function toggleFeedLike(eventId){
   const k = String(eventId ?? "");
   if(!k) return;
 
+  // ✅ guard: prevents iOS double tap / double fire flashing
+  if(_likeBusy.has(k)) return;
+  _likeBusy.add(k);
+
   const wasLiked = _likedByMe.has(k);
 
   // optimistic UI
@@ -246,18 +253,20 @@ async function toggleFeedLike(eventId){
     await fetchFeedLikes([eventId]);
     notify();
   }catch(e){
-    _feed = (data || []).map(r => ({
-  id: r.id,
-  actorId: r.actor_id,
-  type: r.type,
-  payload: r.payload || {},
-  createdAt: r.created_at
-}));
-
-try{
-  await fetchFeedLikes((_feed || []).map(x => x.id));
-}catch(_){}
+    // ✅ rollback cleanly (no undefined refs)
+    if(wasLiked){
+      // we tried to unlike; put it back
+      _likedByMe.add(k);
+      _likeCounts[k] = (Number(_likeCounts[k] || 0) || 0) + 1;
+    }else{
+      // we tried to like; remove it
+      _likedByMe.delete(k);
+      _likeCounts[k] = Math.max(0, (Number(_likeCounts[k] || 0) || 0) - 1);
+    }
+    notify();
     throw e;
+  }finally{
+    _likeBusy.delete(k);
   }
 }
 
