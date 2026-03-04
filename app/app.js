@@ -2907,6 +2907,31 @@ function isDayComplete(dateISO, day){
   if(ex.length === 0) return false;
   return ex.every(rx => hasRoutineExerciseLog(dateISO, rx.id));
 }
+  
+  function removeWorkoutEntriesForRoutineDay(dateISO, routineId, dayId){
+  // Remove all workout log entries for a specific routine day (date + routine + day)
+  LogEngine.ensure();
+
+  const d  = String(dateISO || "");
+  const r  = String(routineId || "");
+  const dy = String(dayId || "");
+
+  const before = (state.logs?.workouts || []).length;
+
+  state.logs.workouts = (state.logs.workouts || []).filter(e =>
+    !(
+      String(e?.dateISO || "") === d &&
+      String(e?.routineId || "") === r &&
+      String(e?.dayId || "") === dy
+    )
+  );
+
+  // Save only if something actually changed
+  if((state.logs.workouts || []).length !== before){
+    Storage.save(state);
+  }
+}
+  
   function repaint(){
   routine = Routines.getActive();
   root.innerHTML = "";
