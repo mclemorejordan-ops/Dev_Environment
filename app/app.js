@@ -383,22 +383,46 @@ if(_user){
   }
 }
 
-  async function fetchFeed(){
+   async function fetchFeed(){
     const sb = await ensureClient();
     if(!sb || !_user) { _feed = []; notify(); return; }
 
-      // Ensure we know who we're following + who follows us (UI header counts)
-  await fetchFollows();
-  await fetchFollowers();
+    // Ensure we know who we're following + who follows us (UI header counts)
+    await fetchFollows();
+    await fetchFollowers();
 
     try{
-      const { data, error } = await sb
-        .from("activity_events")
-        .select("id, actor_id, type, payload, created_at")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      // Feed is: me + people I follow (client-side filter)
+      // NOTE: RLS should also enforce this on the server.
+      const actorIds = Array.from(new Set([
+        String(_user.id || ""),
+        ...(_follows || []).map(x => String(x || ""))
+      ].filter(Boolean)));
 
-      if(error) throw error;
+      let data = null;
+
+      // Primary query (expects soft-delete columns to exist)
+      try{
+        const res = await sb
+          .from("activity_events")
+          .select("id, actor_id, type, payload, created_at")
+          .in("actor_id", actorIds)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if(res?.error) throw res.error;
+        data = res?.data || [];
+      }catch(_err){
+        // Back-compat fallback if DB hasn't been migrated yet
+        const res2 = await sb
+          .from("activity_events")
+          .select("id, actor_id, type, payload, created_at")
+          .in("actor_id", actorIds)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if(res2?.error) throw res2.error;
+        data = res2?.data || [];
+      }
 
       _feed = (data || []).map(r => ({
         id: r.id,
@@ -407,23 +431,38 @@ if(_user){
         payload: r.payload || {},
         createdAt: r.created_at
       }));
+
+      // Best-effort: populate display names for actors
+      try{
+        const ids = _feed.map(x => String(x.actorId || "")).filter(Boolean);
+        if(ids.length) await fetchNames(ids);
+      }catch(_){ }
     }catch(_){
       // keep last known feed if query fails
     }
     notify();
   }
 
-  function startFeed(){
-    stopFeed();
-    if(!_user) return;
-    fetchFeed();
-    _pollTimer = setInterval(fetchFeed, 12000); // 12s: feels live, low cost
-  }
+  async function deleteEvent(eventId){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+    const id = String(eventId || "").trim();
+    if(!id) throw new Error("Missing event id");
 
-  function stopFeed(){
-    if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
-  }
+    // Soft delete: author-only enforcement should be handled by RLS.
+    const { error } = await sb
+      .from("activity_events")
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: _user.id
+      })
+      .eq("id", id);
 
+    if(error) throw error;
+
+    // Refresh feed so it disappears immediately
+    await fetchFeed();
+  }
   async function follow(userId){
     const sb = await ensureClient();
     if(!sb || !_user) throw new Error("Not signed in");
@@ -619,6 +658,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     follow,
     unfollow,
     removeFollower,
+    deleteEvent,
     getFollows,
     getFollowers,
     fetchNames,
@@ -4606,7 +4646,7 @@ el("div", { style:"height:10px" }),
 
     user && feed.length ? el("div", {}, feed.map(ev => {
       const p = ev.payload || {};
-      const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
+      const who = (Social.nameFor && Social.nameFor(ev.actorId)) || p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
       const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
       const title = (ev.type === "exercise_logged")
   ? `${who} logged ${p.exerciseName || "an exercise"}`
@@ -4769,17 +4809,170 @@ function openFeedEventModal(ev, title, who, when){
   }catch(_){}
 }
 
-return el("div", {
-  class:"card",
-  style:"margin: 10px 0; cursor:pointer;",
-  onClick: () => openFeedEventModal(ev, title, who, when)
-}, [
-  el("div", { class:"rowBetween" }, [
-    el("div", { style:"font-weight:820;", text: title }),
-    el("div", { class:"small", text: when })
-  ]),
-  chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null
-].filter(Boolean));
+    user && feed.length ? el("div", {}, feed.map(ev => {
+      const p = ev.payload || {};
+      const who = (Social.nameFor && Social.nameFor(ev.actorId)) || p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
+      const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+      const title = (ev.type === "exercise_logged")
+        ? `${who} logged ${p.exerciseName || "an exercise"}`
+        : (ev.type === "workout_completed")
+          ? `${who} completed a workout`
+          : `${who} posted an event`;
+
+      const chips = [];
+      if(ev.type === "workout_completed"){
+        const h = p.highlights || {};
+        if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) chips.push(`${h.exerciseCount} exercises`);
+        if(Number.isFinite(h.prCount) && h.prCount > 0) chips.push(`PRs: ${h.prCount}`);
+        if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${h.totalVolume}`);
+      }else{
+        if(p.workoutType) chips.push(String(p.workoutType));
+        if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
+      }
+
+      // ... (your existing openExerciseHistoryFromFeed + openFeedEventModal stay unchanged)
+
+      return el("div", {
+        class:"card",
+        style:"margin: 10px 0; cursor:pointer;",
+        onClick: () => openFeedEventModal(ev, title, who, when)
+      }, [
+        el("div", { class:"rowBetween" }, [
+          el("div", { style:"font-weight:820;", text: title }),
+          el("div", { class:"small", text: when })
+        ]),
+        chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null,
+
+        // Tweet-style actions (MVP): Like/Comment placeholders + Send + Delete (author only)
+        (() => {
+          function buildShareText(){
+            try{
+              const p = ev.payload || {};
+              const who = (Social.nameFor && Social.nameFor(ev.actorId)) || p.displayName || "User";
+              const dateISO = p.dateISO || "";
+
+              // exercise_logged
+              if(ev.type === "exercise_logged"){
+                const ex = p.exerciseName || "Exercise";
+                const wtype = p.workoutType ? ` (${p.workoutType})` : "";
+                const prCount = Number(p.prCount || 0) || 0;
+
+                const lines = [
+                  `${who} logged: ${ex}${wtype}`,
+                  dateISO ? `Date: ${dateISO}` : "",
+                  prCount > 0 ? `PRs: ${prCount}` : ""
+                ].filter(Boolean);
+
+                return lines.join("\n");
+              }
+
+              // workout_completed
+              if(ev.type === "workout_completed"){
+                const h = p.highlights || {};
+                const bits = [];
+                if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) bits.push(`${h.exerciseCount} exercises`);
+                if(Number.isFinite(h.prCount) && h.prCount > 0) bits.push(`${h.prCount} PRs`);
+                if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) bits.push(`Vol ${h.totalVolume}`);
+
+                const lines = [
+                  `${who} completed a workout`,
+                  dateISO ? `Date: ${dateISO}` : "",
+                  bits.length ? `Highlights: ${bits.join(" • ")}` : ""
+                ].filter(Boolean);
+                return lines.join("\n");
+              }
+
+              // fallback
+              return `${who} posted an event${dateISO ? `\nDate: ${dateISO}` : ""}`;
+            }catch(_){
+              return "";
+            }
+          }
+
+          async function doShare(e){
+            try{ if(e && e.stopPropagation) e.stopPropagation(); }catch(_){ }
+            const text = buildShareText();
+            if(!text){ showToast("Nothing to share"); return; }
+
+            // Native share (best on mobile)
+            try{
+              if(navigator.share){
+                await navigator.share({ text });
+                return;
+              }
+            }catch(_){ /* user cancel etc */ }
+
+            // Clipboard fallback
+            try{
+              if(navigator.clipboard && navigator.clipboard.writeText){
+                await navigator.clipboard.writeText(text);
+                showToast("Copied");
+                return;
+              }
+            }catch(_){ }
+
+            // Final fallback
+            try{
+              const ta = document.createElement("textarea");
+              ta.value = text;
+              ta.style.position = "fixed";
+              ta.style.left = "-9999px";
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              document.execCommand("copy");
+              document.body.removeChild(ta);
+              showToast("Copied");
+            }catch(_){
+              showToast("Share not supported");
+            }
+          }
+
+          const isMine = !!(user && String(user.id || "") && String(user.id || "") === String(ev.actorId || ""));
+
+          return el("div", {
+            style:"display:flex; gap:8px; margin-top:10px; justify-content:flex-end;"
+          }, [
+            // Placeholders (no DB tables yet) — keep UI stable and non-breaking
+            el("button", {
+              class:"btn sm",
+              onClick: (e) => { try{ e.stopPropagation(); }catch(_){} showToast("Likes coming soon"); }
+            }, ["❤ 0"]),
+
+            el("button", {
+              class:"btn sm",
+              onClick: (e) => { try{ e.stopPropagation(); }catch(_){} showToast("Comments coming soon"); }
+            }, ["💬 0"]),
+
+            el("button", {
+              class:"btn sm",
+              onClick: doShare
+            }, ["📤 Send"]),
+
+            isMine ? el("button", {
+              class:"btn danger sm",
+              onClick: (e) => {
+                try{ if(e && e.stopPropagation) e.stopPropagation(); }catch(_){ }
+                confirmModal({
+                  title:"Delete event",
+                  message:"Delete this event? This cannot be undone.",
+                  confirmText:"Delete",
+                  danger:true,
+                  onConfirm: async () => {
+                    try{
+                      if(Social.deleteEvent) await Social.deleteEvent(ev.id);
+                      showToast("Deleted");
+                      renderView();
+                    }catch(err){
+                      showToast(err?.message || "Couldn't delete");
+                    }
+                  }
+                });
+              }
+            }, ["🗑 Delete"]) : null
+          ].filter(Boolean));
+        })()
+      ].filter(Boolean));
     })) : null
   ].filter(Boolean)));
 
