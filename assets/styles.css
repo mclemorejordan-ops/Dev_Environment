@@ -909,67 +909,27 @@ select option{
 
 .connSearch input::placeholder{ color: rgba(255,255,255,.45); }
 
-.connScroll{
-  max-height: 52vh;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  display:grid;
-  gap: 10px;
-  padding-right: 2px;
-  overscroll-behavior: contain;
+
+/* ─────────────────────────────
+   Connections Modal — Add Friend button row
+   ───────────────────────────── */
+
+.connActionRow{
+  display:flex;
+  justify-content:flex-end;
 }
 
 /* ─────────────────────────────
-   Connections Modal — Friend Code (one-stop shop)
+   Add Friend popup — friend code inputs
    ───────────────────────────── */
 
-.connFriendShop{
-  display:flex;
-  flex-direction:column;
-  gap: 10px;
-}
-
-.connCodeRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 12px;
-
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.connCodeRow .left{
-  min-width: 0;
-  display:flex;
-  flex-direction:column;
-  gap: 2px;
-}
-
-.connCodeRow .lbl{
-  font-weight: 850;
-  letter-spacing: .15px;
-}
-
-.connCodeRow .meta{
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-.connCodeRow .right{
+.connAddFriendModal .connCodeRight{
   display:flex;
   align-items:center;
   gap: 8px;
-  flex: 0 0 auto;
 }
 
-.connCodeInput{
+.connAddFriendModal .connCodeInput{
   width: 190px;
   max-width: 54vw;
 
@@ -984,8 +944,20 @@ select option{
   outline: none;
 }
 
-.connCodeInput::placeholder{
+.connAddFriendModal .connCodeInput::placeholder{
   color: rgba(255,255,255,.45);
+}
+
+.connScroll{
+  max-height: 52vh;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display:grid;
+  gap: 10px;
+  padding-right: 2px;
+  overscroll-behavior: contain;
 }
 
 /* ✅ The modal JS renders rows using: .connRow .av .ltr .main .top .dn .badges .meta .acts
