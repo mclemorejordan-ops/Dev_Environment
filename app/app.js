@@ -5199,8 +5199,7 @@ el("div", { style:"height:10px" }),
             el("div", { class:"feedWkTitle", text: dayLabel }),
             el("div", { class:"feedWkSub", text: (when ? `${dateISO ? `${dateISO} • ` : ""}${when} • ${who}` : (who || "")) })
           ])
-        ]),
-        el("button", { class:"btn", onClick: Modal.close }, ["Done"])
+        ])
       ]),
       pills,
 
@@ -5261,9 +5260,6 @@ el("div", { style:"height:10px" }),
         list,
         el("div", { style:"height:6px" })
       ].filter(Boolean)),
-      el("div", { class:"feedWkFoot" }, [
-        el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-      ])
     ]);
 
     Modal.open({
