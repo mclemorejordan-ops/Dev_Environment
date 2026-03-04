@@ -351,109 +351,276 @@ async function toggleFeedLike(eventId){
 }
 
   // ─────────────────────────────
-// Feed Comments (DB-backed threads)
-// ─────────────────────────────
-let _commentCounts = {}; // eventId -> number
+  // Feed Comments (DB-backed threads)
+  // ─────────────────────────────
+  let _commentCounts = {}; // eventId -> number
 
-function getCommentCount(eventId){
-  const k = String(eventId ?? "");
-  return Number(_commentCounts[k] || 0) || 0;
-}
+  function getCommentCount(eventId){
+    const k = String(eventId ?? "");
+    return Number(_commentCounts[k] || 0) || 0;
+  }
 
-// Fetch comment counts for a list of feed event ids (via view)
-async function fetchFeedCommentCounts(eventIds){
-  const sb = await ensureClient();
-  if(!sb || !_user) { _commentCounts = {}; return; }
+  // Fetch comment counts for a list of feed event ids (via view)
+  async function fetchFeedCommentCounts(eventIds){
+    const sb = await ensureClient();
+    if(!sb || !_user) { _commentCounts = {}; return; }
 
-  const ids = (eventIds || []).map(x => (
-    (typeof x === "number") ? x : String(x || "").trim()
-  )).filter(x => (x !== "" && x != null));
+    const ids = (eventIds || []).map(x => (
+      (typeof x === "number") ? x : String(x || "").trim()
+    )).filter(x => (x !== "" && x != null));
 
-  if(!ids.length){ _commentCounts = {}; return; }
+    if(!ids.length){ _commentCounts = {}; return; }
 
-  try{
-    const { data, error } = await sb
-      .from("feed_comment_counts")
-      .select("event_id, comment_count")
-      .in("event_id", ids);
+    try{
+      const { data, error } = await sb
+        .from("feed_comment_counts")
+        .select("event_id, comment_count")
+        .in("event_id", ids);
 
+      if(error) throw error;
+
+      const next = {};
+      (data || []).forEach(r => {
+        const k = String(r.event_id ?? "");
+        next[k] = Number(r.comment_count || 0) || 0;
+      });
+      _commentCounts = next;
+    }catch(_){
+      // keep last known values if query fails
+    }
+  }
+
+  // Fetch comments for one event (includes threading via parent_id)
+  async function fetchFeedComments(eventId){
+    const sb = await ensureClient();
+    if(!sb || !_user) return [];
+
+    try{
+      const { data, error } = await sb
+        .from("feed_comments")
+        .select("id, event_id, user_id, parent_id, body, created_at")
+        .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
+        .order("created_at", { ascending: true });
+
+      if(error) throw error;
+      return (data || []).map(r => ({
+        id: r.id,
+        eventId: r.event_id,
+        userId: r.user_id,
+        parentId: r.parent_id,
+        body: r.body || "",
+        createdAt: r.created_at
+      }));
+    }catch(_){
+      return [];
+    }
+  }
+
+  async function addFeedComment({ eventId, body, parentId }){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+
+    const text = String(body || "").trim();
+    if(!text) throw new Error("Comment is empty");
+
+    const row = {
+      event_id: eventId,
+      user_id: _user.id,
+      body: text
+    };
+    if(parentId) row.parent_id = parentId;
+
+    const { error } = await sb.from("feed_comments").insert(row);
     if(error) throw error;
 
-    const next = {};
-    (data || []).forEach(r => {
-      const k = String(r.event_id ?? "");
-      next[k] = Number(r.comment_count || 0) || 0;
-    });
-    _commentCounts = next;
-  }catch(_){
-    // keep last known values if query fails
+    // Refresh counts for this event
+    await fetchFeedCommentCounts([eventId]);
+    notify();
   }
-}
 
-// Fetch comments for one event (includes threading via parent_id)
-async function fetchFeedComments(eventId){
-  const sb = await ensureClient();
-  if(!sb || !_user) return [];
+  async function deleteFeedComment(commentId, eventId){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+    if(!commentId) return;
 
-  try{
-    const { data, error } = await sb
+    const { error } = await sb
       .from("feed_comments")
-      .select("id, event_id, user_id, parent_id, body, created_at")
-      .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
-      .order("created_at", { ascending: true });
+      .delete()
+      .eq("id", commentId);
 
     if(error) throw error;
-    return (data || []).map(r => ({
-      id: r.id,
-      eventId: r.event_id,
-      userId: r.user_id,
-      parentId: r.parent_id,
-      body: r.body || "",
-      createdAt: r.created_at
-    }));
-  }catch(_){
-    return [];
+
+    await fetchFeedCommentCounts([eventId]);
+    notify();
   }
-}
 
-async function addFeedComment({ eventId, body, parentId }){
-  const sb = await ensureClient();
-  if(!sb || !_user) throw new Error("Not signed in");
+  // ─────────────────────────────
+  // Notifications (in-memory, DB-derived)
+  // Captures:
+  // - likes on MY posts
+  // - comments on MY posts
+  // - follows of ME
+  // ─────────────────────────────
+  let _notifications = []; // newest first
 
-  const text = String(body || "").trim();
-  if(!text) throw new Error("Comment is empty");
+  function getNotifications(){
+    return (_notifications || []).slice();
+  }
 
-  const row = {
-    event_id: eventId,
-    user_id: _user.id,
-    body: text
-  };
-  if(parentId) row.parent_id = parentId;
+  function _ts(x){
+    const t = Date.parse(String(x || ""));
+    return Number.isFinite(t) ? t : 0;
+  }
 
-  const { error } = await sb.from("feed_comments").insert(row);
-  if(error) throw error;
+  async function fetchNotifications(){
+    const sb = await ensureClient();
+    if(!sb || !_user) { _notifications = []; return []; }
 
-  // Refresh counts for this event
-  await fetchFeedCommentCounts([eventId]);
-  notify();
-}
+    // 1) Get my recent post/event ids (these are the “posts” that can be liked/commented)
+    let myEventIds = [];
+    try{
+      const { data, error } = await sb
+        .from("activity_events")
+        .select("id, created_at")
+        .eq("actor_id", _user.id)
+        .order("created_at", { ascending: false })
+        .limit(80);
 
-async function deleteFeedComment(commentId, eventId){
-  const sb = await ensureClient();
-  if(!sb || !_user) throw new Error("Not signed in");
-  if(!commentId) return;
+      if(error) throw error;
+      myEventIds = (data || []).map(r => r.id).filter(x => (x != null));
+    }catch(_){
+      myEventIds = [];
+    }
 
-  const { error } = await sb
-    .from("feed_comments")
-    .delete()
-    .eq("id", commentId);
+    // 2) Likes on my posts
+    let likeRows = [];
+    if(myEventIds.length){
+      try{
+        const q = sb
+          .from("feed_likes")
+          .select("event_id, user_id, created_at")
+          .in("event_id", myEventIds)
+          .neq("user_id", _user.id);
 
-  if(error) throw error;
+        // order might fail if column doesn't exist; fallback safely
+        const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
+        if(error) throw error;
+        likeRows = data || [];
+      }catch(_){
+        try{
+          const { data, error } = await sb
+            .from("feed_likes")
+            .select("event_id, user_id, created_at")
+            .in("event_id", myEventIds)
+            .neq("user_id", _user.id)
+            .limit(50);
+          if(error) throw error;
+          likeRows = data || [];
+        }catch(_){
+          likeRows = [];
+        }
+      }
+    }
 
-  await fetchFeedCommentCounts([eventId]);
-  notify();
-}
-  
+    // 3) Comments on my posts
+    let commentRows = [];
+    if(myEventIds.length){
+      try{
+        const q = sb
+          .from("feed_comments")
+          .select("id, event_id, user_id, body, created_at")
+          .in("event_id", myEventIds)
+          .neq("user_id", _user.id);
+
+        const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
+        if(error) throw error;
+        commentRows = data || [];
+      }catch(_){
+        try{
+          const { data, error } = await sb
+            .from("feed_comments")
+            .select("id, event_id, user_id, body, created_at")
+            .in("event_id", myEventIds)
+            .neq("user_id", _user.id)
+            .limit(50);
+          if(error) throw error;
+          commentRows = data || [];
+        }catch(_){
+          commentRows = [];
+        }
+      }
+    }
+
+    // 4) New followers (people who followed me)
+    let followRows = [];
+    try{
+      const q = sb
+        .from("follows")
+        .select("follower_id, created_at")
+        .eq("followee_id", _user.id);
+
+      const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
+      if(error) throw error;
+      followRows = data || [];
+    }catch(_){
+      try{
+        const { data, error } = await sb
+          .from("follows")
+          .select("follower_id, created_at")
+          .eq("followee_id", _user.id)
+          .limit(50);
+        if(error) throw error;
+        followRows = data || [];
+      }catch(_){
+        followRows = [];
+      }
+    }
+
+    // 5) Normalize into a single list
+    const notifs = [];
+
+    (likeRows || []).forEach(r => {
+      notifs.push({
+        kind: "like",
+        actorId: r.user_id,
+        eventId: r.event_id,
+        createdAt: r.created_at || null
+      });
+    });
+
+    (commentRows || []).forEach(r => {
+      notifs.push({
+        kind: "comment",
+        actorId: r.user_id,
+        eventId: r.event_id,
+        commentId: r.id,
+        preview: String(r.body || "").slice(0, 140),
+        createdAt: r.created_at || null
+      });
+    });
+
+    (followRows || []).forEach(r => {
+      notifs.push({
+        kind: "follow",
+        actorId: r.follower_id,
+        createdAt: r.created_at || null
+      });
+    });
+
+    // 6) Fetch names for actors (best effort)
+    try{
+      const actorIds = Array.from(new Set(notifs.map(n => String(n.actorId || "")).filter(Boolean)));
+      if(actorIds.length) await fetchNames(actorIds);
+    }catch(_){}
+
+    // 7) Sort newest-first
+    notifs.sort((a,b) => _ts(b.createdAt) - _ts(a.createdAt));
+
+    _notifications = notifs.slice(0, 80);
+    notify();
+    return _notifications;
+  }
+
   let _follows = [];    // list of followed user ids (strings)
   let _followers = [];  // list of follower user ids (strings)
   let _names = {};      // id -> display_name (from profiles)
@@ -490,24 +657,24 @@ async function deleteFeedComment(commentId, eventId){
     }
 
     // Keep profiles table updated with my display name
-if(_user){
-  try{ await upsertMyProfile(); }catch(_){}
-}
+    if(_user){
+      try{ await upsertMyProfile(); }catch(_){}
+    }
 
     // react to auth changes
     try{
       _sb.auth.onAuthStateChange((_event, session) => {
-  _user = session?.user || null;
+        _user = session?.user || null;
 
-  if(_user){
-    try{ upsertMyProfile(); }catch(_){}
-    startFeed();
-  }else{
-    stopFeed();
-  }
+        if(_user){
+          try{ upsertMyProfile(); }catch(_){}
+          startFeed();
+        }else{
+          stopFeed();
+        }
 
-  notify();
-});
+        notify();
+      });
     }catch(_){}
 
     return _sb;
@@ -518,13 +685,10 @@ if(_user){
     return !!(_cfg?.url && _cfg?.anonKey);
   }
 
-  
   function getUser(){ return _user; }
-function getFeed(){ return _feed.slice(); }
-function getFollows(){ return _follows.slice(); }
-function getFollowers(){ return _followers.slice(); }
-  
-  
+  function getFeed(){ return _feed.slice(); }
+  function getFollows(){ return _follows.slice(); }
+  function getFollowers(){ return _followers.slice(); }
 
   function onChange(fn){
     if(typeof fn !== "function") return () => {};
@@ -536,181 +700,67 @@ function getFollowers(){ return _followers.slice(); }
   }
 
   function nameFor(id){
-  const k = String(id || "");
-  return _names[k] || null;
-}
-
-async function upsertMyProfile(){
-  const sb = await ensureClient();
-  if(!sb || !_user) return;
-
-  const state = stateRef ? stateRef() : null;
-  const fromState = String(state?.profile?.name || "").trim();
-  const fromEmail = String(_user?.email || "").split("@")[0] || "";
-  const displayName = (fromState || fromEmail || "User").slice(0, 40);
-
-  try{
-    const { error } = await sb.from("profiles").upsert({
-      id: _user.id,
-      display_name: displayName,
-      updated_at: new Date().toISOString()
-    });
-    if(!error){
-      _names[_user.id] = displayName;
-    }
-  }catch(_){}
-}
-
-async function fetchNames(ids){
-  const sb = await ensureClient();
-  if(!sb || !_user) return _names;
-
-  const uniq = Array.from(new Set((ids || [])
-    .map(x => String(x || ""))
-    .filter(Boolean)
-  ));
-
-  if(!uniq.length) return _names;
-
-  try{
-    const { data, error } = await sb
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", uniq);
-
-    if(error) throw error;
-
-    (data || []).forEach(r => {
-      const id = String(r.id || "");
-      const dn = String(r.display_name || "").trim();
-      if(id && dn) _names[id] = dn;
-    });
-  }catch(_){}
-
-  return _names;
-}
-
-  async function configure({ url, anonKey }){
-    const clean = {
-      url: (url || "").trim(),
-      anonKey: (anonKey || "").trim()
-    };
-    writeSocialConfig(clean.url && clean.anonKey ? clean : null);
-    // reset
-    _cfg = readSocialConfig();
-    _sb = null;
-    _user = null;
-    stopFeed();
-    notify();
-    await ensureClient();
-    notify();
+    const k = String(id || "");
+    return _names[k] || null;
   }
 
-  async function signInWithOtp(email){
-  const sb = await ensureClient();
-  if(!sb) throw new Error("Social not configured");
-  const e = (email || "").trim();
-  if(!e) throw new Error("Email required");
-
-  // Magic link / OTP email. Works well for PWAs.
-  const redirectTo = location.origin + location.pathname;
-  const { error } = await sb.auth.signInWithOtp({
-    email: e,
-    options: { emailRedirectTo: redirectTo }
-  });
-  if(error) throw error;
-}
-
-async function signInWithOAuth(provider){
-  const sb = await ensureClient();
-  if(!sb) throw new Error("Social not configured");
-
-  const p = (provider || "").trim();
-  if(!p) throw new Error("Provider required");
-
-  // OAuth redirect back to this app (hash router friendly)
-  const redirectTo = location.origin + location.pathname;
-
-  const { error } = await sb.auth.signInWithOAuth({
-    provider: p,
-    options: { redirectTo }
-  });
-  if(error) throw error;
-}
-
-  async function signOut(){
+  async function upsertMyProfile(){
     const sb = await ensureClient();
-    if(!sb) return;
-    try{ await sb.auth.signOut(); }catch(_){}
-    _user = null;
-    stopFeed();
-    notify();
-  }
+    if(!sb || !_user) return;
 
-  async function refreshUser(){
-    const sb = await ensureClient();
-    if(!sb) { _user = null; stopFeed(); notify(); return; }
+    const state = stateRef ? stateRef() : null;
+    const fromState = String(state?.profile?.name || "").trim();
+    const fromEmail = String(_user?.email || "").split("@")[0] || "";
+    const displayName = (fromState || fromEmail || "User").slice(0, 40);
 
     try{
-      const { data } = await sb.auth.getUser();
-      _user = data?.user || null;
-    }catch(_){
-      _user = null;
-    }
-
-if(_user){
-  try{ await upsertMyProfile(); }catch(_){}
-}
-    
-    // ✅ Important: if we are already signed in on cold-open,
-    // start polling so followers/following counts update live.
-    if(_user) startFeed();
-    else stopFeed();
-
-    notify();
+      const { error } = await sb.from("profiles").upsert({
+        id: _user.id,
+        display_name: displayName,
+        updated_at: new Date().toISOString()
+      });
+      if(!error){
+        _names[_user.id] = displayName;
+      }
+    }catch(_){}
   }
 
-  async function fetchFollows(){
+  async function fetchNames(ids){
     const sb = await ensureClient();
-    if(!sb || !_user) { _follows = []; return []; }
+    if(!sb || !_user) return _names;
+
+    const uniq = Array.from(new Set((ids || [])
+      .map(x => String(x || ""))
+      .filter(Boolean)
+    ));
+
+    if(!uniq.length) return _names;
+
     try{
       const { data, error } = await sb
-        .from("follows")
-        .select("followee_id")
-        .eq("follower_id", _user.id);
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", uniq);
+
       if(error) throw error;
-      _follows = (data || []).map(r => String(r.followee_id || "")).filter(Boolean);
-      return _follows;
-    }catch(_){
-      _follows = [];
-      return [];
-    }
+
+      (data || []).forEach(r => {
+        const id = String(r.id || "");
+        const dn = String(r.display_name || "").trim();
+        if(id && dn) _names[id] = dn;
+      });
+    }catch(_){}
+
+    return _names;
   }
-  
-  async function fetchFollowers(){
-  const sb = await ensureClient();
-  if(!sb || !_user) { _followers = []; return []; }
-  try{
-    const { data, error } = await sb
-      .from("follows")
-      .select("follower_id")
-      .eq("followee_id", _user.id);
-    if(error) throw error;
-    _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
-    return _followers;
-  }catch(_){
-    _followers = [];
-    return [];
-  }
-}
 
   async function fetchFeed(){
     const sb = await ensureClient();
     if(!sb || !_user) { _feed = []; notify(); return; }
 
-      // Ensure we know who we're following + who follows us (UI header counts)
-  await fetchFollows();
-  await fetchFollowers();
+    // Ensure we know who we're following + who follows us (UI header counts)
+    await fetchFollows();
+    await fetchFollowers();
 
     try{
       const { data, error } = await sb
@@ -728,6 +778,7 @@ if(_user){
         payload: r.payload || {},
         createdAt: r.created_at
       }));
+
       try{
         const ids = (_feed || []).map(x => x.id);
         const actors = (_feed || []).map(x => x.actorId);
@@ -736,22 +787,16 @@ if(_user){
         await fetchFeedLikes(ids);
         await fetchFeedCommentCounts(ids);
       }catch(_){}
-      
+
+      // ✅ Notifications piggy-back on the same polling loop
+      try{
+        await fetchNotifications();
+      }catch(_){}
+
     }catch(_){
       // keep last known feed if query fails
     }
     notify();
-  }
-
-  function startFeed(){
-    stopFeed();
-    if(!_user) return;
-    fetchFeed();
-    _pollTimer = setInterval(fetchFeed, 12000); // 12s: feels live, low cost
-  }
-
-  function stopFeed(){
-    if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
   }
 
   async function follow(userId){
@@ -766,6 +811,7 @@ if(_user){
       followee_id: id
     });
     if(error) throw error;
+
     await fetchFeed();
   }
 
@@ -781,25 +827,27 @@ if(_user){
       .eq("follower_id", _user.id)
       .eq("followee_id", id);
     if(error) throw error;
+
     await fetchFeed();
   }
-  
+
   async function removeFollower(followerId){
-  const sb = await ensureClient();
-  if(!sb || !_user) return;
-  const id = (followerId || "").trim();
-  if(!id) return;
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+    const id = (followerId || "").trim();
+    if(!id) return;
 
-  // Remove the row where THEY follow YOU
-  const { error } = await sb
-    .from("follows")
-    .delete()
-    .eq("follower_id", id)
-    .eq("followee_id", _user.id);
+    // Remove the row where THEY follow YOU
+    const { error } = await sb
+      .from("follows")
+      .delete()
+      .eq("follower_id", id)
+      .eq("followee_id", _user.id);
 
-  if(error) throw error;
-  await fetchFeed();
-}
+    if(error) throw error;
+
+    await fetchFeed();
+  }
 
   // stateRef is injected later (avoid circular init)
   let stateRef = () => null;
@@ -978,6 +1026,10 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     fetchFeedComments,
     addFeedComment,
     deleteFeedComment,
+
+    // notifications
+    getNotifications,
+    fetchNotifications,
 
     // UI updates
     onChange   
