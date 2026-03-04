@@ -443,6 +443,20 @@ if(_user){
     notify();
   }
 
+    function startFeed(){
+    stopFeed();
+    if(!_user) return;
+    try{ fetchFeed(); }catch(_){}
+    _pollTimer = setInterval(() => { try{ fetchFeed(); }catch(_){} }, 12000); // 12s: feels live, low cost
+  }
+
+  function stopFeed(){
+    if(_pollTimer){
+      try{ clearInterval(_pollTimer); }catch(_){}
+      _pollTimer = null;
+    }
+  }
+
   async function deleteEvent(eventId){
     const sb = await ensureClient();
     if(!sb || !_user) throw new Error("Not signed in");
