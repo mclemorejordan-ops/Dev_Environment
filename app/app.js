@@ -2981,7 +2981,19 @@ function openExerciseHistoryModal(type, exerciseId, exNameOverride=null){
       head,
       list,
       el("div", { style:"height:10px" }),
-      el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+      el("div", { class:"btnrow" }, [
+  el("button", {
+    class:"btn",
+    onClick: () => {
+      Modal.close(); // go back to Workout modal
+    }
+  }, ["Back"]),
+
+  el("button", {
+    class:"btn",
+    onClick: Modal.close
+  }, ["Close"])
+])
     ])
   });
 
