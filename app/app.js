@@ -132,14 +132,12 @@ function initSocial(){
   let _sb = null;
   let _cfg = readSocialConfig();
   let _user = null;
-
   let _feed = [];       // newest first
-  let _follows = [];    // list of followed user ids (strings)
-  let _followers = [];  // list of follower user ids (strings)
+let _follows = [];    // list of followed user ids (strings)
+let _followers = [];  // list of follower user ids (strings)
   let _names = {};      // id -> display_name (from profiles)
-
-  let _pollTimer = null;
-  let _listeners = new Set();
+let _pollTimer = null;
+let _listeners = new Set();
 
   async function loadSupabaseModule(){
     if(_mod) return _mod;
@@ -147,6 +145,65 @@ function initSocial(){
     _mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
     return _mod;
   }
+
+  async function ensureClient(){
+    _cfg = readSocialConfig();
+    if(!_cfg?.url || !_cfg?.anonKey){
+      _sb = null;
+      _user = null;
+      return null;
+    }
+    if(_sb) return _sb;
+
+    const mod = await loadSupabaseModule();
+    _sb = mod.createClient(_cfg.url, _cfg.anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+
+    // keep cached user current
+    try{
+      const { data } = await _sb.auth.getUser();
+      _user = data?.user || null;
+    }catch(_){
+      _user = null;
+    }
+
+    // Keep profiles table updated with my display name
+if(_user){
+  try{ await upsertMyProfile(); }catch(_){}
+}
+
+    // react to auth changes
+    try{
+      _sb.auth.onAuthStateChange((_event, session) => {
+  _user = session?.user || null;
+
+  if(_user){
+    try{ upsertMyProfile(); }catch(_){}
+    startFeed();
+  }else{
+    stopFeed();
+  }
+
+  notify();
+});
+    }catch(_){}
+
+    return _sb;
+  }
+
+  function isConfigured(){
+    _cfg = readSocialConfig();
+    return !!(_cfg?.url && _cfg?.anonKey);
+  }
+
+  
+  function getUser(){ return _user; }
+function getFeed(){ return _feed.slice(); }
+function getFollows(){ return _follows.slice(); }
+function getFollowers(){ return _followers.slice(); }
+  
+  
 
   function onChange(fn){
     if(typeof fn !== "function") return () => {};
@@ -157,138 +214,60 @@ function initSocial(){
     try{ _listeners.forEach(fn => fn()); }catch(_){}
   }
 
-  function isConfigured(){
-    _cfg = readSocialConfig();
-    return !!(_cfg?.url && _cfg?.anonKey);
-  }
-
-  function getUser(){ return _user; }
-  function getFeed(){ return _feed.slice(); }
-  function getFollows(){ return _follows.slice(); }
-  function getFollowers(){ return _followers.slice(); }
-
   function nameFor(id){
-    const k = String(id || "");
-    return _names[k] || null;
-  }
+  const k = String(id || "");
+  return _names[k] || null;
+}
 
-  function stopFeed(){
-    if(_pollTimer){
-      try{ clearInterval(_pollTimer); }catch(_){}
-      _pollTimer = null;
-    }
-  }
+async function upsertMyProfile(){
+  const sb = await ensureClient();
+  if(!sb || !_user) return;
 
-  function startFeed(){
-    stopFeed();
-    if(!_user) return;
-    try{ fetchFeed(); }catch(_){}
-    _pollTimer = setInterval(() => { try{ fetchFeed(); }catch(_){} }, 12000);
-  }
+  const state = stateRef ? stateRef() : null;
+  const fromState = String(state?.profile?.name || "").trim();
+  const fromEmail = String(_user?.email || "").split("@")[0] || "";
+  const displayName = (fromState || fromEmail || "User").slice(0, 40);
 
-  async function ensureClient(){
-    _cfg = readSocialConfig();
-
-    if(!_cfg?.url || !_cfg?.anonKey){
-      _sb = null;
-      _user = null;
-      stopFeed();
-      return null;
-    }
-
-    if(_sb) return _sb;
-
-    const mod = await loadSupabaseModule();
-    _sb = mod.createClient(_cfg.url, _cfg.anonKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  try{
+    const { error } = await sb.from("profiles").upsert({
+      id: _user.id,
+      display_name: displayName,
+      updated_at: new Date().toISOString()
     });
-
-    // ✅ Prefer getSession() for persisted-session restore; then best-effort validate with getUser()
-    try{
-      const { data } = await _sb.auth.getSession();
-      _user = data?.session?.user || null;
-    }catch(_){
-      _user = null;
+    if(!error){
+      _names[_user.id] = displayName;
     }
-    try{
-      const { data } = await _sb.auth.getUser();
-      _user = data?.user || _user || null;
-    }catch(_){ /* keep session user if present */ }
+  }catch(_){}
+}
 
-    // ✅ Cold-open: if we already have a user, start polling immediately
-    if(_user){
-      try{ startFeed(); }catch(_){}
-      try{ await upsertMyProfile(); }catch(_){}
-    }
+async function fetchNames(ids){
+  const sb = await ensureClient();
+  if(!sb || !_user) return _names;
 
-    // react to auth changes
-    try{
-      _sb.auth.onAuthStateChange((_event, session) => {
-        _user = session?.user || null;
+  const uniq = Array.from(new Set((ids || [])
+    .map(x => String(x || ""))
+    .filter(Boolean)
+  ));
 
-        if(_user){
-          try{ upsertMyProfile(); }catch(_){}
-          startFeed();
-        }else{
-          stopFeed();
-        }
+  if(!uniq.length) return _names;
 
-        notify();
-      });
-    }catch(_){}
+  try{
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", uniq);
 
-    return _sb;
-  }
+    if(error) throw error;
 
-  async function upsertMyProfile(){
-    const sb = await ensureClient();
-    if(!sb || !_user) return;
+    (data || []).forEach(r => {
+      const id = String(r.id || "");
+      const dn = String(r.display_name || "").trim();
+      if(id && dn) _names[id] = dn;
+    });
+  }catch(_){}
 
-    const state = stateRef ? stateRef() : null;
-    const fromState = String(state?.profile?.name || "").trim();
-    const fromEmail = String(_user?.email || "").split("@")[0] || "";
-    const displayName = (fromState || fromEmail || "User").slice(0, 40);
-
-    try{
-      const { error } = await sb.from("profiles").upsert({
-        id: _user.id,
-        display_name: displayName,
-        updated_at: new Date().toISOString()
-      });
-      if(!error){
-        _names[_user.id] = displayName;
-      }
-    }catch(_){}
-  }
-
-  async function fetchNames(ids){
-    const sb = await ensureClient();
-    if(!sb || !_user) return _names;
-
-    const uniq = Array.from(new Set((ids || [])
-      .map(x => String(x || ""))
-      .filter(Boolean)
-    ));
-
-    if(!uniq.length) return _names;
-
-    try{
-      const { data, error } = await sb
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", uniq);
-
-      if(error) throw error;
-
-      (data || []).forEach(r => {
-        const id = String(r.id || "");
-        const dn = String(r.display_name || "").trim();
-        if(id && dn) _names[id] = dn;
-      });
-    }catch(_){}
-
-    return _names;
-  }
+  return _names;
+}
 
   async function configure({ url, anonKey }){
     const clean = {
@@ -296,46 +275,47 @@ function initSocial(){
       anonKey: (anonKey || "").trim()
     };
     writeSocialConfig(clean.url && clean.anonKey ? clean : null);
-
     // reset
     _cfg = readSocialConfig();
     _sb = null;
     _user = null;
     stopFeed();
     notify();
-
     await ensureClient();
     notify();
   }
 
   async function signInWithOtp(email){
-    const sb = await ensureClient();
-    if(!sb) throw new Error("Social not configured");
-    const e = (email || "").trim();
-    if(!e) throw new Error("Email required");
+  const sb = await ensureClient();
+  if(!sb) throw new Error("Social not configured");
+  const e = (email || "").trim();
+  if(!e) throw new Error("Email required");
 
-    const redirectTo = location.origin + location.pathname;
-    const { error } = await sb.auth.signInWithOtp({
-      email: e,
-      options: { emailRedirectTo: redirectTo }
-    });
-    if(error) throw error;
-  }
+  // Magic link / OTP email. Works well for PWAs.
+  const redirectTo = location.origin + location.pathname;
+  const { error } = await sb.auth.signInWithOtp({
+    email: e,
+    options: { emailRedirectTo: redirectTo }
+  });
+  if(error) throw error;
+}
 
-  async function signInWithOAuth(provider){
-    const sb = await ensureClient();
-    if(!sb) throw new Error("Social not configured");
+async function signInWithOAuth(provider){
+  const sb = await ensureClient();
+  if(!sb) throw new Error("Social not configured");
 
-    const p = (provider || "").trim();
-    if(!p) throw new Error("Provider required");
+  const p = (provider || "").trim();
+  if(!p) throw new Error("Provider required");
 
-    const redirectTo = location.origin + location.pathname;
-    const { error } = await sb.auth.signInWithOAuth({
-      provider: p,
-      options: { redirectTo }
-    });
-    if(error) throw error;
-  }
+  // OAuth redirect back to this app (hash router friendly)
+  const redirectTo = location.origin + location.pathname;
+
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: p,
+    options: { redirectTo }
+  });
+  if(error) throw error;
+}
 
   async function signOut(){
     const sb = await ensureClient();
@@ -350,22 +330,19 @@ function initSocial(){
     const sb = await ensureClient();
     if(!sb) { _user = null; stopFeed(); notify(); return; }
 
-    // Prefer session, then validate
     try{
-      const { data } = await sb.auth.getSession();
-      _user = data?.session?.user || null;
+      const { data } = await sb.auth.getUser();
+      _user = data?.user || null;
     }catch(_){
       _user = null;
     }
-    try{
-      const { data } = await sb.auth.getUser();
-      _user = data?.user || _user || null;
-    }catch(_){}
 
-    if(_user){
-      try{ await upsertMyProfile(); }catch(_){}
-    }
-
+if(_user){
+  try{ await upsertMyProfile(); }catch(_){}
+}
+    
+    // ✅ Important: if we are already signed in on cold-open,
+    // start polling so followers/following counts update live.
     if(_user) startFeed();
     else stopFeed();
 
@@ -388,63 +365,40 @@ function initSocial(){
       return [];
     }
   }
-
+  
   async function fetchFollowers(){
-    const sb = await ensureClient();
-    if(!sb || !_user) { _followers = []; return []; }
-    try{
-      const { data, error } = await sb
-        .from("follows")
-        .select("follower_id")
-        .eq("followee_id", _user.id);
-      if(error) throw error;
-      _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
-      return _followers;
-    }catch(_){
-      _followers = [];
-      return [];
-    }
+  const sb = await ensureClient();
+  if(!sb || !_user) { _followers = []; return []; }
+  try{
+    const { data, error } = await sb
+      .from("follows")
+      .select("follower_id")
+      .eq("followee_id", _user.id);
+    if(error) throw error;
+    _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
+    return _followers;
+  }catch(_){
+    _followers = [];
+    return [];
   }
+}
 
   async function fetchFeed(){
     const sb = await ensureClient();
     if(!sb || !_user) { _feed = []; notify(); return; }
 
-    // Ensure we know who we're following + who follows us
-    await fetchFollows();
-    await fetchFollowers();
+      // Ensure we know who we're following + who follows us (UI header counts)
+  await fetchFollows();
+  await fetchFollowers();
 
     try{
-      // ✅ Feed is: self + people I follow (includes self by default)
-      const actorIds = Array.from(new Set([
-        String(_user.id || ""),
-        ...(_follows || []).map(x => String(x || ""))
-      ].filter(Boolean)));
+      const { data, error } = await sb
+        .from("activity_events")
+        .select("id, actor_id, type, payload, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-      let data = null;
-
-      // Primary query (expects soft-delete columns to exist)
-      try{
-        const res = await sb
-          .from("activity_events")
-          .select("id, actor_id, type, payload, created_at")
-          .in("actor_id", actorIds)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(50);
-        if(res?.error) throw res.error;
-        data = res?.data || [];
-      }catch(_err){
-        // Back-compat fallback if DB hasn't been migrated yet
-        const res2 = await sb
-          .from("activity_events")
-          .select("id, actor_id, type, payload, created_at")
-          .in("actor_id", actorIds)
-          .order("created_at", { ascending: false })
-          .limit(50);
-        if(res2?.error) throw res2.error;
-        data = res2?.data || [];
-      }
+      if(error) throw error;
 
       _feed = (data || []).map(r => ({
         id: r.id,
@@ -453,37 +407,21 @@ function initSocial(){
         payload: r.payload || {},
         createdAt: r.created_at
       }));
-
-      // Best-effort: populate display names for actors
-      try{
-        const ids = _feed.map(x => String(x.actorId || "")).filter(Boolean);
-        if(ids.length) await fetchNames(ids);
-      }catch(_){ }
     }catch(_){
       // keep last known feed if query fails
     }
-
     notify();
   }
 
-  async function deleteEvent(eventId){
-    const sb = await ensureClient();
-    if(!sb || !_user) throw new Error("Not signed in");
-    const id = String(eventId || "").trim();
-    if(!id) throw new Error("Missing event id");
+  function startFeed(){
+    stopFeed();
+    if(!_user) return;
+    fetchFeed();
+    _pollTimer = setInterval(fetchFeed, 12000); // 12s: feels live, low cost
+  }
 
-    // Soft delete: author-only enforcement should be handled by RLS.
-    const { error } = await sb
-      .from("activity_events")
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: _user.id
-      })
-      .eq("id", id);
-
-    if(error) throw error;
-
-    await fetchFeed();
+  function stopFeed(){
+    if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
   }
 
   async function follow(userId){
@@ -515,23 +453,23 @@ function initSocial(){
     if(error) throw error;
     await fetchFeed();
   }
-
+  
   async function removeFollower(followerId){
-    const sb = await ensureClient();
-    if(!sb || !_user) return;
-    const id = (followerId || "").trim();
-    if(!id) return;
+  const sb = await ensureClient();
+  if(!sb || !_user) return;
+  const id = (followerId || "").trim();
+  if(!id) return;
 
-    // Remove the row where THEY follow YOU
-    const { error } = await sb
-      .from("follows")
-      .delete()
-      .eq("follower_id", id)
-      .eq("followee_id", _user.id);
+  // Remove the row where THEY follow YOU
+  const { error } = await sb
+    .from("follows")
+    .delete()
+    .eq("follower_id", id)
+    .eq("followee_id", _user.id);
 
-    if(error) throw error;
-    await fetchFeed();
-  }
+  if(error) throw error;
+  await fetchFeed();
+}
 
   // stateRef is injected later (avoid circular init)
   let stateRef = () => null;
@@ -540,7 +478,6 @@ function initSocial(){
   function formatLogEvent(entry){
     const state = stateRef();
     const lib = state?.library;
-
     const exName = (() => {
       try{
         const ex = (lib?.exercises || []).find(x => String(x.id||"") === String(entry.exerciseId||""));
@@ -568,70 +505,21 @@ function initSocial(){
     };
   }
 
-  async function publishLogEvent(entry){
-    if(!isConfigured()) return;
-    await ensureClient();
-    if(!_user) return;
-
-    const ev = formatLogEvent(entry);
-    const row = {
-      actor_id: _user.id,
-      type: ev.eventType,
-      payload: ev.payload
-    };
-
-    try{
-      const sb = await ensureClient();
-      if(!sb) return;
-      const { error } = await sb.from("activity_events").insert(row);
-      if(error) throw error;
-      fetchFeed();
-    }catch(_){
-      const out = readOutbox();
-      out.unshift(row);
-      writeOutbox(out.slice(0, 100));
+function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+  const state = stateRef();
+  return {
+    eventType: "workout_completed",
+    payload: {
+      displayName: state?.profile?.name || null,
+      dateISO: dateISO || null,
+      routineId: routineId || null,
+      dayId: dayId || null,
+      highlights: highlights || {},
+      details: details || null
     }
-  }
-
-  function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
-    const state = stateRef();
-    return {
-      eventType: "workout_completed",
-      payload: {
-        displayName: state?.profile?.name || null,
-        dateISO: dateISO || null,
-        routineId: routineId || null,
-        dayId: dayId || null,
-        highlights: highlights || {},
-        details: details || null
-      }
-    };
-  }
-
-  async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
-    if(!isConfigured()) return;
-    await ensureClient();
-    if(!_user) return;
-
-    const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
-    const row = {
-      actor_id: _user.id,
-      type: ev.eventType,
-      payload: ev.payload
-    };
-
-    try{
-      const sb = await ensureClient();
-      if(!sb) return;
-      const { error } = await sb.from("activity_events").insert(row);
-      if(error) throw error;
-      fetchFeed();
-    }catch(_){
-      const out = readOutbox();
-      out.unshift(row);
-      writeOutbox(out.slice(0, 100));
-    }
-  }
+  };
+}
+  
 
   async function flushOutbox(){
     const sb = await ensureClient();
@@ -652,6 +540,64 @@ function initSocial(){
     writeOutbox(keep);
   }
 
+  async function publishLogEvent(entry){
+    // Only publish if configured + signed in
+    if(!isConfigured()) return;
+    await ensureClient();
+    if(!_user) return;
+
+    const ev = formatLogEvent(entry);
+    const row = {
+      actor_id: _user.id,
+      type: ev.eventType,
+      payload: ev.payload
+    };
+
+    // Try immediate insert, else queue
+    try{
+      const sb = await ensureClient();
+      if(!sb) return;
+      const { error } = await sb.from("activity_events").insert(row);
+      if(error) throw error;
+      // refresh quickly
+      fetchFeed();
+    }catch(_){
+      const out = readOutbox();
+      out.unshift(row);
+      writeOutbox(out.slice(0, 100)); // cap
+    }
+  }
+
+
+async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+  // Only publish if configured + signed in
+  if(!isConfigured()) return;
+  await ensureClient();
+  if(!_user) return;
+
+  const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
+  const row = {
+    actor_id: _user.id,
+    type: ev.eventType,
+    payload: ev.payload
+  };
+
+  // Try immediate insert, else queue
+  try{
+    const sb = await ensureClient();
+    if(!sb) return;
+    const { error } = await sb.from("activity_events").insert(row);
+    if(error) throw error;
+    fetchFeed();
+  }catch(_){
+    const out = readOutbox();
+    out.unshift(row);
+    writeOutbox(out.slice(0, 100));
+  }
+}
+  
+
+  // flush queued events when online
   window.addEventListener("online", () => { try{ flushOutbox(); }catch(_){} });
 
   return {
@@ -663,7 +609,7 @@ function initSocial(){
     getConfig: () => readSocialConfig(),
     configure,
     signInWithOtp,
-    signInWithOAuth,
+    signInWithOAuth,   // ← ADD THIS LINE
     signOut,
     refreshUser,
     getUser,
@@ -673,7 +619,6 @@ function initSocial(){
     follow,
     unfollow,
     removeFollower,
-    deleteEvent,
     getFollows,
     getFollowers,
     fetchNames,
@@ -694,8 +639,8 @@ function initSocial(){
     onChange
   };
 }
+
 const Social = initSocial();
-window.Social = Social;
 Social.bindStateGetter(() => state);
 
 
@@ -4251,31 +4196,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
 
-
-       // ✅ Friends feed bootstrap:
-  // When the Friends route renders, trigger a one-time refresh/fetch so feed isn't stuck empty.
-  // Uses UIState.social to avoid loops; Social.onChange will re-render when data arrives.
-  if(configured){
-    ui.__friendsBoot = ui.__friendsBoot || { did:false, lastUserId:null };
-    const uid = user?.id ? String(user.id) : null;
-
-    // If user changes (sign in/out), allow boot again
-    if(ui.__friendsBoot.lastUserId !== uid){
-      ui.__friendsBoot.did = false;
-      ui.__friendsBoot.lastUserId = uid;
-    }
-
-    if(!ui.__friendsBoot.did){
-      ui.__friendsBoot.did = true;
-      try{
-        // refreshUser will start polling + fetch feed in your Social engine
-        if(Social.refreshUser) Social.refreshUser();
-        else if(Social.fetchFeed) Social.fetchFeed();
-      }catch(_){}
-    }
-  }
-     
-
   // ✅ Live Online/Offline pill updates (only re-render on Friends route)
 if(!ui.__netSub){
   ui.__netSub = true;
@@ -4686,7 +4606,7 @@ el("div", { style:"height:10px" }),
 
     user && feed.length ? el("div", {}, feed.map(ev => {
       const p = ev.payload || {};
-      const who = (Social.nameFor && Social.nameFor(ev.actorId)) || p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
+      const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
       const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
       const title = (ev.type === "exercise_logged")
   ? `${who} logged ${p.exerciseName || "an exercise"}`
@@ -4849,171 +4769,17 @@ function openFeedEventModal(ev, title, who, when){
   }catch(_){}
 }
 
-    user && feed.length ? el("div", {}, feed.map(ev => {
-      const p = ev.payload || {};
-      const who = (Social.nameFor && Social.nameFor(ev.actorId)) || p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
-      const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
-      const title = (ev.type === "exercise_logged")
-        ? `${who} logged ${p.exerciseName || "an exercise"}`
-        : (ev.type === "workout_completed")
-          ? `${who} completed a workout`
-          : `${who} posted an event`;
-
-      const chips = [];
-      if(ev.type === "workout_completed"){
-        const h = p.highlights || {};
-        if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) chips.push(`${h.exerciseCount} exercises`);
-        if(Number.isFinite(h.prCount) && h.prCount > 0) chips.push(`PRs: ${h.prCount}`);
-        if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${h.totalVolume}`);
-      }else{
-        if(p.workoutType) chips.push(String(p.workoutType));
-        if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
-      }
-
-      // ... (your existing openExerciseHistoryFromFeed + openFeedEventModal stay unchanged)
-
-      return el("div", {
-        class:"card",
-        style:"margin: 10px 0; cursor:pointer;",
-        onClick: () => openFeedEventModal(ev, title, who, when)
-      }, [
-        el("div", { class:"rowBetween" }, [
-          el("div", { style:"font-weight:820;", text: title }),
-          el("div", { class:"small", text: when })
-        ]),
-        chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null,
-
-        // Tweet-style actions (MVP): Like/Comment placeholders + Send + Delete (author only)
-        (() => {
-          function buildShareText(){
-            try{
-              const p = ev.payload || {};
-              const who = (Social.nameFor && Social.nameFor(ev.actorId)) || p.displayName || "User";
-              const dateISO = p.dateISO || "";
-
-              // exercise_logged
-              if(ev.type === "exercise_logged"){
-                const ex = p.exerciseName || "Exercise";
-                const wtype = p.workoutType ? ` (${p.workoutType})` : "";
-                const prCount = Number(p.prCount || 0) || 0;
-
-                const lines = [
-                  `${who} logged: ${ex}${wtype}`,
-                  dateISO ? `Date: ${dateISO}` : "",
-                  prCount > 0 ? `PRs: ${prCount}` : ""
-                ].filter(Boolean);
-
-                return lines.join("\n");
-              }
-
-              // workout_completed
-              if(ev.type === "workout_completed"){
-                const h = p.highlights || {};
-                const bits = [];
-                if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) bits.push(`${h.exerciseCount} exercises`);
-                if(Number.isFinite(h.prCount) && h.prCount > 0) bits.push(`${h.prCount} PRs`);
-                if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) bits.push(`Vol ${h.totalVolume}`);
-
-                const lines = [
-                  `${who} completed a workout`,
-                  dateISO ? `Date: ${dateISO}` : "",
-                  bits.length ? `Highlights: ${bits.join(" • ")}` : ""
-                ].filter(Boolean);
-                return lines.join("\n");
-              }
-
-              // fallback
-              return `${who} posted an event${dateISO ? `\nDate: ${dateISO}` : ""}`;
-            }catch(_){
-              return "";
-            }
-          }
-
-          async function doShare(e){
-            try{ if(e && e.stopPropagation) e.stopPropagation(); }catch(_){ }
-            const text = buildShareText();
-            if(!text){ showToast("Nothing to share"); return; }
-
-            // Native share (best on mobile)
-            try{
-              if(navigator.share){
-                await navigator.share({ text });
-                return;
-              }
-            }catch(_){ /* user cancel etc */ }
-
-            // Clipboard fallback
-            try{
-              if(navigator.clipboard && navigator.clipboard.writeText){
-                await navigator.clipboard.writeText(text);
-                showToast("Copied");
-                return;
-              }
-            }catch(_){ }
-
-            // Final fallback
-            try{
-              const ta = document.createElement("textarea");
-              ta.value = text;
-              ta.style.position = "fixed";
-              ta.style.left = "-9999px";
-              document.body.appendChild(ta);
-              ta.focus();
-              ta.select();
-              document.execCommand("copy");
-              document.body.removeChild(ta);
-              showToast("Copied");
-            }catch(_){
-              showToast("Share not supported");
-            }
-          }
-
-          const isMine = !!(user && String(user.id || "") && String(user.id || "") === String(ev.actorId || ""));
-
-          return el("div", {
-            style:"display:flex; gap:8px; margin-top:10px; justify-content:flex-end;"
-          }, [
-            // Placeholders (no DB tables yet) — keep UI stable and non-breaking
-            el("button", {
-              class:"btn sm",
-              onClick: (e) => { try{ e.stopPropagation(); }catch(_){} showToast("Likes coming soon"); }
-            }, ["❤ 0"]),
-
-            el("button", {
-              class:"btn sm",
-              onClick: (e) => { try{ e.stopPropagation(); }catch(_){} showToast("Comments coming soon"); }
-            }, ["💬 0"]),
-
-            el("button", {
-              class:"btn sm",
-              onClick: doShare
-            }, ["📤 Send"]),
-
-            isMine ? el("button", {
-              class:"btn danger sm",
-              onClick: (e) => {
-                try{ if(e && e.stopPropagation) e.stopPropagation(); }catch(_){ }
-                confirmModal({
-                  title:"Delete event",
-                  message:"Delete this event? This cannot be undone.",
-                  confirmText:"Delete",
-                  danger:true,
-                  onConfirm: async () => {
-                    try{
-                      if(Social.deleteEvent) await Social.deleteEvent(ev.id);
-                      showToast("Deleted");
-                      renderView();
-                    }catch(err){
-                      showToast(err?.message || "Couldn't delete");
-                    }
-                  }
-                });
-              }
-            }, ["🗑 Delete"]) : null
-          ].filter(Boolean));
-        })()
-      ].filter(Boolean));
-    })) : null
+return el("div", {
+  class:"card",
+  style:"margin: 10px 0; cursor:pointer;",
+  onClick: () => openFeedEventModal(ev, title, who, when)
+}, [
+  el("div", { class:"rowBetween" }, [
+    el("div", { style:"font-weight:820;", text: title }),
+    el("div", { class:"small", text: when })
+  ]),
+  chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null
+].filter(Boolean));
     })) : null
   ].filter(Boolean)));
 
