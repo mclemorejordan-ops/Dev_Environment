@@ -5210,13 +5210,16 @@ root.appendChild(el("div", { class:"card" }, [
     ])
   ]),
 
-  // Right: bell badge
-  (user && (ui._followerNotifs || []).length)
+    // Right: bell badge
+    (user)
     ? el("button", {
         class:"pill",
         style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
-        onClick: () => { try{ openFollowerNotifsModal(); }catch(_){} }
-      }, [`🔔 ${(ui._followerNotifs || []).length}`])
+        onClick: async () => { try{
+          if(Social.fetchNotifications) await Social.fetchNotifications();
+          openNotificationsModal();
+        }catch(_){} }
+      }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
     : null
 
 ].filter(Boolean)) : null,
