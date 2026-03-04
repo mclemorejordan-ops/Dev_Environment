@@ -5124,79 +5124,154 @@ el("div", { style:"height:10px" }),
           }catch(_){}
         }
 
-        function openFeedEventModal(ev, title, who, when){
-          try{
-            const p = ev.payload || {};
-            const d = p.details || null;
+       function openFeedEventModal(ev, title, who, when){
+  try{
+    const p = ev.payload || {};
+    const d = p.details || null;
+    const h = p.highlights || {};
 
-            // If details are missing (older events / friend on older build), show a safe fallback.
-            const body = el("div", { class:"grid" }, [
-              el("div", { class:"note", text: when ? `${who} • ${when}` : who }),
+    const isWorkout = (ev.type === "workout_completed");
+    const dayLabel = (d && d.dayLabel) ? String(d.dayLabel) : (title || (isWorkout ? "Workout" : "Event"));
+    const dateISO = (d && d.dateISO) ? String(d.dateISO) : (p.dateISO ? String(p.dateISO) : "");
 
-              (ev.type === "workout_completed" && d?.dayLabel)
-                ? el("div", { class:"kpi" }, [
-                    el("div", { class:"big", text: d.dayLabel }),
-                    el("div", { class:"small", text: d.dateISO || (p.dateISO || "") })
-                  ])
-                : null,
+    const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
 
-              (ev.type === "workout_completed" && d?.items?.length)
-                ? el("div", { class:"list" }, d.items.map(it => {
-                    const rightBits = [];
-                    if(it.topText) rightBits.push(it.topText);
-                    if(Array.isArray(it.prBadges) && it.prBadges.length) rightBits.push(it.prBadges.join(" • "));
+    // KPIs (best-effort; older events may not include highlights)
+    const exCount = Number.isFinite(Number(h.exerciseCount)) ? Number(h.exerciseCount) : (items.length || 0);
+    const prCount = Number.isFinite(Number(h.prCount)) ? Number(h.prCount) : 0;
+    const vol = Number.isFinite(Number(h.totalVolume)) ? Number(h.totalVolume) : null;
 
-                    // Lifetime display (best-effort)
-                    let life = "";
-                    try{
-                      const L = it.lifetime || null;
-                      if(L){
-                        if(it.type === "weightlifting"){
-                          const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
-                          const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
-                          const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
-                          life = [bw, b1, bv].filter(Boolean).join(" • ");
-                        }else if(it.type === "cardio"){
-                          const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
-                          const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
-                          life = [bp, bd].filter(Boolean).join(" • ");
-                        }else if(it.type === "core"){
-                          const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
-                          const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
-                          life = [br, bt].filter(Boolean).join(" • ");
-                        }
-                      }
-                    }catch(_){}
+    // Choose a highlight exercise (prefer any with PR badges)
+    const highlight = (() => {
+      try{
+        const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
+        return withPR || items[0] || null;
+      }catch(_){ return null; }
+    })();
 
-                    return el("div", {
-                      class:"item",
-                      style:"cursor:pointer;",
-                      onClick: () => openExerciseHistoryFromFeed(it.type, it.exerciseId, it.name)
-                    }, [
-                      el("div", { class:"left" }, [
-                        el("div", { class:"name", text: it.name || "Exercise" }),
-                        life ? el("div", { class:"meta", text: life }) : null
-                      ].filter(Boolean)),
-                      el("div", { class:"actions" }, [
-                        el("div", { class:"meta", text: rightBits.join(" | ") })
-                      ])
-                    ]);
-                  }))
-                : (ev.type === "workout_completed"
-                    ? el("div", { class:"note", text:"Details aren’t available for this event yet (older build). New events will include full workout details." })
-                    : null),
-
-              el("div", { style:"height:10px" }),
-              el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-            ].filter(Boolean));
-
-            Modal.open({
-              title: (ev.type === "workout_completed") ? "Workout" : "Event",
-              bodyNode: body
-            });
-          }catch(_){}
+    // Lifetime display (best-effort) — shared formatter
+    function lifetimeLine(it){
+      try{
+        const L = it?.lifetime || null;
+        if(!L) return "";
+        if(it.type === "weightlifting"){
+          const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
+          const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
+          const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
+          return [bw, b1, bv].filter(Boolean).join(" • ");
         }
+        if(it.type === "cardio"){
+          const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
+          const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
+          return [bp, bd].filter(Boolean).join(" • ");
+        }
+        if(it.type === "core"){
+          const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
+          const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
+          return [br, bt].filter(Boolean).join(" • ");
+        }
+        return "";
+      }catch(_){
+        return "";
+      }
+    }
 
+    const pills = el("div", { class:"feedWkPills" }, [
+      (exCount ? el("div", { class:"feedWkPill accent" }, [
+        el("span", { class:"k", text:"Exercises" }),
+        el("span", { class:"v", text:String(exCount) })
+      ]) : null),
+      (prCount ? el("div", { class:"feedWkPill good" }, [
+        el("span", { class:"k", text:"PRs" }),
+        el("span", { class:"v", text:String(prCount) })
+      ]) : null),
+      (vol != null ? el("div", { class:"feedWkPill" }, [
+        el("span", { class:"k", text:"Volume" }),
+        el("span", { class:"v", text:String(vol) })
+      ]) : null)
+    ].filter(Boolean));
+
+    const header = el("div", { class:"feedWkHead" }, [
+      el("div", { class:"feedWkHeadTop" }, [
+        el("div", { class:"feedWkTitleRow" }, [
+          el("div", { class:"feedWkAvatar", text: (String(who || "U").trim()[0] || "U").toUpperCase() }),
+          el("div", { class:"feedWkTitleBlock" }, [
+            el("div", { class:"feedWkTitle", text: dayLabel }),
+            el("div", { class:"feedWkSub", text: (when ? `${dateISO ? `${dateISO} • ` : ""}${when} • ${who}` : (who || "")) })
+          ])
+        ]),
+        el("button", { class:"btn", onClick: Modal.close }, ["Done"])
+      ]),
+      pills,
+
+      (isWorkout && highlight)
+        ? el("div", { class:"feedWkHighlight" }, [
+            el("div", { class:"l" }, [
+              el("div", { class:"t" }, [ el("span", { class:"spark" }), "Workout highlight" ]),
+              el("div", { class:"n", text: highlight.name || "Exercise" }),
+              el("div", { class:"m", text: [highlight.topText || "", lifetimeLine(highlight) || ""].filter(Boolean).join(" • ") })
+            ]),
+            (Array.isArray(highlight.prBadges) && highlight.prBadges.length)
+              ? el("div", { class:"b", text: highlight.prBadges[0] })
+              : el("div", { class:"b", text:"Tap for history" })
+          ])
+        : null
+    ].filter(Boolean));
+
+    const list = el("div", { class:"feedWkList" }, []);
+    if(isWorkout && items.length){
+      items.forEach(it => {
+        const rightBadges = [];
+        try{
+          if(it.topText) rightBadges.push(it.topText);
+          if(Array.isArray(it.prBadges) && it.prBadges.length) rightBadges.push(it.prBadges.join(" • "));
+        }catch(_){ }
+
+        const life = lifetimeLine(it);
+
+        list.appendChild(el("div", {
+          class:"feedWkExCard",
+          onClick: () => openExerciseHistoryFromFeed(it.type, it.exerciseId, it.name)
+        }, [
+          el("div", { class:"feedWkExTop" }, [
+            el("div", { class:"feedWkExLeft" }, [
+              el("div", { class:"feedWkExName", text: it.name || "Exercise" }),
+              el("div", { class:"feedWkExSub", text: [rightBadges[0] || "", life || ""].filter(Boolean).join(" • ") })
+            ]),
+            el("div", { class:"feedWkMiniBadges" }, [
+              (Array.isArray(it.prBadges) && it.prBadges.length)
+                ? el("div", { class:"feedWkMiniBadge pr", text: "PR" })
+                : null,
+              el("div", { class:"feedWkMiniBadge", text: "History" })
+            ].filter(Boolean))
+          ]),
+          el("div", { class:"feedWkChev", text:"Tap to view history →" })
+        ]));
+      });
+    }else if(isWorkout){
+      list.appendChild(el("div", { class:"note", text:"Details aren’t available for this event yet (older build). New events will include full workout details." }));
+    }else{
+      list.appendChild(el("div", { class:"note", text: when ? `${who} • ${when}` : (who || "") }));
+    }
+
+    const body = el("div", { class:"feedWkShell" }, [
+      header,
+      el("div", { class:"feedWkScroll" }, [
+        isWorkout ? el("div", { class:"feedWkSection", text:"Exercises" }) : null,
+        list,
+        el("div", { style:"height:6px" })
+      ].filter(Boolean)),
+      el("div", { class:"feedWkFoot" }, [
+        el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+      ])
+    ]);
+
+    Modal.open({
+      title: isWorkout ? "Workout" : "Event",
+      bodyNode: body
+    });
+  }catch(_){ }
+}
         // Avatar (initial)
         const initial = (String(who || "U").trim()[0] || "U").toUpperCase();
         const avatar = el("div", {
