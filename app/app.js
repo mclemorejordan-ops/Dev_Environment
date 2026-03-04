@@ -4406,6 +4406,7 @@ function openFollowerNotifsModal(){
 
 function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
+  ui.connSearch = ui.connSearch || "";
 
   const tabRow = el("div", { class:"segRow" });
   const btnFollowing = el("button", {
@@ -4419,7 +4420,23 @@ function openConnectionsModal(initialTab){
   tabRow.appendChild(btnFollowing);
   tabRow.appendChild(btnFollowers);
 
-  const bodyHost = el("div", {});
+  const statsRow = el("div", { class:"connStats" });
+  const searchInput = el("input", {
+    type:"text",
+    placeholder:"Search connections…",
+    value: ui.connSearch
+  });
+  const searchWrap = el("div", { class:"connSearch" }, [
+    el("div", { class:"ico", text:"🔎" }),
+    searchInput
+  ]);
+
+  const bodyHost = el("div", { class:"connScroll" });
+
+  searchInput.addEventListener("input", () => {
+    ui.connSearch = searchInput.value || "";
+    repaintModal();
+  });
 
   async function refreshLists(){
     try{
@@ -4428,54 +4445,44 @@ function openConnectionsModal(initialTab){
     }catch(_){}
   }
 
-function listRow({ id, actionLabel, onAction }){
-  const displayName =
-    (Social.nameFor && Social.nameFor(id))
-    || "User";
-
-  return el("div", {
-    class:"rowBetween",
-    style:"padding:10px 0; border-bottom: 1px solid rgba(255,255,255,.06);"
-  }, [
-    // ✅ display name only — never raw ID
-    el("div", { class:"small", text: displayName }),
-    el("button", { class:"btn sm", onClick: onAction }, [actionLabel])
-  ]);
-}
-
-async function repaintModal(){
-  btnFollowing.className = "seg" + (ui.connTab === "following" ? " on" : "");
-  btnFollowers.className = "seg" + (ui.connTab === "followers" ? " on" : "");
-
-  const follows = Social.getFollows ? Social.getFollows() : [];
-  const followers = Social.getFollowers ? Social.getFollowers() : [];
-
-  // Ensure we have display names for the IDs shown in this tab
-try{
-  const ids = (ui.connTab === "following") ? follows : followers;
-  if(Social.fetchNames) await Social.fetchNames(ids);
-}catch(_){}
-
-  bodyHost.innerHTML = "";
-  bodyHost.appendChild(el("div", { style:"height:10px" }));
-
-  if(!user){
-    bodyHost.appendChild(el("div", { class:"note", text:"Sign in to manage connections." }));
-    return;
+  function avatarLetter(name){
+    const s = String(name || "").trim();
+    return (s && s[0]) ? s[0].toUpperCase() : "•";
   }
 
-  if(ui.connTab === "following"){
-    if(!follows.length){
-      bodyHost.appendChild(el("div", { class:"note", text:"Not following anyone yet." }));
-      return;
-    }
-    follows.forEach(fid => {
-      bodyHost.appendChild(listRow({
-        id: fid,
-        actionLabel: "Unfollow",
-        onAction: async () => {
+  function pill(label, value){
+    return el("div", { class:"connPill" }, [
+      el("span", { text: label }),
+      el("span", { class:"v", text: String(value) })
+    ]);
+  }
+
+  function badge(label, kind){
+    return el("span", { class:"connBadge" + (kind ? (" " + kind) : ""), text: label });
+  }
+
+  function connectionRow({ id, mode, followsSet, followersSet }){
+    const dn = (Social.nameFor && Social.nameFor(id)) || "User";
+    const mutual = followsSet.has(id) && followersSet.has(id);
+
+    let metaText = "";
+    if(mutual) metaText = "You follow each other";
+    else if(mode === "following") metaText = "You follow them";
+    else metaText = "Follower";
+
+    const badges = [];
+    if(mutual) badges.push(badge("Mutual", "mutual"));
+    else if(mode === "following") badges.push(badge("Following"));
+    else badges.push(badge("Follows you"));
+
+    const actions = [];
+
+    if(mode === "following"){
+      actions.push(el("button", {
+        class:"btn danger sm",
+        onClick: async () => {
           try{
-            await Social.unfollow(fid);
+            await Social.unfollow(id);
             showToast("Unfollowed");
             await refreshLists();
             repaintModal();
@@ -4484,41 +4491,152 @@ try{
             showToast(e?.message || "Couldn't unfollow");
           }
         }
-      }));
-    });
-    return;
+      }, ["Unfollow"]));
+    }else{
+      // followers tab: follow back / unfollow (depending on current follows)
+      if(followsSet.has(id)){
+        actions.push(el("button", {
+          class:"btn danger sm",
+          onClick: async () => {
+            try{
+              await Social.unfollow(id);
+              showToast("Unfollowed");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e){
+              showToast(e?.message || "Couldn't unfollow");
+            }
+          }
+        }, ["Unfollow"]));
+      }else{
+        actions.push(el("button", {
+          class:"btn primary sm",
+          onClick: async () => {
+            try{
+              await Social.follow(id);
+              showToast("Following");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e){
+              showToast(e?.message || "Follow failed");
+            }
+          }
+        }, ["Follow back"]));
+      }
+
+      // keep remove follower available (permissions may vary)
+      actions.push(el("button", {
+        class:"btn sm",
+        onClick: async () => {
+          try{
+            await Social.removeFollower(id);
+            showToast("Removed");
+            await refreshLists();
+            repaintModal();
+            renderView();
+          }catch(e){
+            showToast(e?.message || "Couldn't remove (permissions)");
+          }
+        }
+      }, ["Remove"]));
+    }
+
+    return el("div", { class:"connItem" }, [
+      el("div", { class:"connLeft" }, [
+        el("div", { class:"connAvatar", text: avatarLetter(dn) }),
+        el("div", { class:"connTxt" }, [
+          el("div", { class:"connName", text: dn }),
+          el("div", { class:"connBadges" }, badges),
+          el("div", { class:"connMeta", text: metaText })
+        ])
+      ]),
+      el("div", { class:"connActions" }, actions)
+    ]);
   }
 
-  // followers tab
-  if(!followers.length){
-    bodyHost.appendChild(el("div", { class:"note", text:"No followers yet." }));
-    return;
+  async function repaintModal(){
+    btnFollowing.className = "seg" + (ui.connTab === "following" ? " on" : "");
+    btnFollowers.className = "seg" + (ui.connTab === "followers" ? " on" : "");
+
+    const follows = Social.getFollows ? Social.getFollows() : [];
+    const followers = Social.getFollowers ? Social.getFollowers() : [];
+
+    const followsSet = new Set((follows || []).map(String));
+    const followersSet = new Set((followers || []).map(String));
+    const mutualCount = Array.from(followersSet).filter(id => followsSet.has(id)).length;
+
+    // Update top pills
+    statsRow.innerHTML = "";
+    statsRow.appendChild(pill("Following", follows.length));
+    statsRow.appendChild(pill("Followers", followers.length));
+    statsRow.appendChild(pill("Mutual", mutualCount));
+
+    // Ensure we have display names for the IDs shown in this tab (best-effort)
+    try{
+      const ids = (ui.connTab === "following") ? follows : followers;
+      if(Social.fetchNames) await Social.fetchNames(ids);
+    }catch(_){}
+
+    bodyHost.innerHTML = "";
+
+    if(!user){
+      bodyHost.appendChild(el("div", { class:"note", text:"Sign in to manage connections." }));
+      return;
+    }
+
+    const q = (ui.connSearch || "").trim().toLowerCase();
+    const baseList = (ui.connTab === "following") ? follows : followers;
+
+    if(!baseList.length){
+      bodyHost.appendChild(el("div", {
+        class:"note",
+        text: (ui.connTab === "following") ? "Not following anyone yet." : "No followers yet."
+      }));
+      return;
+    }
+
+    // Filter + sort by display name for a clean UX (UI-only)
+    const items = baseList
+      .map(x => String(x))
+      .filter(id => {
+        if(!q) return true;
+        const dn = ((Social.nameFor && Social.nameFor(id)) || "User").toLowerCase();
+        return dn.includes(q);
+      })
+      .sort((a,b) => {
+        const da = ((Social.nameFor && Social.nameFor(a)) || "User").toLowerCase();
+        const db = ((Social.nameFor && Social.nameFor(b)) || "User").toLowerCase();
+        return da.localeCompare(db);
+      });
+
+    if(!items.length){
+      bodyHost.appendChild(el("div", { class:"note", text:"No matches." }));
+      return;
+    }
+
+    items.forEach(id => {
+      bodyHost.appendChild(connectionRow({
+        id,
+        mode: ui.connTab,
+        followsSet,
+        followersSet
+      }));
+    });
   }
-  followers.forEach(fid => {
-    bodyHost.appendChild(listRow({
-      id: fid,
-      actionLabel: "Remove",
-      onAction: async () => {
-        try{
-          await Social.removeFollower(fid);
-          showToast("Removed");
-          await refreshLists();
-          repaintModal();
-          renderView();
-        }catch(e){
-          showToast(e?.message || "Couldn't remove (permissions)");
-        }
-      }
-    }));
-  });
-}
 
   Modal.open({
     title: "Connections",
-    bodyNode: el("div", {}, [
-      el("div", { class:"note", text:"Following / Followers" }),
+    bodyNode: el("div", { class:"connModal" }, [
+      el("div", { class:"note", text:"Search, follow back, unfollow, or remove followers." }),
       el("div", { style:"height:10px" }),
       tabRow,
+      el("div", { style:"height:10px" }),
+      statsRow,
+      el("div", { style:"height:10px" }),
+      searchWrap,
+      el("div", { style:"height:10px" }),
       bodyHost,
       el("div", { style:"height:10px" }),
       el("div", { class:"btnrow" }, [
@@ -4534,7 +4652,11 @@ try{
     ])
   });
 
-  // Initial paint
+  // Focus search immediately (phone-first)
+  setTimeout(() => {
+    try{ searchInput && searchInput.focus && searchInput.focus(); }catch(_){}
+  }, 0);
+
   repaintModal();
 }
 
