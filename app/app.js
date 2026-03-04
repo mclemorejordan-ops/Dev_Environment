@@ -4513,7 +4513,7 @@ try{
 }
 
 root.appendChild(el("div", { class:"card" }, [
-  // Header title + auth pill (top-right) + follower notif pill (bottom-right under auth)
+  // Header title + auth pill (top-right) + notif pill (bottom-right of header)
   el("div", { style:"position:relative; min-height:56px;" }, [
     el("h2", { text:"Friends", style:"margin:0; padding-right:160px;" }),
 
