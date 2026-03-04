@@ -132,12 +132,14 @@ function initSocial(){
   let _sb = null;
   let _cfg = readSocialConfig();
   let _user = null;
+
   let _feed = [];       // newest first
-let _follows = [];    // list of followed user ids (strings)
-let _followers = [];  // list of follower user ids (strings)
+  let _follows = [];    // list of followed user ids (strings)
+  let _followers = [];  // list of follower user ids (strings)
   let _names = {};      // id -> display_name (from profiles)
-let _pollTimer = null;
-let _listeners = new Set();
+
+  let _pollTimer = null;
+  let _listeners = new Set();
 
   async function loadSupabaseModule(){
     if(_mod) return _mod;
@@ -145,71 +147,6 @@ let _listeners = new Set();
     _mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
     return _mod;
   }
-
-  async function ensureClient(){
-    _cfg = readSocialConfig();
-    if(!_cfg?.url || !_cfg?.anonKey){
-      _sb = null;
-      _user = null;
-      return null;
-    }
-    if(_sb) return _sb;
-
-    const mod = await loadSupabaseModule();
-    _sb = mod.createClient(_cfg.url, _cfg.anonKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-    });
-
-    // keep cached user current
-    try{
-      const { data } = await _sb.auth.getUser();
-      _user = data?.user || null;
-    }catch(_){
-      _user = null;
-    }
-
-    // ✅ If we have a persisted session on first client creation,
-// start polling immediately so other people’s new events appear.
-if(_user){
-  try{ startFeed(); }catch(_){}
-}
-
-    // Keep profiles table updated with my display name
-if(_user){
-  try{ await upsertMyProfile(); }catch(_){}
-}
-
-    // react to auth changes
-    try{
-      _sb.auth.onAuthStateChange((_event, session) => {
-  _user = session?.user || null;
-
-  if(_user){
-    try{ upsertMyProfile(); }catch(_){}
-    startFeed();
-  }else{
-    stopFeed();
-  }
-
-  notify();
-});
-    }catch(_){}
-
-    return _sb;
-  }
-
-  function isConfigured(){
-    _cfg = readSocialConfig();
-    return !!(_cfg?.url && _cfg?.anonKey);
-  }
-
-  
-  function getUser(){ return _user; }
-function getFeed(){ return _feed.slice(); }
-function getFollows(){ return _follows.slice(); }
-function getFollowers(){ return _followers.slice(); }
-  
-  
 
   function onChange(fn){
     if(typeof fn !== "function") return () => {};
@@ -220,60 +157,138 @@ function getFollowers(){ return _followers.slice(); }
     try{ _listeners.forEach(fn => fn()); }catch(_){}
   }
 
+  function isConfigured(){
+    _cfg = readSocialConfig();
+    return !!(_cfg?.url && _cfg?.anonKey);
+  }
+
+  function getUser(){ return _user; }
+  function getFeed(){ return _feed.slice(); }
+  function getFollows(){ return _follows.slice(); }
+  function getFollowers(){ return _followers.slice(); }
+
   function nameFor(id){
-  const k = String(id || "");
-  return _names[k] || null;
-}
+    const k = String(id || "");
+    return _names[k] || null;
+  }
 
-async function upsertMyProfile(){
-  const sb = await ensureClient();
-  if(!sb || !_user) return;
-
-  const state = stateRef ? stateRef() : null;
-  const fromState = String(state?.profile?.name || "").trim();
-  const fromEmail = String(_user?.email || "").split("@")[0] || "";
-  const displayName = (fromState || fromEmail || "User").slice(0, 40);
-
-  try{
-    const { error } = await sb.from("profiles").upsert({
-      id: _user.id,
-      display_name: displayName,
-      updated_at: new Date().toISOString()
-    });
-    if(!error){
-      _names[_user.id] = displayName;
+  function stopFeed(){
+    if(_pollTimer){
+      try{ clearInterval(_pollTimer); }catch(_){}
+      _pollTimer = null;
     }
-  }catch(_){}
-}
+  }
 
-async function fetchNames(ids){
-  const sb = await ensureClient();
-  if(!sb || !_user) return _names;
+  function startFeed(){
+    stopFeed();
+    if(!_user) return;
+    try{ fetchFeed(); }catch(_){}
+    _pollTimer = setInterval(() => { try{ fetchFeed(); }catch(_){} }, 12000);
+  }
 
-  const uniq = Array.from(new Set((ids || [])
-    .map(x => String(x || ""))
-    .filter(Boolean)
-  ));
+  async function ensureClient(){
+    _cfg = readSocialConfig();
 
-  if(!uniq.length) return _names;
+    if(!_cfg?.url || !_cfg?.anonKey){
+      _sb = null;
+      _user = null;
+      stopFeed();
+      return null;
+    }
 
-  try{
-    const { data, error } = await sb
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", uniq);
+    if(_sb) return _sb;
 
-    if(error) throw error;
-
-    (data || []).forEach(r => {
-      const id = String(r.id || "");
-      const dn = String(r.display_name || "").trim();
-      if(id && dn) _names[id] = dn;
+    const mod = await loadSupabaseModule();
+    _sb = mod.createClient(_cfg.url, _cfg.anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
     });
-  }catch(_){}
 
-  return _names;
-}
+    // ✅ Prefer getSession() for persisted-session restore; then best-effort validate with getUser()
+    try{
+      const { data } = await _sb.auth.getSession();
+      _user = data?.session?.user || null;
+    }catch(_){
+      _user = null;
+    }
+    try{
+      const { data } = await _sb.auth.getUser();
+      _user = data?.user || _user || null;
+    }catch(_){ /* keep session user if present */ }
+
+    // ✅ Cold-open: if we already have a user, start polling immediately
+    if(_user){
+      try{ startFeed(); }catch(_){}
+      try{ await upsertMyProfile(); }catch(_){}
+    }
+
+    // react to auth changes
+    try{
+      _sb.auth.onAuthStateChange((_event, session) => {
+        _user = session?.user || null;
+
+        if(_user){
+          try{ upsertMyProfile(); }catch(_){}
+          startFeed();
+        }else{
+          stopFeed();
+        }
+
+        notify();
+      });
+    }catch(_){}
+
+    return _sb;
+  }
+
+  async function upsertMyProfile(){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+
+    const state = stateRef ? stateRef() : null;
+    const fromState = String(state?.profile?.name || "").trim();
+    const fromEmail = String(_user?.email || "").split("@")[0] || "";
+    const displayName = (fromState || fromEmail || "User").slice(0, 40);
+
+    try{
+      const { error } = await sb.from("profiles").upsert({
+        id: _user.id,
+        display_name: displayName,
+        updated_at: new Date().toISOString()
+      });
+      if(!error){
+        _names[_user.id] = displayName;
+      }
+    }catch(_){}
+  }
+
+  async function fetchNames(ids){
+    const sb = await ensureClient();
+    if(!sb || !_user) return _names;
+
+    const uniq = Array.from(new Set((ids || [])
+      .map(x => String(x || ""))
+      .filter(Boolean)
+    ));
+
+    if(!uniq.length) return _names;
+
+    try{
+      const { data, error } = await sb
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", uniq);
+
+      if(error) throw error;
+
+      (data || []).forEach(r => {
+        const id = String(r.id || "");
+        const dn = String(r.display_name || "").trim();
+        if(id && dn) _names[id] = dn;
+      });
+    }catch(_){}
+
+    return _names;
+  }
 
   async function configure({ url, anonKey }){
     const clean = {
@@ -281,47 +296,46 @@ async function fetchNames(ids){
       anonKey: (anonKey || "").trim()
     };
     writeSocialConfig(clean.url && clean.anonKey ? clean : null);
+
     // reset
     _cfg = readSocialConfig();
     _sb = null;
     _user = null;
     stopFeed();
     notify();
+
     await ensureClient();
     notify();
   }
 
   async function signInWithOtp(email){
-  const sb = await ensureClient();
-  if(!sb) throw new Error("Social not configured");
-  const e = (email || "").trim();
-  if(!e) throw new Error("Email required");
+    const sb = await ensureClient();
+    if(!sb) throw new Error("Social not configured");
+    const e = (email || "").trim();
+    if(!e) throw new Error("Email required");
 
-  // Magic link / OTP email. Works well for PWAs.
-  const redirectTo = location.origin + location.pathname;
-  const { error } = await sb.auth.signInWithOtp({
-    email: e,
-    options: { emailRedirectTo: redirectTo }
-  });
-  if(error) throw error;
-}
+    const redirectTo = location.origin + location.pathname;
+    const { error } = await sb.auth.signInWithOtp({
+      email: e,
+      options: { emailRedirectTo: redirectTo }
+    });
+    if(error) throw error;
+  }
 
-async function signInWithOAuth(provider){
-  const sb = await ensureClient();
-  if(!sb) throw new Error("Social not configured");
+  async function signInWithOAuth(provider){
+    const sb = await ensureClient();
+    if(!sb) throw new Error("Social not configured");
 
-  const p = (provider || "").trim();
-  if(!p) throw new Error("Provider required");
+    const p = (provider || "").trim();
+    if(!p) throw new Error("Provider required");
 
-  // OAuth redirect back to this app (hash router friendly)
-  const redirectTo = location.origin + location.pathname;
-
-  const { error } = await sb.auth.signInWithOAuth({
-    provider: p,
-    options: { redirectTo }
-  });
-  if(error) throw error;
-}
+    const redirectTo = location.origin + location.pathname;
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: p,
+      options: { redirectTo }
+    });
+    if(error) throw error;
+  }
 
   async function signOut(){
     const sb = await ensureClient();
@@ -336,19 +350,22 @@ async function signInWithOAuth(provider){
     const sb = await ensureClient();
     if(!sb) { _user = null; stopFeed(); notify(); return; }
 
+    // Prefer session, then validate
     try{
-      const { data } = await sb.auth.getUser();
-      _user = data?.user || null;
+      const { data } = await sb.auth.getSession();
+      _user = data?.session?.user || null;
     }catch(_){
       _user = null;
     }
+    try{
+      const { data } = await sb.auth.getUser();
+      _user = data?.user || _user || null;
+    }catch(_){}
 
-if(_user){
-  try{ await upsertMyProfile(); }catch(_){}
-}
-    
-    // ✅ Important: if we are already signed in on cold-open,
-    // start polling so followers/following counts update live.
+    if(_user){
+      try{ await upsertMyProfile(); }catch(_){}
+    }
+
     if(_user) startFeed();
     else stopFeed();
 
@@ -371,35 +388,34 @@ if(_user){
       return [];
     }
   }
-  
-  async function fetchFollowers(){
-  const sb = await ensureClient();
-  if(!sb || !_user) { _followers = []; return []; }
-  try{
-    const { data, error } = await sb
-      .from("follows")
-      .select("follower_id")
-      .eq("followee_id", _user.id);
-    if(error) throw error;
-    _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
-    return _followers;
-  }catch(_){
-    _followers = [];
-    return [];
-  }
-}
 
-   async function fetchFeed(){
+  async function fetchFollowers(){
+    const sb = await ensureClient();
+    if(!sb || !_user) { _followers = []; return []; }
+    try{
+      const { data, error } = await sb
+        .from("follows")
+        .select("follower_id")
+        .eq("followee_id", _user.id);
+      if(error) throw error;
+      _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
+      return _followers;
+    }catch(_){
+      _followers = [];
+      return [];
+    }
+  }
+
+  async function fetchFeed(){
     const sb = await ensureClient();
     if(!sb || !_user) { _feed = []; notify(); return; }
 
-    // Ensure we know who we're following + who follows us (UI header counts)
+    // Ensure we know who we're following + who follows us
     await fetchFollows();
     await fetchFollowers();
 
     try{
-      // Feed is: me + people I follow (client-side filter)
-      // NOTE: RLS should also enforce this on the server.
+      // ✅ Feed is: self + people I follow (includes self by default)
       const actorIds = Array.from(new Set([
         String(_user.id || ""),
         ...(_follows || []).map(x => String(x || ""))
@@ -446,21 +462,8 @@ if(_user){
     }catch(_){
       // keep last known feed if query fails
     }
+
     notify();
-  }
-
-    function startFeed(){
-    stopFeed();
-    if(!_user) return;
-    try{ fetchFeed(); }catch(_){}
-    _pollTimer = setInterval(() => { try{ fetchFeed(); }catch(_){} }, 12000); // 12s: feels live, low cost
-  }
-
-  function stopFeed(){
-    if(_pollTimer){
-      try{ clearInterval(_pollTimer); }catch(_){}
-      _pollTimer = null;
-    }
   }
 
   async function deleteEvent(eventId){
@@ -480,9 +483,9 @@ if(_user){
 
     if(error) throw error;
 
-    // Refresh feed so it disappears immediately
     await fetchFeed();
   }
+
   async function follow(userId){
     const sb = await ensureClient();
     if(!sb || !_user) throw new Error("Not signed in");
@@ -512,23 +515,23 @@ if(_user){
     if(error) throw error;
     await fetchFeed();
   }
-  
+
   async function removeFollower(followerId){
-  const sb = await ensureClient();
-  if(!sb || !_user) return;
-  const id = (followerId || "").trim();
-  if(!id) return;
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+    const id = (followerId || "").trim();
+    if(!id) return;
 
-  // Remove the row where THEY follow YOU
-  const { error } = await sb
-    .from("follows")
-    .delete()
-    .eq("follower_id", id)
-    .eq("followee_id", _user.id);
+    // Remove the row where THEY follow YOU
+    const { error } = await sb
+      .from("follows")
+      .delete()
+      .eq("follower_id", id)
+      .eq("followee_id", _user.id);
 
-  if(error) throw error;
-  await fetchFeed();
-}
+    if(error) throw error;
+    await fetchFeed();
+  }
 
   // stateRef is injected later (avoid circular init)
   let stateRef = () => null;
@@ -537,6 +540,7 @@ if(_user){
   function formatLogEvent(entry){
     const state = stateRef();
     const lib = state?.library;
+
     const exName = (() => {
       try{
         const ex = (lib?.exercises || []).find(x => String(x.id||"") === String(entry.exerciseId||""));
@@ -564,21 +568,70 @@ if(_user){
     };
   }
 
-function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
-  const state = stateRef();
-  return {
-    eventType: "workout_completed",
-    payload: {
-      displayName: state?.profile?.name || null,
-      dateISO: dateISO || null,
-      routineId: routineId || null,
-      dayId: dayId || null,
-      highlights: highlights || {},
-      details: details || null
+  async function publishLogEvent(entry){
+    if(!isConfigured()) return;
+    await ensureClient();
+    if(!_user) return;
+
+    const ev = formatLogEvent(entry);
+    const row = {
+      actor_id: _user.id,
+      type: ev.eventType,
+      payload: ev.payload
+    };
+
+    try{
+      const sb = await ensureClient();
+      if(!sb) return;
+      const { error } = await sb.from("activity_events").insert(row);
+      if(error) throw error;
+      fetchFeed();
+    }catch(_){
+      const out = readOutbox();
+      out.unshift(row);
+      writeOutbox(out.slice(0, 100));
     }
-  };
-}
-  
+  }
+
+  function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+    const state = stateRef();
+    return {
+      eventType: "workout_completed",
+      payload: {
+        displayName: state?.profile?.name || null,
+        dateISO: dateISO || null,
+        routineId: routineId || null,
+        dayId: dayId || null,
+        highlights: highlights || {},
+        details: details || null
+      }
+    };
+  }
+
+  async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+    if(!isConfigured()) return;
+    await ensureClient();
+    if(!_user) return;
+
+    const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
+    const row = {
+      actor_id: _user.id,
+      type: ev.eventType,
+      payload: ev.payload
+    };
+
+    try{
+      const sb = await ensureClient();
+      if(!sb) return;
+      const { error } = await sb.from("activity_events").insert(row);
+      if(error) throw error;
+      fetchFeed();
+    }catch(_){
+      const out = readOutbox();
+      out.unshift(row);
+      writeOutbox(out.slice(0, 100));
+    }
+  }
 
   async function flushOutbox(){
     const sb = await ensureClient();
@@ -599,64 +652,6 @@ function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, de
     writeOutbox(keep);
   }
 
-  async function publishLogEvent(entry){
-    // Only publish if configured + signed in
-    if(!isConfigured()) return;
-    await ensureClient();
-    if(!_user) return;
-
-    const ev = formatLogEvent(entry);
-    const row = {
-      actor_id: _user.id,
-      type: ev.eventType,
-      payload: ev.payload
-    };
-
-    // Try immediate insert, else queue
-    try{
-      const sb = await ensureClient();
-      if(!sb) return;
-      const { error } = await sb.from("activity_events").insert(row);
-      if(error) throw error;
-      // refresh quickly
-      fetchFeed();
-    }catch(_){
-      const out = readOutbox();
-      out.unshift(row);
-      writeOutbox(out.slice(0, 100)); // cap
-    }
-  }
-
-
-async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
-  // Only publish if configured + signed in
-  if(!isConfigured()) return;
-  await ensureClient();
-  if(!_user) return;
-
-  const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
-  const row = {
-    actor_id: _user.id,
-    type: ev.eventType,
-    payload: ev.payload
-  };
-
-  // Try immediate insert, else queue
-  try{
-    const sb = await ensureClient();
-    if(!sb) return;
-    const { error } = await sb.from("activity_events").insert(row);
-    if(error) throw error;
-    fetchFeed();
-  }catch(_){
-    const out = readOutbox();
-    out.unshift(row);
-    writeOutbox(out.slice(0, 100));
-  }
-}
-  
-
-  // flush queued events when online
   window.addEventListener("online", () => { try{ flushOutbox(); }catch(_){} });
 
   return {
@@ -668,7 +663,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     getConfig: () => readSocialConfig(),
     configure,
     signInWithOtp,
-    signInWithOAuth,   // ← ADD THIS LINE
+    signInWithOAuth,
     signOut,
     refreshUser,
     getUser,
@@ -699,7 +694,6 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     onChange
   };
 }
-
 const Social = initSocial();
 Social.bindStateGetter(() => state);
 
