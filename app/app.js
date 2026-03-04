@@ -219,6 +219,28 @@ async function fetchFeedLikes(eventIds){
     // keep last known values if query fails
   }
 }
+  // Fetch users who liked a single event (for Likes modal)
+async function fetchFeedLikers(eventId){
+  const sb = await ensureClient();
+  if(!sb || !_user) return [];
+
+  try{
+    const { data, error } = await sb
+      .from("feed_likes")
+      .select("user_id, created_at")
+      .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
+      .order("created_at", { ascending: false });
+
+    if(error) throw error;
+
+    return (data || []).map(r => ({
+      userId: r.user_id,
+      createdAt: r.created_at
+    }));
+  }catch(_){
+    return [];
+  }
+}
 
 // ✅ Single-event reconcile (prevents flicker caused by view lag)
 async function reconcileLikeForEvent(eventId){
@@ -947,6 +969,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     getLikeCount,
     didILike,
     fetchFeedLikes,
+    fetchFeedLikers,
     toggleFeedLike,
 
     // comments
@@ -5811,6 +5834,115 @@ onClick: () => openExerciseHistoryFromFeed(
     repaint();
   }catch(_){}
 }
+
+        function openLikesModal({ eventId, title, who }){
+  try{
+    const listHost = el("div", {}, [ el("div", { class:"note", text:"Loading likes…" }) ]);
+
+    function timeAgo(iso){
+      try{
+        const d = new Date(iso);
+        const s = Math.floor((Date.now() - d.getTime())/1000);
+        if(s < 60) return `${s}s`;
+        const m = Math.floor(s/60);
+        if(m < 60) return `${m}m`;
+        const h = Math.floor(m/60);
+        if(h < 24) return `${h}h`;
+        const day = Math.floor(h/24);
+        return `${day}d`;
+      }catch(_){
+        return "";
+      }
+    }
+
+    async function repaint(){
+      listHost.innerHTML = "";
+      listHost.appendChild(el("div", { class:"note", text:"Loading likes…" }));
+
+      let rows = [];
+      try{
+        rows = (Social.fetchFeedLikers ? await Social.fetchFeedLikers(eventId) : []) || [];
+      }catch(_){
+        rows = [];
+      }
+
+      // Fetch display names for the user ids
+      try{
+        const ids = Array.from(new Set((rows || []).map(r => r.userId).filter(Boolean)));
+        if(ids.length && Social.fetchNames) await Social.fetchNames(ids);
+      }catch(_){}
+
+      const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : (rows || []).length) || 0;
+
+      if(!rows.length){
+        listHost.innerHTML = "";
+        listHost.appendChild(el("div", { class:"note", text:"No likes yet." }));
+        return;
+      }
+
+      const list = el("div", { style:"display:grid; gap:10px;" });
+
+      rows.forEach(r => {
+        const name = Social.nameFor ? (Social.nameFor(r.userId) || "User") : "User";
+        const initial = (String(name || "U").trim()[0] || "U").toUpperCase();
+
+        list.appendChild(el("div", {
+          style:"display:flex; align-items:center; gap:10px;"
+        }, [
+          el("div", {
+            style:[
+              "width:34px",
+              "height:34px",
+              "border-radius:999px",
+              "border:1px solid rgba(255,255,255,.14)",
+              "background: rgba(255,255,255,.06)",
+              "display:flex",
+              "align-items:center",
+              "justify-content:center",
+              "font-weight:900",
+              "letter-spacing:.2px",
+              "flex:0 0 auto"
+            ].join(";"),
+            text: initial
+          }),
+          el("div", { style:"display:flex; flex-direction:column; min-width:0; flex:1;" }, [
+            el("div", { style:"font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;", text: name }),
+            el("div", { class:"meta", text: r.createdAt ? timeAgo(r.createdAt) : "" })
+          ])
+        ]));
+      });
+
+      listHost.innerHTML = "";
+      listHost.appendChild(list);
+
+      // Keep counts fresh in the feed (optional but safe)
+      try{
+        if(Social.fetchFeedLikes) await Social.fetchFeedLikes([eventId]);
+      }catch(_){}
+
+      // Update modal title count (UI-only)
+      try{
+        Modal.setTitle ? Modal.setTitle(`Likes (${likeCount})`) : null;
+      }catch(_){}
+    }
+
+    const header = el("div", { style:"display:flex; flex-direction:column; gap:4px;" }, [
+      el("div", { style:"font-weight:900;", text: title || "Event" }),
+      el("div", { class:"meta", text: who || "" })
+    ]);
+
+    Modal.open({
+      title: "Likes",
+      bodyNode: el("div", {}, [
+        header,
+        el("div", { style:"height:10px" }),
+        listHost
+      ])
+    });
+
+    repaint();
+  }catch(_){}
+}
         
         // Avatar (initial)
         const initial = (String(who || "U").trim()[0] || "U").toUpperCase();
@@ -5924,11 +6056,31 @@ onClick: () => openExerciseHistoryFromFeed(
   ]);
 
   const countsRow = el("div", {
-    style:"margin-top:6px; display:flex; gap:14px; font-size:12px; font-weight:850; opacity:.78;"
-  }, [
-    el("div", { text:`${likeCount} like${likeCount === 1 ? "" : "s"}` }),
-    el("div", { text:`${commentCount} comment${commentCount === 1 ? "" : "s"}` })
-  ]);
+  style:"margin-top:6px; display:flex; gap:14px; font-size:12px; font-weight:850; opacity:.78;"
+}, [
+  el("button", {
+    style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+    onClick: async (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      try{
+        // Ensure counts are fresh before opening
+        if(Social.fetchFeedLikes) await Social.fetchFeedLikes([eventId]);
+      }catch(_){}
+      openLikesModal({ eventId, title, who });
+    }
+  }, [`${likeCount} like${likeCount === 1 ? "" : "s"}`]),
+
+  el("button", {
+    style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+    onClick: async (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      try{
+        if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
+      }catch(_){}
+      openCommentsModal({ eventId, title, who });
+    }
+  }, [`${commentCount} comment${commentCount === 1 ? "" : "s"}`])
+]);
 
   return el("div", {
     style:"margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.10);"
