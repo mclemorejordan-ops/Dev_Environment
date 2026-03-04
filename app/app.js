@@ -215,57 +215,61 @@ async function toggleFeedLike(eventId){
   const k = String(eventId ?? "");
   if(!k) return;
 
-  // ✅ guard: prevents iOS double tap / double fire flashing
+  // ✅ Guard: prevent double-fire (iOS taps / fast repeat clicks)
   if(_likeBusy.has(k)) return;
   _likeBusy.add(k);
 
-  const wasLiked = _likedByMe.has(k);
-
-  // optimistic UI
-  if(wasLiked){
-    _likedByMe.delete(k);
-    _likeCounts[k] = Math.max(0, (Number(_likeCounts[k] || 0) || 0) - 1);
-  }else{
-    _likedByMe.add(k);
-    _likeCounts[k] = (Number(_likeCounts[k] || 0) || 0) + 1;
-  }
-  notify();
-
   try{
-    if(wasLiked){
-      const { error } = await sb
-        .from("feed_likes")
-        .delete()
-        .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
-        .eq("user_id", _user.id);
-      if(error) throw error;
-    }else{
-      const { error } = await sb
-        .from("feed_likes")
-        .insert({ event_id: eventId, user_id: _user.id });
-      if(error){
-        // ignore duplicate like race
-        if(String(error.code) !== "23505") throw error;
-      }
-    }
+    const wasLiked = _likedByMe.has(k);
 
-    // reconcile counts for this event
-    await fetchFeedLikes([eventId]);
-    notify();
-  }catch(e){
-    // ✅ rollback cleanly (no undefined refs)
+    // optimistic UI
     if(wasLiked){
-      // we tried to unlike; put it back
-      _likedByMe.add(k);
-      _likeCounts[k] = (Number(_likeCounts[k] || 0) || 0) + 1;
-    }else{
-      // we tried to like; remove it
       _likedByMe.delete(k);
       _likeCounts[k] = Math.max(0, (Number(_likeCounts[k] || 0) || 0) - 1);
+    }else{
+      _likedByMe.add(k);
+      _likeCounts[k] = (Number(_likeCounts[k] || 0) || 0) + 1;
     }
     notify();
-    throw e;
-  }finally{
+
+    try{
+      if(wasLiked){
+        const { error } = await sb
+          .from("feed_likes")
+          .delete()
+          .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
+          .eq("user_id", _user.id);
+        if(error) throw error;
+      }else{
+        const { error } = await sb
+          .from("feed_likes")
+          .insert({ event_id: eventId, user_id: _user.id });
+        if(error){
+          // ignore duplicate like race
+          if(String(error.code) !== "23505") throw error;
+        }
+      }
+
+      // reconcile counts for this event
+      await fetchFeedLikes([eventId]);
+      notify();
+    }catch(e){
+      // keep your existing behavior (don’t refactor other logic)
+      _feed = (data || []).map(r => ({
+        id: r.id,
+        actorId: r.actor_id,
+        type: r.type,
+        payload: r.payload || {},
+        createdAt: r.created_at
+      }));
+
+      try{
+        await fetchFeedLikes((_feed || []).map(x => x.id));
+      }catch(_){}
+      throw e;
+    }
+  } finally {
+    // ✅ always release lock
     _likeBusy.delete(k);
   }
 }
