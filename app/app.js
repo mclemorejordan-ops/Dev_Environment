@@ -472,7 +472,7 @@ async function toggleFeedLike(eventId){
   }
 
 
-   // ─────────────────────────────
+  // ─────────────────────────────
   // Notifications (Likes / Comments / Follows)
   // ─────────────────────────────
   let _notifications = []; // newest first
@@ -608,6 +608,421 @@ async function toggleFeedLike(eventId){
       return getNotifications();
     }
   }
+  
+  let _follows = [];    // list of followed user ids (strings)
+  let _followers = [];  // list of follower user ids (strings)
+  let _names = {};      // id -> display_name (from profiles)
+  let _pollTimer = null;
+  let _listeners = new Set();
+
+  async function loadSupabaseModule(){
+    if(_mod) return _mod;
+    // Supabase JS v2 as ESM via jsDelivr (allowed by CSP)
+    _mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    return _mod;
+  }
+
+  async function ensureClient(){
+    _cfg = readSocialConfig();
+    if(!_cfg?.url || !_cfg?.anonKey){
+      _sb = null;
+      _user = null;
+      return null;
+    }
+    if(_sb) return _sb;
+
+    const mod = await loadSupabaseModule();
+    _sb = mod.createClient(_cfg.url, _cfg.anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+
+    // keep cached user current
+    try{
+      const { data } = await _sb.auth.getUser();
+      _user = data?.user || null;
+    }catch(_){
+      _user = null;
+    }
+
+    // Keep profiles table updated with my display name
+    if(_user){
+      try{ await upsertMyProfile(); }catch(_){}
+    }
+
+    // react to auth changes
+    try{
+      _sb.auth.onAuthStateChange((_event, session) => {
+        _user = session?.user || null;
+
+        if(_user){
+          try{ upsertMyProfile(); }catch(_){}
+          startFeed();
+        }else{
+          stopFeed();
+        }
+
+        notify();
+      });
+    }catch(_){}
+
+    return _sb;
+  }
+
+  function isConfigured(){
+    _cfg = readSocialConfig();
+    return !!(_cfg?.url && _cfg?.anonKey);
+  }
+
+  function getUser(){ return _user; }
+  function getFeed(){ return _feed.slice(); }
+  function getFollows(){ return _follows.slice(); }
+  function getFollowers(){ return _followers.slice(); }
+
+  function onChange(fn){
+    if(typeof fn !== "function") return () => {};
+    _listeners.add(fn);
+    return () => _listeners.delete(fn);
+  }
+  function notify(){
+    try{ _listeners.forEach(fn => fn()); }catch(_){}
+  }
+
+  function nameFor(id){
+    const k = String(id || "");
+    return _names[k] || null;
+  }
+
+  async function upsertMyProfile(){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+
+    const state = stateRef ? stateRef() : null;
+    const fromState = String(state?.profile?.name || "").trim();
+    const fromEmail = String(_user?.email || "").split("@")[0] || "";
+    const displayName = (fromState || fromEmail || "User").slice(0, 40);
+
+    try{
+      const { error } = await sb.from("profiles").upsert({
+        id: _user.id,
+        display_name: displayName,
+        updated_at: new Date().toISOString()
+      });
+      if(!error){
+        _names[_user.id] = displayName;
+      }
+    }catch(_){}
+  }
+
+  async function fetchNames(ids){
+    const sb = await ensureClient();
+    if(!sb || !_user) return _names;
+
+    const uniq = Array.from(new Set((ids || [])
+      .map(x => String(x || ""))
+      .filter(Boolean)
+    ));
+
+    if(!uniq.length) return _names;
+
+    try{
+      const { data, error } = await sb
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", uniq);
+
+      if(error) throw error;
+
+      (data || []).forEach(r => {
+        const id = String(r.id || "");
+        const dn = String(r.display_name || "").trim();
+        if(id && dn) _names[id] = dn;
+      });
+    }catch(_){}
+
+    return _names;
+  }
+
+  async function fetchFeed(){
+    const sb = await ensureClient();
+    if(!sb || !_user) { _feed = []; notify(); return; }
+
+    // Ensure we know who we're following + who follows us (UI header counts)
+    await fetchFollows();
+    await fetchFollowers();
+
+    try{
+      const { data, error } = await sb
+        .from("activity_events")
+        .select("id, actor_id, type, payload, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if(error) throw error;
+
+      _feed = (data || []).map(r => ({
+        id: r.id,
+        actorId: r.actor_id,
+        type: r.type,
+        payload: r.payload || {},
+        createdAt: r.created_at
+      }));
+
+      try{
+        const ids = (_feed || []).map(x => x.id);
+        const actors = (_feed || []).map(x => x.actorId);
+
+        await fetchNames(actors);
+        await fetchFeedLikes(ids);
+        await fetchFeedCommentCounts(ids);
+      }catch(_){}
+
+      // ✅ Notifications piggy-back on the same polling loop
+      try{
+        await fetchNotifications();
+      }catch(_){}
+
+    }catch(_){
+      // keep last known feed if query fails
+    }
+    notify();
+  }
+
+  async function follow(userId){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+    const id = (userId || "").trim();
+    if(!id) throw new Error("Friend code required");
+    if(id === _user.id) throw new Error("You can't follow yourself");
+
+    const { error } = await sb.from("follows").insert({
+      follower_id: _user.id,
+      followee_id: id
+    });
+    if(error) throw error;
+
+    await fetchFeed();
+  }
+
+  async function unfollow(userId){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+    const id = (userId || "").trim();
+    if(!id) return;
+
+    const { error } = await sb
+      .from("follows")
+      .delete()
+      .eq("follower_id", _user.id)
+      .eq("followee_id", id);
+    if(error) throw error;
+
+    await fetchFeed();
+  }
+
+  async function removeFollower(followerId){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+    const id = (followerId || "").trim();
+    if(!id) return;
+
+    // Remove the row where THEY follow YOU
+    const { error } = await sb
+      .from("follows")
+      .delete()
+      .eq("follower_id", id)
+      .eq("followee_id", _user.id);
+
+    if(error) throw error;
+
+    await fetchFeed();
+  }
+
+  // stateRef is injected later (avoid circular init)
+  let stateRef = () => null;
+  function bindStateGetter(fn){ stateRef = (typeof fn === "function") ? fn : (() => null); }
+
+  function formatLogEvent(entry){
+    const state = stateRef();
+    const lib = state?.library;
+    const exName = (() => {
+      try{
+        const ex = (lib?.exercises || []).find(x => String(x.id||"") === String(entry.exerciseId||""));
+        return ex?.name || "Exercise";
+      }catch(_){ return "Exercise"; }
+    })();
+
+    const type = String(entry?.type || "");
+    const summary = entry?.summary || {};
+    const pr = entry?.pr || {};
+    const prCount = ["isPRWeight","isPR1RM","isPRVolume","isPRPace"].filter(k => pr?.[k]).length;
+
+    return {
+      eventType: "exercise_logged",
+      payload: {
+        displayName: state?.profile?.name || null,
+        exerciseName: exName,
+        workoutType: type,
+        dateISO: entry?.dateISO || null,
+        routineId: entry?.routineId || null,
+        dayId: entry?.dayId || null,
+        summary,
+        prCount
+      }
+    };
+  }
+
+function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+  const state = stateRef();
+  return {
+    eventType: "workout_completed",
+    payload: {
+      displayName: state?.profile?.name || null,
+      dateISO: dateISO || null,
+      routineId: routineId || null,
+      dayId: dayId || null,
+      highlights: highlights || {},
+      details: details || null
+    }
+  };
+}
+  
+
+  async function flushOutbox(){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+
+    const items = readOutbox();
+    if(!items.length) return;
+
+    const keep = [];
+    for(const it of items){
+      try{
+        const { error } = await sb.from("activity_events").insert(it);
+        if(error) throw error;
+      }catch(_){
+        keep.push(it);
+      }
+    }
+    writeOutbox(keep);
+  }
+
+  async function publishLogEvent(entry){
+    // Only publish if configured + signed in
+    if(!isConfigured()) return;
+    await ensureClient();
+    if(!_user) return;
+
+    const ev = formatLogEvent(entry);
+    const row = {
+      actor_id: _user.id,
+      type: ev.eventType,
+      payload: ev.payload
+    };
+
+    // Try immediate insert, else queue
+    try{
+      const sb = await ensureClient();
+      if(!sb) return;
+      const { error } = await sb.from("activity_events").insert(row);
+      if(error) throw error;
+      // refresh quickly
+      fetchFeed();
+    }catch(_){
+      const out = readOutbox();
+      out.unshift(row);
+      writeOutbox(out.slice(0, 100)); // cap
+    }
+  }
+
+
+async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+  // Only publish if configured + signed in
+  if(!isConfigured()) return;
+  await ensureClient();
+  if(!_user) return;
+
+  const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
+  const row = {
+    actor_id: _user.id,
+    type: ev.eventType,
+    payload: ev.payload
+  };
+
+  // Try immediate insert, else queue
+  try{
+    const sb = await ensureClient();
+    if(!sb) return;
+    const { error } = await sb.from("activity_events").insert(row);
+    if(error) throw error;
+    fetchFeed();
+  }catch(_){
+    const out = readOutbox();
+    out.unshift(row);
+    writeOutbox(out.slice(0, 100));
+  }
+}
+  
+
+  // flush queued events when online
+  window.addEventListener("online", () => { try{ flushOutbox(); }catch(_){} });
+
+  return {
+    // wiring
+    bindStateGetter,
+
+    // config/auth
+    isConfigured,
+    getConfig: () => readSocialConfig(),
+    configure,
+    signInWithOtp,
+    signInWithOAuth,   // ← ADD THIS LINE
+    signOut,
+    refreshUser,
+    getUser,
+    isSignedIn: () => !!_user,
+
+    // follows + followers + feed
+    follow,
+    unfollow,
+    removeFollower,
+    getFollows,
+    getFollowers,
+    fetchNames,
+    nameFor,
+    fetchFollows,
+    fetchFollowers,
+    getFeed,
+    startFeed,
+    stopFeed,
+    fetchFeed,
+
+    // publishing
+    publishLogEvent,
+    flushOutbox,
+    publishWorkoutCompletedEvent,
+
+    // likes
+    getLikeCount,
+    didILike,
+    fetchFeedLikes,
+    fetchFeedLikers,
+    toggleFeedLike,
+
+    // comments
+    getCommentCount,
+    fetchFeedCommentCounts,
+    fetchFeedComments,
+    addFeedComment,
+    deleteFeedComment,
+
+    // notifications
+    getNotifications,
+    fetchNotifications,
+
+    // UI updates
+    onChange   
+  };
+}
   
   let _follows = [];    // list of followed user ids (strings)
   let _followers = [];  // list of follower user ids (strings)
