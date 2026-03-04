@@ -2438,6 +2438,7 @@ if(type === "weightlifting"){
 
   function afterSave(savedDateISO, wasComplete=false){
   Modal.close();
+  repaint();
 
   // If the whole day JUST became complete, auto-complete + attendance + publish (Friends feed)
   const nowComplete = isDayComplete(savedDateISO, day);
