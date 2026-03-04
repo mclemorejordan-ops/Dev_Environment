@@ -179,11 +179,17 @@ async function fetchFeedLikes(eventIds){
 
     if(cErr) throw cErr;
 
-    const nextCounts = {};
+    // ✅ MERGE counts (do not wipe other posts)
+    const nextCounts = { ..._likeCounts };
+
+    // default requested ids to 0 unless returned by the view
+    ids.forEach(id => { nextCounts[String(id)] = 0; });
+
     (cData || []).forEach(r => {
       const k = String(r.event_id ?? "");
       nextCounts[k] = Number(r.like_count || 0) || 0;
     });
+
     _likeCounts = nextCounts;
 
     // 2) My likes (from table)
@@ -195,11 +201,18 @@ async function fetchFeedLikes(eventIds){
 
     if(mErr) throw mErr;
 
-    const nextMine = new Set();
+    // ✅ MERGE liked-by-me (only update requested ids)
+    const nextMine = new Set(_likedByMe);
+
+    // first clear liked status for the requested ids…
+    ids.forEach(id => { nextMine.delete(String(id)); });
+
+    // …then re-add from DB results
     (mData || []).forEach(r => {
       const k = String(r.event_id ?? "");
       if(k) nextMine.add(k);
     });
+
     _likedByMe = nextMine;
 
   }catch(_){
