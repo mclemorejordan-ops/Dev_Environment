@@ -2119,3 +2119,9 @@ button.mini.added{
   flex-wrap: wrap;
   justify-content:flex-end;
 }
+.connTop{
+position:sticky;
+top:0;
+background:var(--card-bg);
+z-index:10;
+}
