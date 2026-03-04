@@ -4778,18 +4778,6 @@ el("div", { style:"height:10px" }),
 
         const summaryLine = buildFeedSummary(ev);
         const badges = buildFeedBadges(ev);
-
-        // Keep existing chips behavior (but we’ll display them as "detail pills")
-        const chips = [];
-        if(ev.type === "workout_completed"){
-          const h = p.highlights || {};
-          if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) chips.push(`${h.exerciseCount} exercises`);
-          if(Number.isFinite(h.prCount) && h.prCount > 0) chips.push(`PRs: ${h.prCount}`);
-          if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${comma(h.totalVolume)}`);
-        }else{
-          if(p.workoutType) chips.push(String(p.workoutType));
-          if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
-        }
         
         function openExerciseHistoryFromFeed(type, exerciseId, exName){
           try{
@@ -4971,9 +4959,6 @@ el("div", { style:"height:10px" }),
               (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
                 badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
               ) : null),
-              (chips.length
-                ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t })))
-                : null)
             ].filter(Boolean)),
             el("div", { class:"r", style:"opacity:.85;" }, ["→"])
           ])
