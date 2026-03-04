@@ -4513,9 +4513,9 @@ try{
 }
 
 root.appendChild(el("div", { class:"card" }, [
-  // Header title + auth pill (top-right) + notif pill (bottom-right of header)
-  el("div", { style:"position:relative; min-height:56px;" }, [
-    el("h2", { text:"Friends", style:"margin:0; padding-right:160px;" }),
+  // Header title + auth pill (top-right) + bell badge (bottom-right)
+  el("div", { style:"position:relative; min-height:52px;" }, [
+    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
 
     (typeof Social.isSignedIn === "function")
       ? el("div", {
@@ -4525,25 +4525,49 @@ root.appendChild(el("div", { class:"card" }, [
         })
       : null,
 
-    // 🔔 NEW FOLLOWER NOTIFICATION PILL (BOTTOM-RIGHT HEADER)
+    // 🔔 Notification bell badge (BOTTOM-RIGHT HEADER)
     (user && (ui._followerNotifs || []).length)
       ? el("div", {
-          class:"pill",
-          style:"position:absolute; right:0; bottom:0; cursor:pointer;",
-          text: (() => {
-            const n = (ui._followerNotifs || []).length;
-            if(n === 1){
-              const fid = String(ui._followerNotifs[0]?.id || "");
-              const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
-              return `${dn} followed you`;
-            }
-            return `${n} new followers`;
-          })(),
+          style:[
+            "position:absolute",
+            "right:0",
+            "bottom:0",
+            "cursor:pointer",
+            "display:flex",
+            "align-items:center",
+            "gap:6px"
+          ].join(";"),
           onClick: () => {
             try{ openFollowerNotifsModal(); }catch(_){}
           }
-        })
+        }, [
+
+          // Bell icon
+          el("div", {
+            text:"🔔",
+            style:"font-size:18px;"
+          }),
+
+          // Number badge
+          el("div", {
+            text:String((ui._followerNotifs || []).length),
+            style:[
+              "min-width:18px",
+              "height:18px",
+              "padding:0 6px",
+              "border-radius:999px",
+              "background:rgba(124,77,255,.9)",
+              "color:#fff",
+              "font-size:11px",
+              "display:flex",
+              "align-items:center",
+              "justify-content:center"
+            ].join(";")
+          })
+
+        ])
       : null
+
   ].filter(Boolean)),
 
   el("div", { style:"height:10px" }),
