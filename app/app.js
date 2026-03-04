@@ -5197,7 +5197,7 @@ el("div", { style:"height:10px" }),
           el("div", { class:"feedWkAvatar", text: (String(who || "U").trim()[0] || "U").toUpperCase() }),
           el("div", { class:"feedWkTitleBlock" }, [
             el("div", { class:"feedWkTitle", text: dayLabel }),
-            el("div", { class:"feedWkSub", text: (when ? `${dateISO ? `${dateISO} • ` : ""}${when} • ${who}` : (who || "")) })
+            el("div", { class:"feedWkSub", text: (when ? `${when} • ${who}` : (who || "")) })
           ])
         ])
       ]),
