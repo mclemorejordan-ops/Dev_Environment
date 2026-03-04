@@ -5614,25 +5614,16 @@ onClick: () => openExerciseHistoryFromFeed(
     let replyTo = null; // { id, name } or null
     const listHost = el("div", {}, [ el("div", { class:"note", text:"Loading comments…" }) ]);
 
+    // Instagram-style layout (UI only)
+    const countPill = el("div", { class:"igCmtCount", text:"" });
+
     const input = el("textarea", {
-      placeholder: "Add a comment…",
-      style: [
-        "width:100%",
-        "min-height:54px",
-        "max-height:120px",
-        "resize:none",
-        "padding:10px 12px",
-        "border-radius:12px",
-        "border:1px solid rgba(255,255,255,.14)",
-        "background: rgba(0,0,0,.20)",
-        "color: rgba(255,255,255,.92)",
-        "outline:none"
-      ].join(";")
+      class:"igCmtInput",
+      placeholder: "Add a comment…"
     });
 
     const sendBtn = el("button", {
-      class:"btn primary",
-      style:"white-space:nowrap;",
+      class:"igCmtSend",
       onClick: async () => {
         const text = String(input.value || "").trim();
         if(!text) return;
@@ -5654,24 +5645,18 @@ onClick: () => openExerciseHistoryFromFeed(
           sendBtn.disabled = false;
         }
       }
-    }, ["Send"]);
+    }, ["📨"]);
 
-    const replyPill = el("div", { style:"display:none; margin-bottom:8px;" });
+    const replyPill = el("div", { class:"igCmtReply", style:"display:none;" });
 
     function setReplyTo(next){
       replyTo = next;
       if(replyTo){
         replyPill.style.display = "";
         replyPill.innerHTML = "";
-        replyPill.appendChild(el("div", {
-          style:"display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:999px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);"
-        }, [
-          el("div", { style:"font-size:12px; font-weight:800; opacity:.92;", text:`Replying to ${replyTo.name || "User"}` }),
-          el("button", {
-            class:"btn",
-            style:"padding:6px 10px; font-size:12px;",
-            onClick: () => setReplyTo(null)
-          }, ["Cancel"])
+        replyPill.appendChild(el("div", { class:"igCmtReplyInner" }, [
+          el("div", { class:"igCmtReplyText", text:`Replying to ${replyTo.name || "User"}` }),
+          el("button", { class:"igCmtReplyCancel", onClick: () => setReplyTo(null) }, ["Cancel"])
         ]));
       }else{
         replyPill.style.display = "none";
@@ -5697,9 +5682,6 @@ onClick: () => openExerciseHistoryFromFeed(
 
     function buildThread(comments){
       const byParent = {};
-      const byId = {};
-      (comments || []).forEach(c => { byId[c.id] = c; });
-
       (comments || []).forEach(c => {
         const p = c.parentId || "__root__";
         (byParent[p] = byParent[p] || []).push(c);
@@ -5714,44 +5696,42 @@ onClick: () => openExerciseHistoryFromFeed(
         const name = Social.nameFor ? (Social.nameFor(c.userId) || "User") : "User";
         const mine = !!(me && c.userId === me.id);
 
-        const card = el("div", {
-          style:[
-            "padding:10px 12px",
-            "border-radius:14px",
-            "border:1px solid rgba(255,255,255,.10)",
-            "background: rgba(255,255,255,.05)",
-            depth ? `margin-left:${Math.min(18, depth*12)}px` : ""
-          ].filter(Boolean).join(";")
-        }, [
-          el("div", { style:"display:flex; justify-content:space-between; gap:10px; align-items:center;" }, [
-            el("div", { style:"font-weight:900; font-size:12px;", text: name }),
-            el("div", { style:"opacity:.7; font-size:12px;", text: timeAgo(c.createdAt) })
-          ]),
-          el("div", { style:"margin-top:6px; white-space:pre-wrap; opacity:.92;", text: c.body || "" }),
-          el("div", { style:"margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;" }, [
-            el("button", {
-              class:"btn",
-              style:"padding:6px 10px; font-size:12px; border-radius:999px;",
-              onClick: () => setReplyTo({ id: c.id, name })
-            }, ["Reply"]),
-            mine ? el("button", {
-              class:"btn",
-              style:"padding:6px 10px; font-size:12px; border-radius:999px; opacity:.9;",
-              onClick: async () => {
-                try{
-                  await Social.deleteFeedComment(c.id, eventId);
-                  await repaint();
-                  renderView();
-                }catch(e){
-                  showToast(e?.message || "Could not delete");
-                }
+        const initial = (String(name || "U").trim()[0] || "U").toUpperCase();
+        const avatar = el("div", { class:"igCmtAvatar", text: initial });
+
+        const actions = el("div", { class:"igCmtActions" }, [
+          el("button", { class:"igCmtAct", onClick: () => setReplyTo({ id: c.id, name }) }, ["Reply"]),
+          mine ? el("button", {
+            class:"igCmtAct danger",
+            onClick: async () => {
+              try{
+                await Social.deleteFeedComment(c.id, eventId);
+                await repaint();
+                renderView();
+              }catch(e){
+                showToast(e?.message || "Could not delete");
               }
-            }, ["Delete"]) : null
-          ].filter(Boolean))
+            }
+          }, ["Delete"]) : null
+        ].filter(Boolean));
+
+        const row = el("div", {
+          class:"igCmtRow" + (depth ? " child" : ""),
+          style: depth ? `margin-left:${Math.min(22, depth*12)}px;` : ""
+        }, [
+          avatar,
+          el("div", { class:"igCmtBubble" }, [
+            el("div", { class:"igCmtTop" }, [
+              el("div", { class:"igCmtName", text: name }),
+              el("div", { class:"igCmtTime", text: timeAgo(c.createdAt) })
+            ]),
+            el("div", { class:"igCmtBody", text: c.body || "" }),
+            actions
+          ])
         ]);
 
         const replies = (byParent[c.id] || []).map(r => renderNode(r, depth+1));
-        return el("div", { style:"display:flex; flex-direction:column; gap:8px;" }, [card, ...replies]);
+        return el("div", { class:"igCmtNode" }, [row, ...replies]);
       }
 
       const roots = (byParent["__root__"] || []);
@@ -5759,7 +5739,7 @@ onClick: () => openExerciseHistoryFromFeed(
         return el("div", { class:"note", text:"No comments yet. Be the first." });
       }
 
-      return el("div", { style:"display:flex; flex-direction:column; gap:10px;" }, roots.map(r => renderNode(r, 0)));
+      return el("div", { class:"igCmtThread" }, roots.map(r => renderNode(r, 0)));
     }
 
     async function repaint(){
@@ -5772,18 +5752,54 @@ onClick: () => openExerciseHistoryFromFeed(
         if(ids.length && Social.fetchNames) await Social.fetchNames(ids);
       }catch(_){}
 
+      // Keep the visible count current (view should already be refreshed by add/delete)
+      try{
+        const c = (Social.getCommentCount ? Social.getCommentCount(eventId) : (comments || []).length);
+        countPill.textContent = `${c} comment${c === 1 ? "" : "s"}`;
+      }catch(_){
+        countPill.textContent = "";
+      }
+
       listHost.innerHTML = "";
       listHost.appendChild(buildThread(comments));
     }
 
-    const body = el("div", { class:"grid" }, [
-      el("div", { class:"note", text: `${title || "Event"} • ${who || ""}`.trim() }),
-      listHost,
-      el("div", { style:"height:10px" }),
-      replyPill,
-      el("div", { style:"display:flex; gap:10px; align-items:flex-end;" }, [
-        el("div", { style:"flex:1;" }, [input]),
-        sendBtn
+    // Quick reactions (optional, UI only)
+    const reacts = ["❤️","🔥","💪","😂","👏","😮","😢"].map(ch => {
+      return el("button", {
+        class:"igCmtReact",
+        onClick: () => {
+          try{
+            const cur = String(input.value || "");
+            input.value = (cur && !cur.endsWith(" ")) ? (cur + " " + ch + " ") : (cur + ch + " ");
+            input.focus();
+          }catch(_){}
+        }
+      }, [ch]);
+    });
+
+    const meta = el("div", { class:"igCmtMeta" }, [
+      el("div", { class:"igCmtMetaTitle", text: title || "Event" }),
+      el("div", { class:"igCmtMetaWho", text: who || "" })
+    ]);
+
+    const body = el("div", { class:"igCmtShell" }, [
+      el("div", { class:"igCmtHeader" }, [
+        meta,
+        countPill
+      ]),
+
+      el("div", { class:"igCmtListWrap" }, [
+        el("div", { class:"igCmtList" }, [listHost])
+      ]),
+
+      el("div", { class:"igCmtComposer" }, [
+        replyPill,
+        el("div", { class:"igCmtReactRow" }, reacts),
+        el("div", { class:"igCmtComposeRow" }, [
+          input,
+          sendBtn
+        ])
       ])
     ]);
 
