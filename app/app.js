@@ -4407,6 +4407,7 @@ function openFollowerNotifsModal(){
 function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
   ui.connSearch = ui.connSearch || "";
+  ui.connAddCode = ui.connAddCode || "";
 
   const statsRow = el("div", { class:"connStats" });
 
@@ -4536,6 +4537,147 @@ function openConnectionsModal(initialTab){
     ]);
   }
 
+  // ─────────────────────────────────────────────
+  // Friend Code (one-stop shop)
+  // ─────────────────────────────────────────────
+
+  function getMyCode(){
+    try{
+      const u = (Social.getUser && Social.getUser()) || null;
+      return String(u?.id || "");
+    }catch(_){
+      return "";
+    }
+  }
+
+  function copyTextSafe(text){
+    const t = String(text || "");
+    if(!t) return Promise.reject(new Error("Empty"));
+
+    // Prefer modern clipboard, but never crash if unavailable (iOS/PWA)
+    try{
+      if(navigator?.clipboard?.writeText){
+        return navigator.clipboard.writeText(t);
+      }
+    }catch(_){}
+
+    // Fallback
+    return new Promise((resolve, reject) => {
+      try{
+        const ta = document.createElement("textarea");
+        ta.value = t;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.top = "-1000px";
+        ta.style.left = "-1000px";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if(ok) resolve();
+        else reject(new Error("Copy failed"));
+      }catch(e){
+        reject(e);
+      }
+    });
+  }
+
+  const myCodeInput = el("input", {
+    class:"connCodeInput",
+    type:"text",
+    readOnly:true,
+    value:""
+  });
+
+  const addCodeInput = el("input", {
+    class:"connCodeInput",
+    type:"text",
+    placeholder:"Paste friend code…",
+    value: ui.connAddCode
+  });
+
+  addCodeInput.addEventListener("input", () => {
+    ui.connAddCode = addCodeInput.value || "";
+  });
+
+  async function doAddFriend(){
+    if(!user){
+      showToast("Sign in to add friends");
+      return;
+    }
+    const code = String(ui.connAddCode || "").trim();
+    if(!code){
+      showToast("Paste a friend code");
+      return;
+    }
+    const myCode = getMyCode();
+    if(myCode && code === myCode){
+      showToast("You can’t add yourself");
+      return;
+    }
+
+    try{
+      await Social.follow(code);
+      showToast("Friend added");
+      ui.connAddCode = "";
+      addCodeInput.value = "";
+      await refreshLists();
+      repaintModal();
+      renderView();
+    }catch(e){
+      showToast(e?.message || "Couldn't add friend");
+    }
+  }
+
+  addCodeInput.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      doAddFriend();
+    }
+  });
+
+  const friendShop = el("div", { class:"connFriendShop" }, [
+    el("div", { class:"connCodeRow" }, [
+      el("div", { class:"left" }, [
+        el("div", { class:"lbl", text:"Your friend code" }),
+        el("div", { class:"meta", text:"Tap Copy to share it" })
+      ]),
+      el("div", { class:"right" }, [
+        myCodeInput,
+        el("button", {
+          class:"btn sm",
+          onClick: async () => {
+            const myCode = getMyCode();
+            if(!myCode){
+              showToast("Sign in to get your code");
+              return;
+            }
+            try{
+              await copyTextSafe(myCode);
+              showToast("Copied");
+            }catch(_){
+              showToast("Couldn't copy");
+            }
+          }
+        }, ["Copy"])
+      ])
+    ]),
+
+    el("div", { class:"connCodeRow" }, [
+      el("div", { class:"left" }, [
+        el("div", { class:"lbl", text:"Add friend" }),
+        el("div", { class:"meta", text:"Paste their code" })
+      ]),
+      el("div", { class:"right" }, [
+        addCodeInput,
+        el("button", {
+          class:"btn primary sm",
+          onClick: doAddFriend
+        }, ["Add"])
+      ])
+    ])
+  ]);
+
   async function repaintModal(){
     const follows = Social.getFollows ? Social.getFollows() : [];
     const followers = Social.getFollowers ? Social.getFollowers() : [];
@@ -4550,6 +4692,13 @@ function openConnectionsModal(initialTab){
     statsRow.appendChild(statPill({ tab:"following", label:"Following", value: follows.length }));
     statsRow.appendChild(statPill({ tab:"followers", label:"Followers", value: followers.length }));
     statsRow.appendChild(statPill({ tab:"mutual", label:"Mutual", value: mutualCount }));
+
+    // Friend-code UI refresh (no-op if signed out)
+    try{
+      myCodeInput.value = getMyCode() || "";
+    }catch(_){
+      myCodeInput.value = "";
+    }
 
     // Ensure we have display names for the IDs shown in this tab (best-effort)
     try{
@@ -4613,6 +4762,11 @@ function openConnectionsModal(initialTab){
     bodyNode: el("div", { class:"connModal" }, [
       el("div", { class:"note", text:"Search, follow back, unfollow, or remove followers." }),
       el("div", { style:"height:10px" }),
+
+      // ✅ One-stop friend code shop
+      friendShop,
+      el("div", { style:"height:10px" }),
+
       statsRow,
       el("div", { style:"height:10px" }),
       searchWrap,
