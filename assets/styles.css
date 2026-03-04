@@ -921,6 +921,86 @@ select option{
   overscroll-behavior: contain;
 }
 
+/* ✅ The modal JS renders rows using: .connRow .av .ltr .main .top .dn .badges .meta .acts
+   Without these styles, the avatar letter ("T") becomes a plain block and breaks lines. */
+.connRow{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.connRow .av{
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex: 0 0 auto;
+}
+
+.connRow .ltr{
+  font-weight: 900;
+  letter-spacing: .2px;
+  color: rgba(255,255,255,.90);
+}
+
+.connRow .main{
+  min-width: 0;
+  flex: 1 1 auto;
+  display:flex;
+  flex-direction:column;
+  gap: 4px;
+}
+
+.connRow .top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.connRow .dn{
+  font-weight: 820;
+  letter-spacing: .15px;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.connRow .badges{
+  display:flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content:flex-end;
+  flex: 0 0 auto;
+}
+
+.connRow .meta{
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.connRow .acts{
+  display:flex;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content:flex-end;
+}
+
+/* Existing (currently unused) layout — kept as-is */
 .connItem{
   display:flex;
   align-items:flex-start;
