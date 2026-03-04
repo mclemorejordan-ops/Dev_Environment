@@ -971,6 +971,258 @@ select option{
   padding: 12px;
 }
 
+/* ─────────────────────────────
+   Friends → Workout Modal (Hybrid layout)
+   (tap an event → improved workout breakdown)
+   ───────────────────────────── */
+
+.feedWkShell{
+  display:flex;
+  flex-direction:column;
+  min-height: 0;
+}
+
+.feedWkHead{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 12px 12px 10px 12px;
+  background: linear-gradient(180deg, rgba(16,20,30,.90), rgba(16,20,30,.70) 70%, rgba(16,20,30,.35));
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.feedWkHeadTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.feedWkTitleRow{
+  display:flex;
+  gap: 10px;
+  align-items:flex-start;
+  min-width:0;
+}
+
+.feedWkAvatar{
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  background: radial-gradient(circle at 30% 20%, rgba(124,92,255,.90), rgba(55,214,122,.55));
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 10px 20px rgba(0,0,0,.35);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+  color: rgba(255,255,255,.92);
+  flex: 0 0 auto;
+}
+
+.feedWkTitleBlock{ min-width:0; }
+
+.feedWkTitle{
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing:.2px;
+  line-height: 1.1;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feedWkSub{
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,.62);
+  line-height: 1.2;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feedWkPills{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.feedWkPill{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing:.15px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.88);
+  user-select:none;
+  white-space: nowrap;
+}
+.feedWkPill .k{ color: rgba(255,255,255,.62); font-weight: 820; }
+.feedWkPill .v{ font-weight: 900; }
+.feedWkPill.good{ border-color: rgba(55,214,122,.28); background: rgba(55,214,122,.10); }
+.feedWkPill.accent{ border-color: rgba(124,92,255,.35); background: rgba(124,92,255,.12); }
+
+.feedWkHighlight{
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.feedWkHighlight .l{ min-width:0; }
+.feedWkHighlight .t{
+  font-size: 12px;
+  color: rgba(255,255,255,.70);
+  font-weight: 850;
+  letter-spacing:.22px;
+  text-transform: uppercase;
+  display:flex;
+  gap: 8px;
+  align-items:center;
+}
+.feedWkHighlight .spark{
+  width: 10px; height: 10px; border-radius: 999px;
+  background: rgba(255,180,0,.95);
+  box-shadow: 0 0 0 4px rgba(255,180,0,.12);
+}
+.feedWkHighlight .n{
+  margin-top: 6px;
+  font-weight: 900;
+  letter-spacing:.2px;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feedWkHighlight .m{
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,.62);
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feedWkHighlight .b{
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing:.15px;
+  border: 1px solid rgba(124,92,255,.35);
+  background: rgba(124,92,255,.16);
+  color: rgba(255,255,255,.92);
+  white-space: nowrap;
+}
+
+.feedWkScroll{
+  margin-top: 10px;
+  max-height: 56vh;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px;
+}
+
+.feedWkSection{
+  margin: 6px 0 10px 2px;
+  font-size: 12px;
+  color: rgba(255,255,255,.66);
+  font-weight: 820;
+  letter-spacing:.22px;
+  text-transform: uppercase;
+}
+
+.feedWkExCard{
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.10);
+  cursor:pointer;
+  user-select:none;
+  transition: transform .08s ease, background .12s ease, border-color .12s ease;
+  margin-bottom: 10px;
+}
+.feedWkExCard:active{ transform: translateY(1px); }
+
+.feedWkExTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.feedWkExLeft{ min-width:0; }
+
+.feedWkExName{
+  font-weight: 920;
+  letter-spacing:.2px;
+  font-size: 15px;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feedWkExSub{
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,.62);
+  display:flex;
+  gap: 10px;
+  flex-wrap:wrap;
+}
+
+.feedWkMiniBadges{
+  display:flex;
+  gap: 8px;
+  flex: 0 0 auto;
+  align-items:center;
+}
+
+.feedWkMiniBadge{
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 900;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.88);
+  white-space:nowrap;
+}
+
+.feedWkMiniBadge.pr{
+  border-color: rgba(255,92,122,.30);
+  background: rgba(255,92,122,.12);
+}
+
+.feedWkChev{
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,.55);
+  font-weight: 800;
+  letter-spacing:.15px;
+}
+
+.feedWkFoot{
+  margin-top: 10px;
+  display:flex;
+  justify-content:flex-end;
+}
+
 .connRow .av{
   width: 40px;
   height: 40px;
