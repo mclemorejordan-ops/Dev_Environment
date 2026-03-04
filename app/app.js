@@ -5319,8 +5319,69 @@ onClick: () => openExerciseHistoryFromFeed(
               whenLine ? el("div", { class:"b", text: whenLine }) : null,
               summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
               (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
-                badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-              ) : null),
+  badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+) : null),
+
+// ✅ Feed interactions row (Like / Comment / Share)
+(() => {
+  // UI-only state (no storage/schema impact)
+  ui._feedLikes = ui._feedLikes || {};
+  const liked = !!ui._feedLikes[String(ev.id || "")];
+
+  const btnStyle = "padding:6px 10px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);";
+
+  const likeBtn = el("button", {
+    class:"pill",
+    style: btnStyle + (liked ? " background: rgba(255,92,122,.18); border-color: rgba(255,92,122,.32);" : ""),
+    onClick: (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){ }
+      const k = String(ev.id || "");
+      if(!k) return;
+      ui._feedLikes[k] = !ui._feedLikes[k];
+      try{ renderView(); }catch(_){ }
+    }
+  }, [ liked ? "❤️ Liked" : "🤍 Like" ]);
+
+  const commentBtn = el("button", {
+    class:"pill",
+    style: btnStyle,
+    onClick: (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){ }
+      try{ showToast("Comments coming soon"); }catch(_){ }
+    }
+  }, ["💬 Comment"]);
+
+  const shareBtn = el("button", {
+    class:"pill",
+    style: btnStyle,
+    onClick: async (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){ }
+      try{
+        const shareText = [title, summaryLine].filter(Boolean).join(" — ");
+        if(navigator?.clipboard?.writeText){
+          await navigator.clipboard.writeText(shareText || title || "");
+          showToast("Copied");
+        }else{
+          // fallback
+          const ta = document.createElement("textarea");
+          ta.value = shareText || title || "";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          showToast("Copied");
+        }
+      }catch(_){
+        try{ showToast("Could not copy"); }catch(__){}
+      }
+    }
+  }, ["↗ Share"]);
+
+  return el("div", {
+    class:"pillrow",
+    style:"margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,.10); display:flex; flex-wrap:wrap; gap:8px;"
+  }, [likeBtn, commentBtn, shareBtn]);
+})(),
             ].filter(Boolean)),
             el("div", { class:"r", style:"opacity:.85;" }, ["→"])
           ])
