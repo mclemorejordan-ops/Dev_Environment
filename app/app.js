@@ -4538,7 +4538,7 @@ function openConnectionsModal(initialTab){
   }
 
   // ─────────────────────────────────────────────
-  // Friend Code (one-stop shop)
+  // Add Friend popup (Friend Code)
   // ─────────────────────────────────────────────
 
   function getMyCode(){
@@ -4554,14 +4554,13 @@ function openConnectionsModal(initialTab){
     const t = String(text || "");
     if(!t) return Promise.reject(new Error("Empty"));
 
-    // Prefer modern clipboard, but never crash if unavailable (iOS/PWA)
     try{
       if(navigator?.clipboard?.writeText){
         return navigator.clipboard.writeText(t);
       }
     }catch(_){}
 
-    // Fallback
+    // Fallback: execCommand
     return new Promise((resolve, reject) => {
       try{
         const ta = document.createElement("textarea");
@@ -4582,101 +4581,140 @@ function openConnectionsModal(initialTab){
     });
   }
 
-  const myCodeInput = el("input", {
-    class:"connCodeInput",
-    type:"text",
-    readOnly:true,
-    value:""
-  });
+  function openAddFriendModal(){
+    const returnTab = ui.connTab;
+    const returnSearch = ui.connSearch;
 
-  const addCodeInput = el("input", {
-    class:"connCodeInput",
-    type:"text",
-    placeholder:"Paste friend code…",
-    value: ui.connAddCode
-  });
+    const myCodeInput = el("input", {
+      class:"connCodeInput",
+      type:"text",
+      readOnly:true,
+      value: getMyCode() || ""
+    });
 
-  addCodeInput.addEventListener("input", () => {
-    ui.connAddCode = addCodeInput.value || "";
-  });
+    const friendCodeInput = el("input", {
+      class:"connCodeInput",
+      type:"text",
+      placeholder:"Paste friend code…",
+      value: ui.connAddCode
+    });
 
-  async function doAddFriend(){
-    if(!user){
-      showToast("Sign in to add friends");
-      return;
-    }
-    const code = String(ui.connAddCode || "").trim();
-    if(!code){
-      showToast("Paste a friend code");
-      return;
-    }
-    const myCode = getMyCode();
-    if(myCode && code === myCode){
-      showToast("You can’t add yourself");
-      return;
+    friendCodeInput.addEventListener("input", () => {
+      ui.connAddCode = friendCodeInput.value || "";
+    });
+
+    async function doAdd(){
+      if(!user){
+        showToast("Sign in to add friends");
+        return;
+      }
+      const code = String(ui.connAddCode || "").trim();
+      if(!code){
+        showToast("Paste a friend code");
+        return;
+      }
+      const myCode = getMyCode();
+      if(myCode && code === myCode){
+        showToast("You can’t add yourself");
+        return;
+      }
+
+      try{
+        await Social.follow(code);
+        showToast("Friend added");
+        ui.connAddCode = "";
+        friendCodeInput.value = "";
+        await refreshLists();
+        // return to Connections modal with same tab/search
+        ui.connTab = returnTab;
+        ui.connSearch = returnSearch;
+        openConnectionsModal(returnTab);
+        renderView();
+      }catch(e){
+        showToast(e?.message || "Couldn't add friend");
+      }
     }
 
-    try{
-      await Social.follow(code);
-      showToast("Friend added");
-      ui.connAddCode = "";
-      addCodeInput.value = "";
-      await refreshLists();
-      repaintModal();
-      renderView();
-    }catch(e){
-      showToast(e?.message || "Couldn't add friend");
-    }
+    friendCodeInput.addEventListener("keydown", (e) => {
+      if(e.key === "Enter"){
+        e.preventDefault();
+        doAdd();
+      }
+    });
+
+    Modal.open({
+      title: "Add Friend",
+      bodyNode: el("div", { class:"connAddFriendModal" }, [
+        el("div", { class:"note", text:"Share your code, or paste someone else’s code to add them." }),
+        el("div", { style:"height:10px" }),
+
+        el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Your friend code" }),
+            el("div", { class:"meta", text:"Tap Copy to share" })
+          ]),
+          el("div", { class:"connCodeRight" }, [
+            myCodeInput,
+            el("button", {
+              class:"btn sm",
+              onClick: async () => {
+                const myCode = getMyCode();
+                if(!myCode){
+                  showToast("Sign in to get your code");
+                  return;
+                }
+                try{
+                  await copyTextSafe(myCode);
+                  showToast("Copied");
+                }catch(_){
+                  showToast("Couldn't copy");
+                }
+              }
+            }, ["Copy"])
+          ])
+        ]),
+
+        el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Friend code" }),
+            el("div", { class:"meta", text:"Paste code to add" })
+          ]),
+          el("div", { class:"connCodeRight" }, [
+            friendCodeInput,
+            el("button", {
+              class:"btn primary sm",
+              onClick: doAdd
+            }, ["Add"])
+          ])
+        ]),
+
+        el("div", { style:"height:10px" }),
+        el("div", { class:"btnrow" }, [
+          el("button", {
+            class:"btn",
+            onClick: () => {
+              ui.connTab = returnTab;
+              ui.connSearch = returnSearch;
+              openConnectionsModal(returnTab);
+            }
+          }, ["Back"]),
+          el("button", {
+            class:"btn",
+            onClick: () => {
+              ui.connTab = returnTab;
+              ui.connSearch = returnSearch;
+              openConnectionsModal(returnTab);
+            }
+          }, ["Done"])
+        ])
+      ])
+    });
   }
 
-  addCodeInput.addEventListener("keydown", (e) => {
-    if(e.key === "Enter"){
-      e.preventDefault();
-      doAddFriend();
-    }
-  });
-
-  const friendShop = el("div", { class:"connFriendShop" }, [
-    el("div", { class:"connCodeRow" }, [
-      el("div", { class:"left" }, [
-        el("div", { class:"lbl", text:"Your friend code" }),
-        el("div", { class:"meta", text:"Tap Copy to share it" })
-      ]),
-      el("div", { class:"right" }, [
-        myCodeInput,
-        el("button", {
-          class:"btn sm",
-          onClick: async () => {
-            const myCode = getMyCode();
-            if(!myCode){
-              showToast("Sign in to get your code");
-              return;
-            }
-            try{
-              await copyTextSafe(myCode);
-              showToast("Copied");
-            }catch(_){
-              showToast("Couldn't copy");
-            }
-          }
-        }, ["Copy"])
-      ])
-    ]),
-
-    el("div", { class:"connCodeRow" }, [
-      el("div", { class:"left" }, [
-        el("div", { class:"lbl", text:"Add friend" }),
-        el("div", { class:"meta", text:"Paste their code" })
-      ]),
-      el("div", { class:"right" }, [
-        addCodeInput,
-        el("button", {
-          class:"btn primary sm",
-          onClick: doAddFriend
-        }, ["Add"])
-      ])
-    ])
-  ]);
+  const addFriendBtn = el("button", {
+    class:"btn primary",
+    onClick: () => openAddFriendModal()
+  }, ["Add Friend"]);
 
   async function repaintModal(){
     const follows = Social.getFollows ? Social.getFollows() : [];
@@ -4692,13 +4730,6 @@ function openConnectionsModal(initialTab){
     statsRow.appendChild(statPill({ tab:"following", label:"Following", value: follows.length }));
     statsRow.appendChild(statPill({ tab:"followers", label:"Followers", value: followers.length }));
     statsRow.appendChild(statPill({ tab:"mutual", label:"Mutual", value: mutualCount }));
-
-    // Friend-code UI refresh (no-op if signed out)
-    try{
-      myCodeInput.value = getMyCode() || "";
-    }catch(_){
-      myCodeInput.value = "";
-    }
 
     // Ensure we have display names for the IDs shown in this tab (best-effort)
     try{
@@ -4763,8 +4794,8 @@ function openConnectionsModal(initialTab){
       el("div", { class:"note", text:"Search, follow back, unfollow, or remove followers." }),
       el("div", { style:"height:10px" }),
 
-      // ✅ One-stop friend code shop
-      friendShop,
+      // ✅ Add Friend button (opens popup)
+      el("div", { class:"connActionRow" }, [ addFriendBtn ]),
       el("div", { style:"height:10px" }),
 
       statsRow,
