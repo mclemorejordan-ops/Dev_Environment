@@ -4621,7 +4621,7 @@ el("div", { style:"height:10px" }),
 ].filter(Boolean)));
 
 
-  // Feed
+   // Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
     el("div", { class:"note", text:"Feed" }),
@@ -4630,185 +4630,237 @@ el("div", { style:"height:10px" }),
     !user ? el("div", { class:"note", text:"Sign in to see your feed." }) : null,
     user && !feed.length ? el("div", { class:"note", text:"No events yet. Your activity (and friends you follow) will show here." }) : null,
 
-    user && feed.length ? el("div", {}, feed.map(ev => {
-      const p = ev.payload || {};
-      const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
-      const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
-      const title = (ev.type === "exercise_logged")
-  ? `${who} logged ${p.exerciseName || "an exercise"}`
-  : (ev.type === "workout_completed")
-    ? `${who} completed a workout`
-    : `${who} posted an event`;
-
-const chips = [];
-if(ev.type === "workout_completed"){
-  const h = p.highlights || {};
-  if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) chips.push(`${h.exerciseCount} exercises`);
-  if(Number.isFinite(h.prCount) && h.prCount > 0) chips.push(`PRs: ${h.prCount}`);
-  if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${h.totalVolume}`);
-}else{
-  if(p.workoutType) chips.push(String(p.workoutType));
-  if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
-}
-
-      function openExerciseHistoryFromFeed(type, exerciseId, exName){
-  try{
-    if(!exerciseId) return;
-    LogEngine.ensure();
-
-    const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
-
-    function prBadges(pr){
-      if(!pr) return "";
-      const b = [];
-      if(pr.isPRWeight) b.push("PR W");
-      if(pr.isPR1RM) b.push("PR 1RM");
-      if(pr.isPRVolume) b.push("PR Vol");
-      if(pr.isPRPace) b.push("PR Pace");
-      return b.join(" • ");
-    }
-
-    function formatEntryDetail(type, entry){
-      try{
-        if(type === "weightlifting"){
-          const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
-          const top = entry.summary?.bestWeight ?? "—";
-          const vol = entry.summary?.totalVolume ?? "—";
-          return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
-        }
-        if(type === "cardio"){
-          const d = entry.summary?.distance ?? "—";
-          const t = formatTime(entry.summary?.timeSec ?? 0);
-          const p = formatPace(entry.summary?.paceSecPerUnit);
-          return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
-        }
-        if(type === "core"){
-          const sets = entry.summary?.sets ?? "—";
-          const reps = entry.summary?.reps ?? "—";
-          const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
-          return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
-        }
-      }catch(_){}
-      return "";
-    }
-
-    const list = el("div", { class:"list" });
-    if(!entries.length){
-      list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
-    }else{
-      entries.slice(0, 12).forEach(e => {
-        list.appendChild(el("div", { class:"item" }, [
-          el("div", { class:"left" }, [
-            el("div", { class:"name", text: e.dateISO }),
-            el("div", { class:"meta", text: formatEntryDetail(type, e) })
-          ]),
-          el("div", { class:"actions" }, [
-            el("div", { class:"meta", text: prBadges(e.pr) })
-          ])
-        ]));
+    user && feed.length ? (() => {
+      const timeline = el("div", {
+        style:"position:relative; display:flex; flex-direction:column; gap:10px;"
       });
-    }
 
-    Modal.open({
-      title: "History",
-      center: true,
-      bodyNode: el("div", { class:"grid" }, [
-        el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
-        list,
-        el("div", { style:"height:10px" }),
-        el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-      ])
-    });
-  }catch(_){}
-}
+      // Subtle vertical line (timeline feel)
+      timeline.appendChild(el("div", {
+        style:[
+          "position:absolute",
+          "left:18px",
+          "top:42px",
+          "bottom:10px",
+          "width:2px",
+          "background: rgba(255,255,255,.08)",
+          "border-radius: 99px",
+          "pointer-events:none"
+        ].join(";")
+      }));
 
-function openFeedEventModal(ev, title, who, when){
-  try{
-    const p = ev.payload || {};
-    const d = p.details || null;
+      // Feed rows
+      (feed || []).forEach(ev => {
+        const p = ev.payload || {};
+        const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
+        const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+        const title = (ev.type === "exercise_logged")
+          ? `${who} logged ${p.exerciseName || "an exercise"}`
+          : (ev.type === "workout_completed")
+            ? `${who} completed a workout`
+            : `${who} posted an event`;
 
-    // If details are missing (older events / friend on older build), show a safe fallback.
-    const body = el("div", { class:"grid" }, [
-      el("div", { class:"note", text: when ? `${who} • ${when}` : who }),
+        const chips = [];
+        if(ev.type === "workout_completed"){
+          const h = p.highlights || {};
+          if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) chips.push(`${h.exerciseCount} exercises`);
+          if(Number.isFinite(h.prCount) && h.prCount > 0) chips.push(`PRs: ${h.prCount}`);
+          if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${h.totalVolume}`);
+        }else{
+          if(p.workoutType) chips.push(String(p.workoutType));
+          if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
+        }
 
-      (ev.type === "workout_completed" && d?.dayLabel)
-        ? el("div", { class:"kpi" }, [
-            el("div", { class:"big", text: d.dayLabel }),
-            el("div", { class:"small", text: d.dateISO || (p.dateISO || "") })
-          ])
-        : null,
+        function openExerciseHistoryFromFeed(type, exerciseId, exName){
+          try{
+            if(!exerciseId) return;
+            LogEngine.ensure();
 
-      (ev.type === "workout_completed" && d?.items?.length)
-        ? el("div", { class:"list" }, d.items.map(it => {
-            const rightBits = [];
-            if(it.topText) rightBits.push(it.topText);
-            if(Array.isArray(it.prBadges) && it.prBadges.length) rightBits.push(it.prBadges.join(" • "));
+            const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
 
-            // Lifetime display (best-effort)
-            let life = "";
-            try{
-              const L = it.lifetime || null;
-              if(L){
-                if(it.type === "weightlifting"){
-                  const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
-                  const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
-                  const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
-                  life = [bw, b1, bv].filter(Boolean).join(" • ");
-                }else if(it.type === "cardio"){
-                  const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
-                  const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
-                  life = [bp, bd].filter(Boolean).join(" • ");
-                }else if(it.type === "core"){
-                  const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
-                  const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
-                  life = [br, bt].filter(Boolean).join(" • ");
+            function prBadges(pr){
+              if(!pr) return "";
+              const b = [];
+              if(pr.isPRWeight) b.push("PR W");
+              if(pr.isPR1RM) b.push("PR 1RM");
+              if(pr.isPRVolume) b.push("PR Vol");
+              if(pr.isPRPace) b.push("PR Pace");
+              return b.join(" • ");
+            }
+
+            function formatEntryDetail(type, entry){
+              try{
+                if(type === "weightlifting"){
+                  const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
+                  const top = entry.summary?.bestWeight ?? "—";
+                  const vol = entry.summary?.totalVolume ?? "—";
+                  return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
                 }
-              }
-            }catch(_){}
+                if(type === "cardio"){
+                  const d = entry.summary?.distance ?? "—";
+                  const t = formatTime(entry.summary?.timeSec ?? 0);
+                  const p = formatPace(entry.summary?.paceSecPerUnit);
+                  return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
+                }
+                if(type === "core"){
+                  const sets = entry.summary?.sets ?? "—";
+                  const reps = entry.summary?.reps ?? "—";
+                  const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
+                  return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
+                }
+              }catch(_){}
+              return "";
+            }
 
-            return el("div", {
-              class:"item",
-              style:"cursor:pointer;",
-              onClick: () => openExerciseHistoryFromFeed(it.type, it.exerciseId, it.name)
-            }, [
-              el("div", { class:"left" }, [
-                el("div", { class:"name", text: it.name || "Exercise" }),
-                life ? el("div", { class:"meta", text: life }) : null
-              ].filter(Boolean)),
-              el("div", { class:"actions" }, [
-                el("div", { class:"meta", text: rightBits.join(" | ") })
+            const list = el("div", { class:"list" });
+            if(!entries.length){
+              list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
+            }else{
+              entries.slice(0, 12).forEach(e => {
+                list.appendChild(el("div", { class:"item" }, [
+                  el("div", { class:"left" }, [
+                    el("div", { class:"name", text: e.dateISO }),
+                    el("div", { class:"meta", text: formatEntryDetail(type, e) })
+                  ]),
+                  el("div", { class:"actions" }, [
+                    el("div", { class:"meta", text: prBadges(e.pr) })
+                  ])
+                ]));
+              });
+            }
+
+            Modal.open({
+              title: "History",
+              center: true,
+              bodyNode: el("div", { class:"grid" }, [
+                el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
+                list,
+                el("div", { style:"height:10px" }),
+                el("button", { class:"btn", onClick: Modal.close }, ["Close"])
               ])
-            ]);
-          }))
-        : (ev.type === "workout_completed"
-            ? el("div", { class:"note", text:"Details aren’t available for this event yet (older build). New events will include full workout details." })
-            : null),
+            });
+          }catch(_){}
+        }
 
-      el("div", { style:"height:10px" }),
-      el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-    ].filter(Boolean));
+        function openFeedEventModal(ev, title, who, when){
+          try{
+            const p = ev.payload || {};
+            const d = p.details || null;
 
-    Modal.open({
-      title: (ev.type === "workout_completed") ? "Workout" : "Event",
-      bodyNode: body
-    });
-  }catch(_){}
-}
+            // If details are missing (older events / friend on older build), show a safe fallback.
+            const body = el("div", { class:"grid" }, [
+              el("div", { class:"note", text: when ? `${who} • ${when}` : who }),
 
-return el("div", {
-  class:"card",
-  style:"margin: 10px 0; cursor:pointer;",
-  onClick: () => openFeedEventModal(ev, title, who, when)
-}, [
-  el("div", { class:"rowBetween" }, [
-    el("div", { style:"font-weight:820;", text: title }),
-    el("div", { class:"small", text: when })
-  ]),
-  chips.length ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t }))) : null
-].filter(Boolean));
-    })) : null
+              (ev.type === "workout_completed" && d?.dayLabel)
+                ? el("div", { class:"kpi" }, [
+                    el("div", { class:"big", text: d.dayLabel }),
+                    el("div", { class:"small", text: d.dateISO || (p.dateISO || "") })
+                  ])
+                : null,
+
+              (ev.type === "workout_completed" && d?.items?.length)
+                ? el("div", { class:"list" }, d.items.map(it => {
+                    const rightBits = [];
+                    if(it.topText) rightBits.push(it.topText);
+                    if(Array.isArray(it.prBadges) && it.prBadges.length) rightBits.push(it.prBadges.join(" • "));
+
+                    // Lifetime display (best-effort)
+                    let life = "";
+                    try{
+                      const L = it.lifetime || null;
+                      if(L){
+                        if(it.type === "weightlifting"){
+                          const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
+                          const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
+                          const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
+                          life = [bw, b1, bv].filter(Boolean).join(" • ");
+                        }else if(it.type === "cardio"){
+                          const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
+                          const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
+                          life = [bp, bd].filter(Boolean).join(" • ");
+                        }else if(it.type === "core"){
+                          const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
+                          const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
+                          life = [br, bt].filter(Boolean).join(" • ");
+                        }
+                      }
+                    }catch(_){}
+
+                    return el("div", {
+                      class:"item",
+                      style:"cursor:pointer;",
+                      onClick: () => openExerciseHistoryFromFeed(it.type, it.exerciseId, it.name)
+                    }, [
+                      el("div", { class:"left" }, [
+                        el("div", { class:"name", text: it.name || "Exercise" }),
+                        life ? el("div", { class:"meta", text: life }) : null
+                      ].filter(Boolean)),
+                      el("div", { class:"actions" }, [
+                        el("div", { class:"meta", text: rightBits.join(" | ") })
+                      ])
+                    ]);
+                  }))
+                : (ev.type === "workout_completed"
+                    ? el("div", { class:"note", text:"Details aren’t available for this event yet (older build). New events will include full workout details." })
+                    : null),
+
+              el("div", { style:"height:10px" }),
+              el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+            ].filter(Boolean));
+
+            Modal.open({
+              title: (ev.type === "workout_completed") ? "Workout" : "Event",
+              bodyNode: body
+            });
+          }catch(_){}
+        }
+
+        // Avatar (initial)
+        const initial = (String(who || "U").trim()[0] || "U").toUpperCase();
+        const avatar = el("div", {
+          style:[
+            "width:36px",
+            "height:36px",
+            "border-radius:999px",
+            "border:1px solid rgba(255,255,255,.14)",
+            "background: rgba(255,255,255,.06)",
+            "display:flex",
+            "align-items:center",
+            "justify-content:center",
+            "font-weight:900",
+            "letter-spacing:.2px",
+            "flex:0 0 auto"
+          ].join(";"),
+          text: initial
+        });
+
+        const row = el("div", {
+          style:"display:flex; gap:10px; align-items:flex-start;"
+        }, [
+          avatar,
+
+          el("div", {
+            class:"setLink",
+            style:"width:100%;",
+            onClick: () => openFeedEventModal(ev, title, who, when)
+          }, [
+            el("div", { class:"l" }, [
+              el("div", { class:"a", text: title }),
+              when ? el("div", { class:"b", text: when }) : null,
+              (chips.length
+                ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t })))
+                : null)
+            ].filter(Boolean)),
+            el("div", { class:"r", style:"opacity:.85;" }, ["→"])
+          ])
+        ]);
+
+        timeline.appendChild(row);
+      });
+
+      return timeline;
+    })() : null
   ].filter(Boolean)));
-
   // Auto-start polling when entering the view
   try{
     if(configured && user) Social.startFeed();
