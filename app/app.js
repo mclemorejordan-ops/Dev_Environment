@@ -4974,6 +4974,7 @@ function openFeedEventModal(ev, title, who, when){
         })()
       ].filter(Boolean));
     })) : null
+    })) : null
   ].filter(Boolean)));
 
   // Auto-start polling when entering the view
