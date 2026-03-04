@@ -4649,28 +4649,148 @@ el("div", { style:"height:10px" }),
         ].join(";")
       }));
 
-      // Feed rows
+         // Feed rows
+
+      // Compact timestamp: "Today • 5:14 PM" / "Mon • 6:31 AM"
+      function formatFeedWhen(createdAt){
+        try{
+          if(!createdAt) return { label:"", full:"" };
+          const dt = new Date(createdAt);
+          if(Number.isNaN(dt.getTime())) return { label:"", full:"" };
+
+          const now = new Date();
+          const startOf = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+          const diffDays = Math.round((startOf(now) - startOf(dt)) / 86400000);
+
+          const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
+          const dayLabel = (diffDays === 0) ? "Today"
+            : (diffDays === 1) ? "Yesterday"
+            : dow;
+
+          const timeLabel = dt.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+          return {
+            label: `${dayLabel} • ${timeLabel}`,
+            full: dt.toLocaleString()
+          };
+        }catch(_){
+          return { label:"", full:"" };
+        }
+      }
+
+      function comma(n){
+        try{
+          const x = Number(n);
+          if(!Number.isFinite(x)) return "";
+          return x.toLocaleString();
+        }catch(_){
+          return String(n || "");
+        }
+      }
+
+      // Builds the second line like:
+      // "Pull Day • 5 exercises • PRs: 2 • Vol 12,400"
+      // "Incline walk • 30:00 • 2.1 units • Pace 14:17 / unit"
+      function buildFeedSummary(ev){
+        try{
+          const p = ev.payload || {};
+          const bits = [];
+
+          if(ev.type === "workout_completed"){
+            const d = p.details || null;
+            const h = p.highlights || {};
+
+            if(d?.dayLabel) bits.push(String(d.dayLabel));
+            else bits.push("Workout");
+
+            if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) bits.push(`${h.exerciseCount} exercises`);
+            if(Number.isFinite(h.prCount) && h.prCount > 0) bits.push(`PRs: ${h.prCount}`);
+            if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) bits.push(`Vol ${comma(h.totalVolume)}`);
+
+            return bits.filter(Boolean).join(" • ");
+          }
+
+          if(ev.type === "exercise_logged"){
+            const name = p.exerciseName || "Exercise";
+            bits.push(String(name));
+
+            const type = String(p.workoutType || "");
+            const s = p.summary || {};
+
+            if(type === "cardio"){
+              if(Number.isFinite(s.timeSec) && s.timeSec > 0) bits.push(formatTime(s.timeSec));
+              if(Number.isFinite(s.distance) && s.distance > 0) bits.push(`${s.distance} units`);
+              if(Number.isFinite(s.paceSecPerUnit) && s.paceSecPerUnit > 0) bits.push(`Pace ${formatPace(s.paceSecPerUnit)} / unit`);
+              if(Number.isFinite(p.prCount) && p.prCount > 0) bits.push(`PRs: ${p.prCount}`);
+              return bits.filter(Boolean).join(" • ");
+            }
+
+            // weightlifting / core: keep it compact and useful
+            if(Number.isFinite(s.bestWeight) && s.bestWeight > 0) bits.push(`Top ${s.bestWeight}`);
+            if(Number.isFinite(s.totalVolume) && s.totalVolume > 0) bits.push(`Vol ${comma(s.totalVolume)}`);
+            if(Number.isFinite(p.prCount) && p.prCount > 0) bits.push(`PRs: ${p.prCount}`);
+
+            return bits.filter(Boolean).join(" • ");
+          }
+
+          // Fallback for any other event types
+          return "";
+        }catch(_){
+          return "";
+        }
+      }
+
+      function buildFeedBadges(ev){
+        try{
+          const p = ev.payload || {};
+          const badges = [];
+
+          // Always show a PR badge if PRs exist
+          const prCount = Number(p.prCount || p.highlights?.prCount || 0);
+          if(Number.isFinite(prCount) && prCount > 0) badges.push(`🏅 PR x${prCount}`);
+
+          // Future-proof: if you later add payload.badges (array of strings), it will render automatically
+          if(Array.isArray(p.badges)){
+            p.badges.forEach(b => {
+              const t = String(b || "").trim();
+              if(t) badges.push(t);
+            });
+          }
+
+          return badges.slice(0, 6); // keep UI tight
+        }catch(_){
+          return [];
+        }
+      }
+
       (feed || []).forEach(ev => {
         const p = ev.payload || {};
         const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
-        const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+
+        const whenObj = formatFeedWhen(ev.createdAt);
+        const when = whenObj.full;        // keep full string for the modal
+        const whenLine = whenObj.label;   // compact label for the row
+
         const title = (ev.type === "exercise_logged")
           ? `${who} logged ${p.exerciseName || "an exercise"}`
           : (ev.type === "workout_completed")
             ? `${who} completed a workout`
             : `${who} posted an event`;
 
+        const summaryLine = buildFeedSummary(ev);
+        const badges = buildFeedBadges(ev);
+
+        // Keep existing chips behavior (but we’ll display them as "detail pills")
         const chips = [];
         if(ev.type === "workout_completed"){
           const h = p.highlights || {};
           if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) chips.push(`${h.exerciseCount} exercises`);
           if(Number.isFinite(h.prCount) && h.prCount > 0) chips.push(`PRs: ${h.prCount}`);
-          if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${h.totalVolume}`);
+          if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) chips.push(`Vol ${comma(h.totalVolume)}`);
         }else{
           if(p.workoutType) chips.push(String(p.workoutType));
           if(Number.isFinite(p.prCount) && p.prCount > 0) chips.push(`PRs: ${p.prCount}`);
         }
-
+        
         function openExerciseHistoryFromFeed(type, exerciseId, exName){
           try{
             if(!exerciseId) return;
@@ -4846,7 +4966,11 @@ el("div", { style:"height:10px" }),
           }, [
             el("div", { class:"l" }, [
               el("div", { class:"a", text: title }),
-              when ? el("div", { class:"b", text: when }) : null,
+              whenLine ? el("div", { class:"b", text: whenLine }) : null,
+              summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
+              (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
+                badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+              ) : null),
               (chips.length
                 ? el("div", { class:"pillrow", style:"margin-top:8px;" }, chips.map(t => el("div", { class:"pill", text: t })))
                 : null)
