@@ -4408,19 +4408,8 @@ function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
   ui.connSearch = ui.connSearch || "";
 
-  const tabRow = el("div", { class:"segRow" });
-  const btnFollowing = el("button", {
-    class: "seg" + (ui.connTab === "following" ? " on" : ""),
-    onClick: () => { ui.connTab = "following"; repaintModal(); }
-  }, ["Following"]);
-  const btnFollowers = el("button", {
-    class: "seg" + (ui.connTab === "followers" ? " on" : ""),
-    onClick: () => { ui.connTab = "followers"; repaintModal(); }
-  }, ["Followers"]);
-  tabRow.appendChild(btnFollowing);
-  tabRow.appendChild(btnFollowers);
-
   const statsRow = el("div", { class:"connStats" });
+
   const searchInput = el("input", {
     type:"text",
     placeholder:"Search connections…",
@@ -4450,8 +4439,15 @@ function openConnectionsModal(initialTab){
     return (s && s[0]) ? s[0].toUpperCase() : "•";
   }
 
-  function pill(label, value){
-    return el("div", { class:"connPill" }, [
+  function statPill({ tab, label, value }){
+    return el("button", {
+      type:"button",
+      class:"connPill" + (ui.connTab === tab ? " on" : ""),
+      onClick: () => {
+        ui.connTab = tab;
+        repaintModal();
+      }
+    }, [
       el("span", { text: label }),
       el("span", { class:"v", text: String(value) })
     ]);
@@ -4525,57 +4521,41 @@ function openConnectionsModal(initialTab){
           }
         }, ["Follow back"]));
       }
-
-      // keep remove follower available (permissions may vary)
-      actions.push(el("button", {
-        class:"btn sm",
-        onClick: async () => {
-          try{
-            await Social.removeFollower(id);
-            showToast("Removed");
-            await refreshLists();
-            repaintModal();
-            renderView();
-          }catch(e){
-            showToast(e?.message || "Couldn't remove (permissions)");
-          }
-        }
-      }, ["Remove"]));
     }
 
-    return el("div", { class:"connItem" }, [
-      el("div", { class:"connLeft" }, [
-        el("div", { class:"connAvatar", text: avatarLetter(dn) }),
-        el("div", { class:"connTxt" }, [
-          el("div", { class:"connName", text: dn }),
-          el("div", { class:"connBadges" }, badges),
-          el("div", { class:"connMeta", text: metaText })
-        ])
+    return el("div", { class:"connRow" }, [
+      el("div", { class:"av" }, [ el("div", { class:"ltr", text: avatarLetter(dn) }) ]),
+      el("div", { class:"main" }, [
+        el("div", { class:"top" }, [
+          el("div", { class:"dn", text: dn }),
+          el("div", { class:"badges" }, badges)
+        ]),
+        el("div", { class:"meta", text: metaText })
       ]),
-      el("div", { class:"connActions" }, actions)
+      el("div", { class:"acts" }, actions)
     ]);
   }
 
   async function repaintModal(){
-    btnFollowing.className = "seg" + (ui.connTab === "following" ? " on" : "");
-    btnFollowers.className = "seg" + (ui.connTab === "followers" ? " on" : "");
-
     const follows = Social.getFollows ? Social.getFollows() : [];
     const followers = Social.getFollowers ? Social.getFollowers() : [];
 
     const followsSet = new Set((follows || []).map(String));
     const followersSet = new Set((followers || []).map(String));
-    const mutualCount = Array.from(followersSet).filter(id => followsSet.has(id)).length;
+    const mutualIds = Array.from(followersSet).filter(id => followsSet.has(id));
+    const mutualCount = mutualIds.length;
 
-    // Update top pills
+    // Update top pills (and highlight active)
     statsRow.innerHTML = "";
-    statsRow.appendChild(pill("Following", follows.length));
-    statsRow.appendChild(pill("Followers", followers.length));
-    statsRow.appendChild(pill("Mutual", mutualCount));
+    statsRow.appendChild(statPill({ tab:"following", label:"Following", value: follows.length }));
+    statsRow.appendChild(statPill({ tab:"followers", label:"Followers", value: followers.length }));
+    statsRow.appendChild(statPill({ tab:"mutual", label:"Mutual", value: mutualCount }));
 
     // Ensure we have display names for the IDs shown in this tab (best-effort)
     try{
-      const ids = (ui.connTab === "following") ? follows : followers;
+      const ids = (ui.connTab === "following") ? follows
+        : (ui.connTab === "followers") ? followers
+        : mutualIds;
       if(Social.fetchNames) await Social.fetchNames(ids);
     }catch(_){}
 
@@ -4587,12 +4567,17 @@ function openConnectionsModal(initialTab){
     }
 
     const q = (ui.connSearch || "").trim().toLowerCase();
-    const baseList = (ui.connTab === "following") ? follows : followers;
+    const baseList = (ui.connTab === "following") ? follows
+      : (ui.connTab === "followers") ? followers
+      : mutualIds;
 
     if(!baseList.length){
       bodyHost.appendChild(el("div", {
         class:"note",
-        text: (ui.connTab === "following") ? "Not following anyone yet." : "No followers yet."
+        text:
+          (ui.connTab === "following") ? "Not following anyone yet."
+          : (ui.connTab === "followers") ? "No followers yet."
+          : "No mutual connections yet."
       }));
       return;
     }
@@ -4616,13 +4601,10 @@ function openConnectionsModal(initialTab){
       return;
     }
 
+    const mode = (ui.connTab === "following") ? "following" : "followers";
     items.forEach(id => {
-      bodyHost.appendChild(connectionRow({
-        id,
-        mode: ui.connTab,
-        followsSet,
-        followersSet
-      }));
+      bodyHost.appendChild(connectionRow({ id, mode, followsSet, followersSet }));
+      bodyHost.appendChild(el("div", { class:"hr" }));
     });
   }
 
@@ -4630,8 +4612,6 @@ function openConnectionsModal(initialTab){
     title: "Connections",
     bodyNode: el("div", { class:"connModal" }, [
       el("div", { class:"note", text:"Search, follow back, unfollow, or remove followers." }),
-      el("div", { style:"height:10px" }),
-      tabRow,
       el("div", { style:"height:10px" }),
       statsRow,
       el("div", { style:"height:10px" }),
@@ -4645,19 +4625,18 @@ function openConnectionsModal(initialTab){
           onClick: async () => {
             await refreshLists();
             repaintModal();
-            showToast("Updated");
+            showToast("Refreshed");
           }
-        }, ["Refresh"])
+        }, ["Refresh"]),
+        el("button", {
+          class:"btn",
+          onClick: () => Modal.close()
+        }, ["Done"])
       ])
     ])
   });
 
-  // Focus search immediately (phone-first)
-  setTimeout(() => {
-    try{ searchInput && searchInput.focus && searchInput.focus(); }catch(_){}
-  }, 0);
-
-  repaintModal();
+  refreshLists().then(repaintModal);
 }
 
 root.appendChild(el("div", { class:"card" }, [
