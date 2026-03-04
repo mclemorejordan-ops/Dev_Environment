@@ -4525,49 +4525,6 @@ root.appendChild(el("div", { class:"card" }, [
         })
       : null,
 
-    // 🔔 Notification bell badge (BOTTOM-RIGHT HEADER)
-    (user && (ui._followerNotifs || []).length)
-      ? el("div", {
-          style:[
-            "position:absolute",
-            "right:0",
-            "bottom:0",
-            "cursor:pointer",
-            "display:flex",
-            "align-items:center",
-            "gap:6px"
-          ].join(";"),
-          onClick: () => {
-            try{ openFollowerNotifsModal(); }catch(_){}
-          }
-        }, [
-
-          // Bell icon
-          el("div", {
-            text:"🔔",
-            style:"font-size:18px;"
-          }),
-
-          // Number badge
-          el("div", {
-            text:String((ui._followerNotifs || []).length),
-            style:[
-              "min-width:18px",
-              "height:18px",
-              "padding:0 6px",
-              "border-radius:999px",
-              "background:rgba(124,77,255,.9)",
-              "color:#fff",
-              "font-size:11px",
-              "display:flex",
-              "align-items:center",
-              "justify-content:center"
-            ].join(";")
-          })
-
-        ])
-      : null
-
   ].filter(Boolean)),
 
   el("div", { style:"height:10px" }),
@@ -4576,7 +4533,15 @@ root.appendChild(el("div", { class:"card" }, [
     ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
     : null,
 
-  configured ? el("div", { class:"pillRow", style:"justify-content:center;" }, [
+  configured ? el("div", {
+  style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
+}, [
+
+  // Left spacer keeps the center pills visually centered
+  el("div", { style:"min-width:52px;" }),
+
+  // Center: Following / Followers pills (unchanged)
+  el("div", { class:"pillRow", style:"flex:1; justify-content:center;" }, [
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
@@ -4589,6 +4554,7 @@ root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"t", text:"Following" }),
       el("div", { class:"x", text: String((Social.getFollows ? Social.getFollows() : followsNow).length) })
     ]),
+
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
@@ -4601,7 +4567,20 @@ root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"t", text:"Followers" }),
       el("div", { class:"x", text: String((Social.getFollowers ? Social.getFollowers() : followersNow).length) })
     ])
-  ]) : null,
+  ]),
+
+  // Right: bell badge aligned with the pills row
+  el("div", { style:"min-width:52px; display:flex; justify-content:flex-end;" }, [
+    (user && (ui._followerNotifs || []).length)
+      ? el("button", {
+          class:"pill",
+          style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
+          onClick: () => { try{ openFollowerNotifsModal(); }catch(_){} }
+        }, [`🔔 ${(ui._followerNotifs || []).length}`])
+      : null
+  ].filter(Boolean))
+
+].filter(Boolean)) : null,
 
   el("div", { style:"height:10px" }),
 
