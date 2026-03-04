@@ -133,11 +133,140 @@ function initSocial(){
   let _cfg = readSocialConfig();
   let _user = null;
   let _feed = [];       // newest first
-let _follows = [];    // list of followed user ids (strings)
-let _followers = [];  // list of follower user ids (strings)
+
+
+  // ─────────────────────────────
+// Feed Likes (DB-backed)
+// ─────────────────────────────
+let _likeCounts = {};      // eventId -> number
+let _likedByMe = new Set();// eventIds I liked (strings)
+
+function getLikeCount(eventId){
+  const k = String(eventId ?? "");
+  return Number(_likeCounts[k] || 0) || 0;
+}
+function didILike(eventId){
+  const k = String(eventId ?? "");
+  return _likedByMe.has(k);
+}
+
+// Fetch counts + my likes for a list of feed event ids
+async function fetchFeedLikes(eventIds){
+  const sb = await ensureClient();
+  if(!sb || !_user) { _likeCounts = {}; _likedByMe = new Set(); return; }
+
+  const ids = (eventIds || []).map(x => {
+    // activity_events.id is BIGINT in your DB, but it arrives as number/string in JS
+    // keep as-is for .in() and normalize keys to string for maps
+    return (typeof x === "number") ? x : (String(x || "").trim());
+  }).filter(x => (x !== "" && x != null));
+
+  if(!ids.length){
+    _likeCounts = {};
+    _likedByMe = new Set();
+    return;
+  }
+
+  try{
+    // 1) Counts (from view)
+    const { data: cData, error: cErr } = await sb
+      .from("feed_like_counts")
+      .select("event_id, like_count")
+      .in("event_id", ids);
+
+    if(cErr) throw cErr;
+
+    const nextCounts = {};
+    (cData || []).forEach(r => {
+      const k = String(r.event_id ?? "");
+      nextCounts[k] = Number(r.like_count || 0) || 0;
+    });
+    _likeCounts = nextCounts;
+
+    // 2) My likes (from table)
+    const { data: mData, error: mErr } = await sb
+      .from("feed_likes")
+      .select("event_id")
+      .eq("user_id", _user.id)
+      .in("event_id", ids);
+
+    if(mErr) throw mErr;
+
+    const nextMine = new Set();
+    (mData || []).forEach(r => {
+      const k = String(r.event_id ?? "");
+      if(k) nextMine.add(k);
+    });
+    _likedByMe = nextMine;
+
+  }catch(_){
+    // keep last known values if query fails
+  }
+}
+
+// Toggle like for an event (insert/delete)
+async function toggleFeedLike(eventId){
+  const sb = await ensureClient();
+  if(!sb || !_user) throw new Error("Not signed in");
+
+  const k = String(eventId ?? "");
+  if(!k) return;
+
+  const wasLiked = _likedByMe.has(k);
+
+  // optimistic UI
+  if(wasLiked){
+    _likedByMe.delete(k);
+    _likeCounts[k] = Math.max(0, (Number(_likeCounts[k] || 0) || 0) - 1);
+  }else{
+    _likedByMe.add(k);
+    _likeCounts[k] = (Number(_likeCounts[k] || 0) || 0) + 1;
+  }
+  notify();
+
+  try{
+    if(wasLiked){
+      const { error } = await sb
+        .from("feed_likes")
+        .delete()
+        .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
+        .eq("user_id", _user.id);
+      if(error) throw error;
+    }else{
+      const { error } = await sb
+        .from("feed_likes")
+        .insert({ event_id: eventId, user_id: _user.id });
+      if(error){
+        // ignore duplicate like race
+        if(String(error.code) !== "23505") throw error;
+      }
+    }
+
+    // reconcile counts for this event
+    await fetchFeedLikes([eventId]);
+    notify();
+  }catch(e){
+    _feed = (data || []).map(r => ({
+  id: r.id,
+  actorId: r.actor_id,
+  type: r.type,
+  payload: r.payload || {},
+  createdAt: r.created_at
+}));
+
+try{
+  await fetchFeedLikes((_feed || []).map(x => x.id));
+}catch(_){}
+    throw e;
+  }
+}
+
+  
+  let _follows = [];    // list of followed user ids (strings)
+  let _followers = [];  // list of follower user ids (strings)
   let _names = {};      // id -> display_name (from profiles)
-let _pollTimer = null;
-let _listeners = new Set();
+  let _pollTimer = null;
+  let _listeners = new Set();
 
   async function loadSupabaseModule(){
     if(_mod) return _mod;
@@ -635,8 +764,14 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     flushOutbox,
     publishWorkoutCompletedEvent,
 
+    // likes
+    getLikeCount,
+    didILike,
+    fetchFeedLikes,
+    toggleFeedLike,
+
     // UI updates
-    onChange
+    onChange   
   };
 }
 
@@ -5321,6 +5456,63 @@ onClick: () => openExerciseHistoryFromFeed(
               (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
   badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
 ) : null),
+
+// ✅ Interaction Row (DB-backed Like + count)
+(() => {
+  const eventId = ev.id;
+  const liked = (Social.didILike ? Social.didILike(eventId) : false);
+  const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : 0);
+
+  const btnStyle = "padding:6px 10px; font-size:12px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:999px;";
+
+  const likeBtn = el("button", {
+    style: btnStyle + (liked ? " background: rgba(255,92,122,.18); border-color: rgba(255,92,122,.32);" : ""),
+    onClick: async (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      try{
+        await Social.toggleFeedLike(eventId);
+      }catch(err){
+        showToast(err?.message || "Could not like");
+      }
+    }
+  }, [ liked ? `❤️ ${likeCount}` : `🤍 ${likeCount}` ]);
+
+  const commentBtn = el("button", {
+    style: btnStyle,
+    onClick: (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      showToast("Comments coming soon");
+    }
+  }, ["💬 Comment"]);
+
+  const shareBtn = el("button", {
+    style: btnStyle,
+    onClick: async (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      try{
+        const shareText = [title, summaryLine].filter(Boolean).join(" — ");
+        if(navigator?.clipboard?.writeText){
+          await navigator.clipboard.writeText(shareText || title || "");
+          showToast("Copied");
+        }else{
+          const ta = document.createElement("textarea");
+          ta.value = shareText || title || "";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          showToast("Copied");
+        }
+      }catch(_){
+        showToast("Could not copy");
+      }
+    }
+  }, ["↗ Share"]);
+
+  return el("div", {
+    style:"margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,.10); display:flex; flex-wrap:wrap; gap:8px;"
+  }, [likeBtn, commentBtn, shareBtn]);
+})(),
 
 // ✅ Feed interactions row (Like / Comment / Share)
 (() => {
