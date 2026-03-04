@@ -5773,10 +5773,19 @@ onClick: () => openExerciseHistoryFromFeed(
   const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : 0);
   const commentCount = (Social.getCommentCount ? Social.getCommentCount(eventId) : 0);
 
-  const btnStyle = "padding:6px 10px; font-size:12px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:999px;";
+  // Instagram-style: icon buttons (no pill backgrounds)
+  const iconBtnStyle = [
+    "background:transparent",
+    "border:0",
+    "padding:6px 4px",
+    "font-size:18px",
+    "line-height:1",
+    "cursor:pointer",
+    "color: rgba(255,255,255,.92)"
+  ].join(";");
 
   const likeBtn = el("button", {
-    style: btnStyle + (liked ? " background: rgba(255,92,122,.18); border-color: rgba(255,92,122,.32);" : ""),
+    style: iconBtnStyle + (liked ? " filter:saturate(1.1);" : " opacity:.92;"),
     onClick: async (e) => {
       try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
       try{
@@ -5785,10 +5794,10 @@ onClick: () => openExerciseHistoryFromFeed(
         showToast(err?.message || "Could not like");
       }
     }
-  }, [ liked ? `❤️ ${likeCount}` : `🤍 ${likeCount}` ]);
+  }, [ liked ? "❤️" : "🤍" ]);
 
   const commentBtn = el("button", {
-    style: btnStyle,
+    style: iconBtnStyle + " opacity:.92;",
     onClick: async (e) => {
       try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
       try{
@@ -5797,10 +5806,10 @@ onClick: () => openExerciseHistoryFromFeed(
       }catch(_){}
       openCommentsModal({ eventId, title, who });
     }
-  }, [ `💬 ${commentCount}` ]);
+  }, ["💬"]);
 
   const shareBtn = el("button", {
-    style: btnStyle,
+    style: iconBtnStyle + " opacity:.92;",
     onClick: async (e) => {
       try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
       try{
@@ -5821,11 +5830,26 @@ onClick: () => openExerciseHistoryFromFeed(
         showToast("Could not copy");
       }
     }
-  }, ["↗ Share"]);
+  }, ["↗"]);
+
+  const iconsRow = el("div", {
+    style:"display:flex; align-items:center; justify-content:space-between;"
+  }, [
+    el("div", { style:"display:flex; align-items:center; gap:14px;" }, [
+      likeBtn, commentBtn, shareBtn
+    ])
+  ]);
+
+  const countsRow = el("div", {
+    style:"margin-top:6px; display:flex; gap:14px; font-size:12px; font-weight:850; opacity:.78;"
+  }, [
+    el("div", { text:`${likeCount} like${likeCount === 1 ? "" : "s"}` }),
+    el("div", { text:`${commentCount} comment${commentCount === 1 ? "" : "s"}` })
+  ]);
 
   return el("div", {
-    style:"margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,.10); display:flex; flex-wrap:wrap; gap:8px;"
-  }, [likeBtn, commentBtn, shareBtn]);
+    style:"margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.10);"
+  }, [iconsRow, countsRow]);
 })(),
             ].filter(Boolean)),
             el("div", { class:"r", style:"opacity:.85;" }, ["→"])
