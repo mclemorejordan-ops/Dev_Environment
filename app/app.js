@@ -5053,76 +5053,89 @@ el("div", { style:"height:10px" }),
         const summaryLine = buildFeedSummary(ev);
         const badges = buildFeedBadges(ev);
         
-        function openExerciseHistoryFromFeed(type, exerciseId, exName){
-          try{
-            if(!exerciseId) return;
-            LogEngine.ensure();
+        function openExerciseHistoryFromFeed(type, exerciseId, exName, onBack){
+  try{
+    if(!exerciseId) return;
+    LogEngine.ensure();
 
-            const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
+    const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
 
-            function prBadges(pr){
-              if(!pr) return "";
-              const b = [];
-              if(pr.isPRWeight) b.push("PR W");
-              if(pr.isPR1RM) b.push("PR 1RM");
-              if(pr.isPRVolume) b.push("PR Vol");
-              if(pr.isPRPace) b.push("PR Pace");
-              return b.join(" • ");
-            }
+    function prBadges(pr){
+      if(!pr) return "";
+      const b = [];
+      if(pr.isPRWeight) b.push("PR W");
+      if(pr.isPR1RM) b.push("PR 1RM");
+      if(pr.isPRVolume) b.push("PR Vol");
+      if(pr.isPRPace) b.push("PR Pace");
+      return b.join(" • ");
+    }
 
-            function formatEntryDetail(type, entry){
-              try{
-                if(type === "weightlifting"){
-                  const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
-                  const top = entry.summary?.bestWeight ?? "—";
-                  const vol = entry.summary?.totalVolume ?? "—";
-                  return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
-                }
-                if(type === "cardio"){
-                  const d = entry.summary?.distance ?? "—";
-                  const t = formatTime(entry.summary?.timeSec ?? 0);
-                  const p = formatPace(entry.summary?.paceSecPerUnit);
-                  return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
-                }
-                if(type === "core"){
-                  const sets = entry.summary?.sets ?? "—";
-                  const reps = entry.summary?.reps ?? "—";
-                  const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
-                  return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
-                }
-              }catch(_){}
-              return "";
-            }
-
-            const list = el("div", { class:"list" });
-            if(!entries.length){
-              list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
-            }else{
-              entries.slice(0, 12).forEach(e => {
-                list.appendChild(el("div", { class:"item" }, [
-                  el("div", { class:"left" }, [
-                    el("div", { class:"name", text: e.dateISO }),
-                    el("div", { class:"meta", text: formatEntryDetail(type, e) })
-                  ]),
-                  el("div", { class:"actions" }, [
-                    el("div", { class:"meta", text: prBadges(e.pr) })
-                  ])
-                ]));
-              });
-            }
-
-            Modal.open({
-              title: "History",
-              center: true,
-              bodyNode: el("div", { class:"grid" }, [
-                el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
-                list,
-                el("div", { style:"height:10px" }),
-                el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-              ])
-            });
-          }catch(_){}
+    function formatEntryDetail(type, entry){
+      try{
+        if(type === "weightlifting"){
+          const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
+          const top = entry.summary?.bestWeight ?? "—";
+          const vol = entry.summary?.totalVolume ?? "—";
+          return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
         }
+        if(type === "cardio"){
+          const d = entry.summary?.distance ?? "—";
+          const t = formatTime(entry.summary?.timeSec ?? 0);
+          const p = formatPace(entry.summary?.paceSecPerUnit);
+          return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
+        }
+        if(type === "core"){
+          const sets = entry.summary?.sets ?? "—";
+          const reps = entry.summary?.reps ?? "—";
+          const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
+          return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
+        }
+      }catch(_){}
+      return "";
+    }
+
+    const list = el("div", { class:"list" });
+    if(!entries.length){
+      list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
+    }else{
+      entries.slice(0, 12).forEach(e => {
+        list.appendChild(el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text: e.dateISO }),
+            el("div", { class:"meta", text: formatEntryDetail(type, e) })
+          ]),
+          el("div", { class:"actions" }, [
+            el("div", { class:"meta", text: prBadges(e.pr) })
+          ])
+        ]));
+      });
+    }
+
+    const hasBack = (typeof onBack === "function");
+    const backBtn = el("button", {
+      class:"btn",
+      onClick: () => {
+        try{
+          if(hasBack) onBack();
+          else Modal.close();
+        }catch(_){
+          Modal.close();
+        }
+      }
+    }, [hasBack ? "Back" : "Close"]);
+
+    Modal.open({
+      title: "History",
+      center: true,
+      bodyNode: el("div", { class:"grid" }, [
+        el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
+        list,
+        el("div", { style:"height:10px" }),
+        backBtn
+      ])
+    });
+  }catch(_){}
+}
 
        function openFeedEventModal(ev, title, who, when){
   try{
@@ -5230,8 +5243,12 @@ el("div", { style:"height:10px" }),
 
         list.appendChild(el("div", {
           class:"feedWkExCard",
-          onClick: () => openExerciseHistoryFromFeed(it.type, it.exerciseId, it.name)
-        }, [
+onClick: () => openExerciseHistoryFromFeed(
+  it.type,
+  it.exerciseId,
+  it.name,
+  () => openFeedEventModal(ev, title, who, when)
+)        }, [
           el("div", { class:"feedWkExTop" }, [
             el("div", { class:"feedWkExLeft" }, [
               el("div", { class:"feedWkExName", text: it.name || "Exercise" }),
