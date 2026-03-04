@@ -823,7 +823,199 @@ select option{
       background: rgba(255,92,122,.14);
       border-color: rgba(255,92,122,.28);
     }
-        /* ─────────────────────────────
+
+
+/* ─────────────────────────────
+   Connections Modal — phone-first (stat pills are tappable tabs)
+   ───────────────────────────── */
+
+.connModal{
+  display:flex;
+  flex-direction:column;
+  min-height: 0; /* important for nested scrolling */
+}
+
+.connStats{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items:center;
+}
+
+.connPill{
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.86);
+
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+
+  padding: 8px 10px;
+  border-radius: 999px;
+
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: .2px;
+
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+
+  transition: transform .06s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.connPill:active{ transform: scale(.985); }
+
+.connPill .v{
+  opacity: .90;
+  font-weight: 900;
+}
+
+/* ✅ Active stat pill (Option A) */
+.connPill.on{
+  border-color: rgba(124,92,255,.40);
+  background: rgba(124,92,255,.16);
+  box-shadow: 0 0 0 1px rgba(124,92,255,.16) inset;
+}
+
+/* Optional: slightly stronger count when active */
+.connPill.on .v{ opacity: 1; }
+
+.connSearch{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.connSearch .ico{ opacity:.85; }
+
+.connSearch input{
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  outline: none !important;
+  color: rgba(255,255,255,.92);
+  font-size: 16px; /* prevents iOS zoom */
+}
+
+.connSearch input::placeholder{ color: rgba(255,255,255,.45); }
+
+.connScroll{
+  max-height: 52vh;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display:grid;
+  gap: 10px;
+  padding-right: 2px;
+  overscroll-behavior: contain;
+}
+
+.connItem{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.connLeft{
+  display:flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.connAvatar{
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+  letter-spacing: .2px;
+  flex: 0 0 auto;
+}
+
+.connTxt{
+  min-width:0;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:6px;
+  flex-wrap:nowrap;
+}
+
+.connName{
+  font-weight: 820;
+  letter-spacing: .15px;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  max-width:100%;
+}
+
+.connBadges{
+  display:flex;
+  gap:4px;
+  flex-wrap:nowrap;
+}
+
+.connBadge{
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .2px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.86);
+}
+
+.connBadge.mutual{
+  border-color: rgba(124,92,255,.30);
+  background: rgba(124,92,255,.16);
+}
+
+.connMeta{
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.connActions{
+  display:flex;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content:flex-end;
+}
+
+/* Small screens: tighten hit areas slightly */
+@media (max-width: 500px){
+  .connPill{ padding: 7px 9px; font-size: 11.5px; }
+  .connName{ max-width: 62vw; }
+}
+
+      /* ─────────────────────────────
        Add Exercise Modal (Routine Editor) — compact, phone-first
        ───────────────────────────── */
     .addExModal{
@@ -1971,193 +2163,4 @@ button.mini.added{
   .settingsSearch input{
     font-size: 16px !important;
   }
-}
-/* ─────────────────────────────
-   Connections Modal — phone-first (stat pills are tappable tabs)
-   ───────────────────────────── */
-
-.connModal{
-  display:flex;
-  flex-direction:column;
-  min-height: 0; /* important for nested scrolling */
-}
-
-.connStats{
-  display:flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items:center;
-}
-
-.connPill{
-  appearance:none;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.86);
-
-  display:inline-flex;
-  align-items:center;
-  gap: 8px;
-
-  padding: 8px 10px;
-  border-radius: 999px;
-
-  font-size: 12px;
-  font-weight: 850;
-  letter-spacing: .2px;
-
-  cursor: pointer;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-
-  transition: transform .06s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
-}
-
-.connPill:active{ transform: scale(.985); }
-
-.connPill .v{
-  opacity: .90;
-  font-weight: 900;
-}
-
-/* ✅ Active stat pill (Option A) */
-.connPill.on{
-  border-color: rgba(124,92,255,.40);
-  background: rgba(124,92,255,.16);
-  box-shadow: 0 0 0 1px rgba(124,92,255,.16) inset;
-}
-
-/* Optional: slightly stronger count when active */
-.connPill.on .v{ opacity: 1; }
-
-.connSearch{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.connSearch .ico{ opacity:.85; }
-
-.connSearch input{
-  flex: 1;
-  border: none !important;
-  background: transparent !important;
-  padding: 0 !important;
-  outline: none !important;
-  color: rgba(255,255,255,.92);
-  font-size: 16px; /* prevents iOS zoom */
-}
-
-.connSearch input::placeholder{ color: rgba(255,255,255,.45); }
-
-.connScroll{
-  max-height: 52vh;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  display:grid;
-  gap: 10px;
-  padding-right: 2px;
-  overscroll-behavior: contain;
-}
-
-.connItem{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap: 12px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.05);
-  border-radius: 16px;
-  padding: 12px;
-}
-
-.connLeft{
-  display:flex;
-  gap: 10px;
-  min-width: 0;
-}
-
-.connAvatar{
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.12);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-weight: 900;
-  letter-spacing: .2px;
-  flex: 0 0 auto;
-}
-
-.connTxt{
-  min-width:0;
-  display:flex;
-  flex-direction:row;
-  align-items:center;
-  gap:6px;
-  flex-wrap:nowrap;
-}
-
-.connName{
-  font-weight: 820;
-  letter-spacing: .15px;
-  overflow:hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  max-width:100%;
-}
-
-.connBadges{
-  display:flex;
-  gap:4px;
-  flex-wrap:nowrap;
-}
-
-.connBadge{
-  font-size: 11px;
-  font-weight: 850;
-  letter-spacing: .2px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.86);
-}
-
-.connBadge.mutual{
-  border-color: rgba(124,92,255,.30);
-  background: rgba(124,92,255,.16);
-}
-
-.connMeta{
-  font-size: 12.5px;
-  color: var(--muted);
-  line-height: 1.25;
-}
-
-.connActions{
-  display:flex;
-  gap: 8px;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content:flex-end;
-}
-
-/* Small screens: tighten hit areas slightly */
-@media (max-width: 500px){
-  .connPill{ padding: 7px 9px; font-size: 11.5px; }
-  .connName{ max-width: 62vw; }
 }
