@@ -5852,7 +5852,7 @@ onClick: () => openExerciseHistoryFromFeed(
   ].join(";");
 
   const likeBtn = el("button", {
-  style: iconBtnStyle + (liked ? " color: rgba(255,92,122,.92);" : " opacity:.92;"),
+  style: iconBtnStyle + (liked ? " filter:saturate(1.1);" : " opacity:.92;"),
   onClick: async (e) => {
     try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
     try{
@@ -5861,7 +5861,7 @@ onClick: () => openExerciseHistoryFromFeed(
       showToast(err?.message || "Could not like");
     }
   }
-}, [ liked ? "♥" : "♡" ]);
+}, [ liked ? "❤️" : "♡" ]);
 
   const commentBtn = el("button", {
     style: iconBtnStyle + " opacity:.92;",
@@ -5897,7 +5897,7 @@ onClick: () => openExerciseHistoryFromFeed(
         showToast("Could not copy");
       }
     }
-  }, ["↗"]);
+  }, ["📨"]);
 
   const iconsRow = el("div", {
     style:"display:flex; align-items:center; justify-content:space-between;"
