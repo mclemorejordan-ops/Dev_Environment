@@ -621,6 +621,143 @@ async function toggleFeedLike(eventId){
     return _notifications;
   }
 
+  // ─────────────────────────────
+  // Notifications (Likes / Comments / Follows)
+  // ─────────────────────────────
+  let _notifications = []; // newest first
+
+  function getNotifications(){ return _notifications.slice(); }
+
+  async function fetchNotifications(){
+    const sb = await ensureClient();
+    if(!sb || !_user){
+      _notifications = [];
+      notify();
+      return [];
+    }
+
+    // We only notify about activity on MY posts.
+    // Use current in-memory feed to find my recent event ids (cheap & stable).
+    const myIds = (_feed || [])
+      .filter(ev => String(ev?.actorId || "") === String(_user.id || ""))
+      .map(ev => ev?.id)
+      .filter(x => (x !== null && x !== undefined));
+
+    // If you haven’t posted anything yet, still show follow notifications.
+    const ids = myIds.slice(0, 50);
+
+    try{
+      // 1) FOLLOWS: who followed me
+      let followRows = [];
+      try{
+        const { data, error } = await sb
+          .from("follows")
+          .select("follower_id, created_at")
+          .eq("followee_id", _user.id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if(!error) followRows = data || [];
+      }catch(_){}
+
+      // 2) LIKES on my events
+      let likeRows = [];
+      if(ids.length){
+        try{
+          const { data, error } = await sb
+            .from("feed_likes")
+            .select("event_id, user_id, created_at")
+            .in("event_id", ids)
+            .neq("user_id", _user.id)
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          if(!error) likeRows = data || [];
+        }catch(_){}
+      }
+
+      // 3) COMMENTS on my events
+      let commentRows = [];
+      if(ids.length){
+        try{
+          const { data, error } = await sb
+            .from("feed_comments")
+            .select("event_id, user_id, body, created_at")
+            .in("event_id", ids)
+            .neq("user_id", _user.id)
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          if(!error) commentRows = data || [];
+        }catch(_){}
+      }
+
+      // Collect actor ids for best-effort name hydration
+      const actorIds = []
+        .concat(followRows.map(r => r?.follower_id))
+        .concat(likeRows.map(r => r?.user_id))
+        .concat(commentRows.map(r => r?.user_id))
+        .map(x => String(x || ""))
+        .filter(Boolean);
+
+      try{ await fetchNames(actorIds); }catch(_){}
+
+      const notifs = [];
+
+      (followRows || []).forEach(r => {
+        const actorId = String(r?.follower_id || "");
+        if(!actorId) return;
+        notifs.push({
+          type: "follow",
+          actorId,
+          eventId: null,
+          body: "",
+          createdAt: r?.created_at || null
+        });
+      });
+
+      (likeRows || []).forEach(r => {
+        const actorId = String(r?.user_id || "");
+        const eventId = r?.event_id;
+        if(!actorId || eventId === null || eventId === undefined) return;
+        notifs.push({
+          type: "like",
+          actorId,
+          eventId,
+          body: "",
+          createdAt: r?.created_at || null
+        });
+      });
+
+      (commentRows || []).forEach(r => {
+        const actorId = String(r?.user_id || "");
+        const eventId = r?.event_id;
+        if(!actorId || eventId === null || eventId === undefined) return;
+        notifs.push({
+          type: "comment",
+          actorId,
+          eventId,
+          body: String(r?.body || "").trim(),
+          createdAt: r?.created_at || null
+        });
+      });
+
+      // Sort newest first
+      notifs.sort((a,b) => {
+        const ta = a?.createdAt ? Date.parse(a.createdAt) : 0;
+        const tb = b?.createdAt ? Date.parse(b.createdAt) : 0;
+        return (tb || 0) - (ta || 0);
+      });
+
+      _notifications = notifs.slice(0, 80);
+      notify();
+      return getNotifications();
+    }catch(_){
+      // keep last known notifications if something fails
+      return getNotifications();
+    }
+  }
+  
   let _follows = [];    // list of followed user ids (strings)
   let _followers = [];  // list of follower user ids (strings)
   let _names = {};      // id -> display_name (from profiles)
@@ -4693,60 +4830,164 @@ const followersNow = Social.getFollowers ? Social.getFollowers() : [];
   }
 })();
 
-function openFollowerNotifsModal(){
+function openNotificationsModal(){
   if(!user){
     showToast("Sign in to view notifications");
     return;
   }
 
+  // Ensure freshest data (best-effort; no hard dependency)
+  try{
+    if(Social.fetchNotifications) Social.fetchNotifications().catch(() => {});
+  }catch(_){}
+
+  ui._notifTab = ui._notifTab || "all"; // all | like | comment | follow
+
   const body = el("div", {});
-  const titleNote = el("div", { class:"note", text:"New followers (tap actions to interact)" });
+  const tabsHost = el("div", { class:"btnrow" });
   const listHost = el("div", {});
   const btnRowHost = el("div", { class:"btnrow" });
 
-  body.appendChild(titleNote);
+  body.appendChild(el("div", { class:"note", text:"Notifications (likes, comments, follows)" }));
+  body.appendChild(el("div", { style:"height:10px" }));
+  body.appendChild(tabsHost);
   body.appendChild(el("div", { style:"height:10px" }));
   body.appendChild(listHost);
   body.appendChild(el("div", { style:"height:10px" }));
   body.appendChild(btnRowHost);
 
+  function notifLabel(n){
+    const t = String(n?.type || "");
+    if(t === "like") return "liked your post";
+    if(t === "comment") return "commented";
+    if(t === "follow") return "followed you";
+    return "activity";
+  }
+
+  function iconFor(n){
+    const t = String(n?.type || "");
+    if(t === "like") return "❤️";
+    if(t === "comment") return "💬";
+    if(t === "follow") return "➕";
+    return "🔔";
+  }
+
+  function getAllNotifs(){
+    const fromSocial = (Social.getNotifications ? Social.getNotifications() : []) || [];
+
+    // Back-compat: include old follower-only notifications if they exist
+    const legacyFollows = (ui._followerNotifs || []).map(n => ({
+      type: "follow",
+      actorId: String(n?.id || ""),
+      eventId: null,
+      body: "",
+      createdAt: n?.at || null
+    })).filter(n => n.actorId);
+
+    // Merge (dedupe lightly by type+actor+event+createdAt)
+    const seen = new Set();
+    const merged = [];
+    const add = (n) => {
+      const key = [
+        String(n?.type||""),
+        String(n?.actorId||""),
+        String(n?.eventId||""),
+        String(n?.createdAt||"")
+      ].join("|");
+      if(seen.has(key)) return;
+      seen.add(key);
+      merged.push(n);
+    };
+
+    (fromSocial || []).forEach(add);
+    (legacyFollows || []).forEach(add);
+
+    // newest first
+    merged.sort((a,b) => {
+      const ta = a?.createdAt ? Date.parse(a.createdAt) : 0;
+      const tb = b?.createdAt ? Date.parse(b.createdAt) : 0;
+      return (tb || 0) - (ta || 0);
+    });
+
+    return merged;
+  }
+
   function repaint(){
-    const notifs = ui._followerNotifs || [];
+    const all = getAllNotifs();
     const follows = Social.getFollows ? Social.getFollows() : [];
 
+    // Tabs
+    tabsHost.innerHTML = "";
+    const mkTab = (id, label) => el("button", {
+      class: "btn" + (ui._notifTab === id ? " primary" : ""),
+      onClick: () => { ui._notifTab = id; repaint(); }
+    }, [label]);
+
+    const likeCt = all.filter(n => n.type === "like").length;
+    const comCt  = all.filter(n => n.type === "comment").length;
+    const folCt  = all.filter(n => n.type === "follow").length;
+
+    tabsHost.appendChild(mkTab("all", `All (${all.length})`));
+    tabsHost.appendChild(mkTab("like", `Likes (${likeCt})`));
+    tabsHost.appendChild(mkTab("comment", `Comments (${comCt})`));
+    tabsHost.appendChild(mkTab("follow", `Follows (${folCt})`));
+
+    // List
     listHost.innerHTML = "";
     btnRowHost.innerHTML = "";
 
-    if(!notifs.length){
-      listHost.appendChild(el("div", { class:"note", text:"No new follower notifications." }));
+    const filtered = (ui._notifTab === "all")
+      ? all
+      : all.filter(n => String(n.type||"") === ui._notifTab);
+
+    if(!filtered.length){
+      listHost.appendChild(el("div", { class:"note", text:"No notifications." }));
       return;
     }
 
-    // Ensure we have names for everyone in the list (best-effort)
+    // best-effort: hydrate names
     try{
-      const ids = notifs.map(n => n?.id).filter(Boolean);
+      const ids = filtered.map(n => n?.actorId).filter(Boolean);
       if(Social.fetchNames) Social.fetchNames(ids).catch(() => {});
     }catch(_){}
 
     listHost.appendChild(el("div", { class:"list" },
-      notifs.map(n => {
-        const fid = String(n?.id || "");
-        const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
-        const alreadyFollowing = follows.includes(fid);
+      filtered.map(n => {
+        const actorId = String(n?.actorId || "");
+        const dn = (Social.nameFor && Social.nameFor(actorId)) || "User";
+        const alreadyFollowing = follows.includes(actorId);
+        const t = String(n?.type || "");
+        const eventId = n?.eventId;
 
-        return el("div", { class:"item" }, [
-          el("div", { class:"left" }, [
-            el("div", { class:"name", text: dn }),
-            el("div", { class:"meta", text:"followed you" })
-          ]),
+        const metaText = (t === "comment" && n?.body)
+          ? `${notifLabel(n)}: ${String(n.body).slice(0, 80)}`
+          : notifLabel(n);
 
-          el("div", { class:"actions" }, [
+        const actions = [];
+
+        // "View" actions for likes/comments
+        if((t === "like" || t === "comment") && (eventId !== null && eventId !== undefined)){
+          actions.push(el("button", {
+            class:"btn sm",
+            onClick: () => {
+              try{
+                if(t === "like" && typeof openLikesModal === "function") openLikesModal(eventId);
+                else if(t === "comment" && typeof openCommentsModal === "function") openCommentsModal(eventId);
+                else if(typeof openFeedEventModal === "function") openFeedEventModal(eventId);
+              }catch(_){}
+            }
+          }, ["View"]));
+        }
+
+        // Follow-back action
+        if(t === "follow"){
+          actions.push(
             alreadyFollowing
               ? el("button", {
                   class:"btn danger sm",
                   onClick: async () => {
                     try{
-                      await Social.unfollow(fid);
+                      await Social.unfollow(actorId);
                       showToast("Unfollowed");
                       renderView();
                       repaint();
@@ -4759,7 +5000,7 @@ function openFollowerNotifsModal(){
                   class:"btn primary sm",
                   onClick: async () => {
                     try{
-                      await Social.follow(fid);
+                      await Social.follow(actorId);
                       showToast("Following");
                       renderView();
                       repaint();
@@ -4767,17 +5008,30 @@ function openFollowerNotifsModal(){
                       showToast(e?.message || "Follow failed");
                     }
                   }
-                }, ["Follow back"]),
+                }, ["Follow back"])
+          );
+        }
 
-            el("button", {
-              class:"btn sm",
-              onClick: () => {
-                ui._followerNotifs = (ui._followerNotifs || []).filter(x => String(x?.id||"") !== fid);
-                showToast("Dismissed");
-                repaint();
-              }
-            }, ["Dismiss"])
-          ])
+        // Dismiss (legacy follower list only; for unified list we just local-filter)
+        actions.push(el("button", {
+          class:"btn sm",
+          onClick: () => {
+            // remove from legacy follower list if it was a legacy follow notif
+            if(t === "follow"){
+              ui._followerNotifs = (ui._followerNotifs || []).filter(x => String(x?.id||"") !== actorId);
+            }
+            // For unified social notifs, we don’t persist dismissal yet (UI-only, safe)
+            showToast("Dismissed");
+            repaint();
+          }
+        }, ["Dismiss"]));
+
+        return el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text: `${iconFor(n)} ${dn}` }),
+            el("div", { class:"meta", text: metaText })
+          ]),
+          el("div", { class:"actions" }, actions)
         ]);
       })
     ));
@@ -4790,15 +5044,33 @@ function openFollowerNotifsModal(){
         repaint();
       }
     }, ["Clear all"]));
+
+    btnRowHost.appendChild(el("button", {
+      class:"btn",
+      onClick: async () => {
+        try{
+          if(Social.fetchNotifications) await Social.fetchNotifications();
+          showToast("Refreshed");
+        }catch(_){
+          showToast("Refresh failed");
+        }
+        repaint();
+      }
+    }, ["Refresh"]));
   }
 
   Modal.open({
-    title: "Follower notifications",
+    title: "Notifications",
     bodyNode: body
   });
 
   repaint();
-} 
+}
+
+// Backwards-compatible entry point (keeps existing wiring working)
+function openFollowerNotifsModal(){
+  openNotificationsModal();
+}
 
 
      function openConnectionsModal(initialTab){
