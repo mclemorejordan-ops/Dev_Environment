@@ -921,6 +921,73 @@ select option{
   overscroll-behavior: contain;
 }
 
+/* ─────────────────────────────
+   Connections Modal — Friend Code (one-stop shop)
+   ───────────────────────────── */
+
+.connFriendShop{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
+.connCodeRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.connCodeRow .left{
+  min-width: 0;
+  display:flex;
+  flex-direction:column;
+  gap: 2px;
+}
+
+.connCodeRow .lbl{
+  font-weight: 850;
+  letter-spacing: .15px;
+}
+
+.connCodeRow .meta{
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.connCodeRow .right{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.connCodeInput{
+  width: 190px;
+  max-width: 54vw;
+
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.12);
+  color: rgba(255,255,255,.92);
+
+  border-radius: 12px;
+  padding: 10px 10px;
+
+  font-size: 16px; /* prevents iOS zoom */
+  outline: none;
+}
+
+.connCodeInput::placeholder{
+  color: rgba(255,255,255,.45);
+}
+
 /* ✅ The modal JS renders rows using: .connRow .av .ltr .main .top .dn .badges .meta .acts
    Without these styles, the avatar letter ("T") becomes a plain block and breaks lines. */
 .connRow{
