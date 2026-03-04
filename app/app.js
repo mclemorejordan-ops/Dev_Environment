@@ -4537,11 +4537,8 @@ root.appendChild(el("div", { class:"card" }, [
   style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
 }, [
 
-  // Left spacer keeps the center pills visually centered
-  el("div", { style:"min-width:52px;" }),
-
-  // Center: Following / Followers pills (unchanged)
-  el("div", { class:"pillRow", style:"flex:1; justify-content:center;" }, [
+  // Left: Following / Followers pills (LEFT-ALIGNED)
+  el("div", { class:"pillRow", style:"justify-content:flex-start;" }, [
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
@@ -4569,20 +4566,18 @@ root.appendChild(el("div", { class:"card" }, [
     ])
   ]),
 
-  // Right: bell badge aligned with the pills row
-  el("div", { style:"min-width:52px; display:flex; justify-content:flex-end;" }, [
-    (user && (ui._followerNotifs || []).length)
-      ? el("button", {
-          class:"pill",
-          style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
-          onClick: () => { try{ openFollowerNotifsModal(); }catch(_){} }
-        }, [`🔔 ${(ui._followerNotifs || []).length}`])
-      : null
-  ].filter(Boolean))
+  // Right: bell badge
+  (user && (ui._followerNotifs || []).length)
+    ? el("button", {
+        class:"pill",
+        style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
+        onClick: () => { try{ openFollowerNotifsModal(); }catch(_){} }
+      }, [`🔔 ${(ui._followerNotifs || []).length}`])
+    : null
 
 ].filter(Boolean)) : null,
 
-  el("div", { style:"height:10px" }),
+el("div", { style:"height:10px" }),
 
   // Auth row (still only shows CTA when signed out)
   configured ? el("div", { class:"btnrow" }, [
