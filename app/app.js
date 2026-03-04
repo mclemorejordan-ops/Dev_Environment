@@ -4250,6 +4250,31 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
 
+
+       // ✅ Friends feed bootstrap:
+  // When the Friends route renders, trigger a one-time refresh/fetch so feed isn't stuck empty.
+  // Uses UIState.social to avoid loops; Social.onChange will re-render when data arrives.
+  if(configured){
+    ui.__friendsBoot = ui.__friendsBoot || { did:false, lastUserId:null };
+    const uid = user?.id ? String(user.id) : null;
+
+    // If user changes (sign in/out), allow boot again
+    if(ui.__friendsBoot.lastUserId !== uid){
+      ui.__friendsBoot.did = false;
+      ui.__friendsBoot.lastUserId = uid;
+    }
+
+    if(!ui.__friendsBoot.did){
+      ui.__friendsBoot.did = true;
+      try{
+        // refreshUser will start polling + fetch feed in your Social engine
+        if(Social.refreshUser) Social.refreshUser();
+        else if(Social.fetchFeed) Social.fetchFeed();
+      }catch(_){}
+    }
+  }
+     
+
   // ✅ Live Online/Offline pill updates (only re-render on Friends route)
 if(!ui.__netSub){
   ui.__netSub = true;
