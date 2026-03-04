@@ -911,17 +911,14 @@ select option{
 
 
 /* ─────────────────────────────
-   Connections Modal — Add Friend button row
+   Connections Modal — footer + Add Friend popup
    ───────────────────────────── */
 
-.connActionRow{
-  display:flex;
-  justify-content:flex-end;
+.connFooterRow{
+  width: 100%;
+  align-items:center;
+  flex-wrap: nowrap;
 }
-
-/* ─────────────────────────────
-   Add Friend popup — friend code inputs
-   ───────────────────────────── */
 
 .connAddFriendModal .connCodeRight{
   display:flex;
