@@ -472,7 +472,7 @@ async function toggleFeedLike(eventId){
   }
 
 
-  // ─────────────────────────────
+   // ─────────────────────────────
   // Notifications (Likes / Comments / Follows)
   // ─────────────────────────────
   let _notifications = []; // newest first
