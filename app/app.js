@@ -695,6 +695,7 @@ function initSocial(){
   };
 }
 const Social = initSocial();
+window.Social = Social;
 Social.bindStateGetter(() => state);
 
 
