@@ -220,6 +220,47 @@ async function fetchFeedLikes(eventIds){
   }
 }
 
+// ✅ Single-event reconcile (prevents flicker caused by view lag)
+async function reconcileLikeForEvent(eventId){
+  const sb = await ensureClient();
+  if(!sb || !_user) return;
+
+  const k = String(eventId ?? "");
+  if(!k) return;
+
+  // Use the base table for authoritative count (view can lag right after insert/delete)
+  try{
+    const { count, error } = await sb
+      .from("feed_likes")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", (typeof eventId === "number") ? eventId : eventId);
+
+    if(error) throw error;
+    _likeCounts[k] = Number(count || 0) || 0;
+  }catch(_){
+    // if this fails, keep optimistic count
+  }
+
+  // Refresh "did I like it" from the base table
+  try{
+    const { data, error } = await sb
+      .from("feed_likes")
+      .select("event_id")
+      .eq("event_id", (typeof eventId === "number") ? eventId : eventId)
+      .eq("user_id", _user.id)
+      .limit(1);
+
+    if(error) throw error;
+
+    const nextMine = new Set(_likedByMe);
+    if((data || []).length) nextMine.add(k);
+    else nextMine.delete(k);
+    _likedByMe = nextMine;
+  }catch(_){
+    // if this fails, keep optimistic liked state
+  }
+}
+
 // Toggle like for an event (insert/delete)
 async function toggleFeedLike(eventId){
   const sb = await ensureClient();
@@ -263,8 +304,8 @@ async function toggleFeedLike(eventId){
         }
       }
 
-      // reconcile counts for this event
-      await fetchFeedLikes([eventId]);
+      // ✅ reconcile from base table (prevents stale view flicker)
+      await reconcileLikeForEvent(eventId);
       notify();
     }catch(e){
       // keep your existing behavior (don’t refactor other logic)
