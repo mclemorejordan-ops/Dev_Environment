@@ -120,6 +120,23 @@ function writeSocialConfig(cfg){
   try{ localStorage.setItem(SOCIAL_CFG_KEY, JSON.stringify(cfg || null)); }catch(_){}
 }
 
+// Configure Supabase settings (URL + anon key)
+function configure(cfg){
+  try{
+    if(!cfg){
+      writeSocialConfig(null);
+      _cfg = null;
+      return;
+    }
+
+    writeSocialConfig(cfg);
+    _cfg = cfg;
+
+    // reset client so ensureClient() rebuilds with new config
+    _sb = null;
+  }catch(_){}
+}
+
 function readOutbox(){
   try{ return JSON.parse(localStorage.getItem(SOCIAL_OUTBOX_KEY) || "[]"); }catch(_){ return []; }
 }
@@ -454,172 +471,6 @@ async function toggleFeedLike(eventId){
     notify();
   }
 
-  // ─────────────────────────────
-  // Notifications (in-memory, DB-derived)
-  // Captures:
-  // - likes on MY posts
-  // - comments on MY posts
-  // - follows of ME
-  // ─────────────────────────────
-  let _notifications = []; // newest first
-
-  function getNotifications(){
-    return (_notifications || []).slice();
-  }
-
-  function _ts(x){
-    const t = Date.parse(String(x || ""));
-    return Number.isFinite(t) ? t : 0;
-  }
-
-  async function fetchNotifications(){
-    const sb = await ensureClient();
-    if(!sb || !_user) { _notifications = []; return []; }
-
-    // 1) Get my recent post/event ids (these are the “posts” that can be liked/commented)
-    let myEventIds = [];
-    try{
-      const { data, error } = await sb
-        .from("activity_events")
-        .select("id, created_at")
-        .eq("actor_id", _user.id)
-        .order("created_at", { ascending: false })
-        .limit(80);
-
-      if(error) throw error;
-      myEventIds = (data || []).map(r => r.id).filter(x => (x != null));
-    }catch(_){
-      myEventIds = [];
-    }
-
-    // 2) Likes on my posts
-    let likeRows = [];
-    if(myEventIds.length){
-      try{
-        const q = sb
-          .from("feed_likes")
-          .select("event_id, user_id, created_at")
-          .in("event_id", myEventIds)
-          .neq("user_id", _user.id);
-
-        // order might fail if column doesn't exist; fallback safely
-        const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
-        if(error) throw error;
-        likeRows = data || [];
-      }catch(_){
-        try{
-          const { data, error } = await sb
-            .from("feed_likes")
-            .select("event_id, user_id, created_at")
-            .in("event_id", myEventIds)
-            .neq("user_id", _user.id)
-            .limit(50);
-          if(error) throw error;
-          likeRows = data || [];
-        }catch(_){
-          likeRows = [];
-        }
-      }
-    }
-
-    // 3) Comments on my posts
-    let commentRows = [];
-    if(myEventIds.length){
-      try{
-        const q = sb
-          .from("feed_comments")
-          .select("id, event_id, user_id, body, created_at")
-          .in("event_id", myEventIds)
-          .neq("user_id", _user.id);
-
-        const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
-        if(error) throw error;
-        commentRows = data || [];
-      }catch(_){
-        try{
-          const { data, error } = await sb
-            .from("feed_comments")
-            .select("id, event_id, user_id, body, created_at")
-            .in("event_id", myEventIds)
-            .neq("user_id", _user.id)
-            .limit(50);
-          if(error) throw error;
-          commentRows = data || [];
-        }catch(_){
-          commentRows = [];
-        }
-      }
-    }
-
-    // 4) New followers (people who followed me)
-    let followRows = [];
-    try{
-      const q = sb
-        .from("follows")
-        .select("follower_id, created_at")
-        .eq("followee_id", _user.id);
-
-      const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
-      if(error) throw error;
-      followRows = data || [];
-    }catch(_){
-      try{
-        const { data, error } = await sb
-          .from("follows")
-          .select("follower_id, created_at")
-          .eq("followee_id", _user.id)
-          .limit(50);
-        if(error) throw error;
-        followRows = data || [];
-      }catch(_){
-        followRows = [];
-      }
-    }
-
-    // 5) Normalize into a single list
-    const notifs = [];
-
-    (likeRows || []).forEach(r => {
-      notifs.push({
-        kind: "like",
-        actorId: r.user_id,
-        eventId: r.event_id,
-        createdAt: r.created_at || null
-      });
-    });
-
-    (commentRows || []).forEach(r => {
-      notifs.push({
-        kind: "comment",
-        actorId: r.user_id,
-        eventId: r.event_id,
-        commentId: r.id,
-        preview: String(r.body || "").slice(0, 140),
-        createdAt: r.created_at || null
-      });
-    });
-
-    (followRows || []).forEach(r => {
-      notifs.push({
-        kind: "follow",
-        actorId: r.follower_id,
-        createdAt: r.created_at || null
-      });
-    });
-
-    // 6) Fetch names for actors (best effort)
-    try{
-      const actorIds = Array.from(new Set(notifs.map(n => String(n.actorId || "")).filter(Boolean)));
-      if(actorIds.length) await fetchNames(actorIds);
-    }catch(_){}
-
-    // 7) Sort newest-first
-    notifs.sort((a,b) => _ts(b.createdAt) - _ts(a.createdAt));
-
-    _notifications = notifs.slice(0, 80);
-    notify();
-    return _notifications;
-  }
 
   // ─────────────────────────────
   // Notifications (Likes / Comments / Follows)
