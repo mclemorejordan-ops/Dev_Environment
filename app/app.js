@@ -168,6 +168,12 @@ let _listeners = new Set();
       _user = null;
     }
 
+    // ✅ If we have a persisted session on first client creation,
+// start polling immediately so other people’s new events appear.
+if(_user){
+  try{ startFeed(); }catch(_){}
+}
+
     // Keep profiles table updated with my display name
 if(_user){
   try{ await upsertMyProfile(); }catch(_){}
