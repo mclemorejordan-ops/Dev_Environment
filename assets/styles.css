@@ -2100,10 +2100,12 @@ button.mini.added{
 }
 
 .connTxt{
-  min-width: 0;
+  min-width:0;
   display:flex;
-  flex-direction:column;
-  gap: 4px;
+  flex-direction:row;
+  align-items:center;
+  gap:6px;
+  flex-wrap:nowrap;
 }
 
 .connName{
@@ -2112,13 +2114,16 @@ button.mini.added{
   overflow:hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 58vw;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  max-width:100%;
 }
 
 .connBadges{
   display:flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap:4px;
+  flex-wrap:nowrap;
 }
 
 .connBadge{
