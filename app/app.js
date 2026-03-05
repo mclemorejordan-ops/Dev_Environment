@@ -5596,9 +5596,18 @@ function openFollowerNotifsModal(){
     const feed = (Social.getFeed ? Social.getFeed() : []) || [];
     const mine = feed.filter(ev => String(ev?.actorId || "") === id);
 
+    const isMe = (user && String(user.id || "") === id);
+
+    // Prefer local profile name for "My Profile" so it populates even with empty feed
+    const localName =
+      (state && state.profile && String(state.profile.name || "").trim())
+      || (user && (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)))
+      || (user && user.email ? String(user.email).split("@")[0] : "")
+      || "You";
+    
     const name = (Social.nameFor ? Social.nameFor(id) : null)
       || (mine.find(ev => ev?.payload?.displayName)?.payload?.displayName)
-      || "User";
+      || (isMe ? localName : "User");
 
     const now = new Date();
     const wk0 = weekStartMs(now);
