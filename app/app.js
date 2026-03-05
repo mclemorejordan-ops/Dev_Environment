@@ -5584,8 +5584,10 @@ function openFollowerNotifsModal(){
 
   refreshLists().then(repaintModal);
 }
-     
-     
+
+  // Tabs state (Friends header)
+  ui.tab = ui.tab || "feed"; // "feed" | "profile"
+
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right) + bell badge (bottom-right)
   el("div", { style:"position:relative; min-height:52px;" }, [
@@ -5668,7 +5670,25 @@ el("div", { style:"height:10px" }),
         }
       }
     }, ["Continue with Google"]) : null
-  ].filter(Boolean)) : null
+  ].filter(Boolean)) : null,
+
+  el("div", { style:"height:10px" }),
+
+  // Tabs: Feed | My Profile (Friends header)
+  el("div", { style:"display:flex; gap:8px;" }, [
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer; flex:1; justify-content:center;" + (ui.tab === "feed" ? "" : " opacity:.6;"),
+      onClick: () => { ui.tab = "feed"; renderView(); }
+    }, ["Feed"]),
+
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer; flex:1; justify-content:center;" + (ui.tab === "profile" ? "" : " opacity:.6;"),
+      onClick: () => { ui.tab = "profile"; renderView(); }
+    }, ["My Profile"])
+  ])
+
 ].filter(Boolean)));
 
 
@@ -5911,29 +5931,36 @@ async function openProfileModal(userId){
   }catch(_){}
 }
 
-// My Profile card (lives inside Friends page)
-if(user){
-  try{
-    const myId = String(user.id || "");
-    const dn = (Social.nameFor && Social.nameFor(myId)) || state?.profile?.name || "Me";
-    const counts = {
-      following: (Social.getFollows ? Social.getFollows() : []).length,
-      followers: (Social.getFollowers ? Social.getFollowers() : []).length
-    };
-    const stats = profileFromFeed(myId);
-
+// My Profile tab content (separate tab inside Friends)
+if(ui.tab === "profile"){
+  if(!user){
     root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"note", text:"My Profile" }),
       el("div", { style:"height:10px" }),
-      renderProfileNode({ userId: myId, displayName: dn, counts, stats, isMe:true })
+      el("div", { class:"note", text:"Sign in to view your profile." })
     ]));
+  }else{
+    try{
+      const myId = String(user.id || "");
+      const dn = (Social.nameFor && Social.nameFor(myId)) || state?.profile?.name || "Me";
+      const counts = {
+        following: (Social.getFollows ? Social.getFollows() : []).length,
+        followers: (Social.getFollowers ? Social.getFollowers() : []).length
+      };
+      const stats = profileFromFeed(myId);
 
-    root.appendChild(el("div", { style:"height:10px" }));
-  }catch(_){}
+      root.appendChild(el("div", { class:"card" }, [
+        renderProfileNode({ userId: myId, displayName: dn, counts, stats, isMe:true })
+      ]));
+    }catch(_){}
+  }
+
+  root.appendChild(el("div", { style:"height:10px" }));
 }
 
-     
-   // Feed
+if(ui.tab !== "profile"){
+
+// Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
     el("div", { class:"note", text:"Feed" }),
