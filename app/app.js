@@ -5531,91 +5531,214 @@ function openFollowerNotifsModal(){
      
      
 root.appendChild(el("div", { class:"card" }, [
-  // Header title + auth pill (top-right) + bell badge (bottom-right)
-  el("div", { style:"position:relative; min-height:52px;" }, [
-    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+  // Instagram-style header (UI-only)
+  (() => {
+    const isSignedIn = (typeof Social.isSignedIn === "function") ? !!Social.isSignedIn() : !!user;
 
-    (typeof Social.isSignedIn === "function")
-      ? el("div", {
+    // Best-effort display name (UI only)
+    const dn = (() => {
+      try{
+        const u = user || null;
+        const meta = u?.user_metadata || {};
+        return String(meta.full_name || meta.name || u?.email || "You");
+      }catch(_){
+        return "You";
+      }
+    })();
+
+    const initials = (() => {
+      try{
+        const parts = String(dn || "").trim().split(/\s+/).filter(Boolean);
+        const a = (parts[0] || "")[0] || "";
+        const b = (parts.length > 1 ? (parts[parts.length - 1] || "")[0] : "") || "";
+        const s = (a + b).toUpperCase();
+        return s || "•";
+      }catch(_){
+        return "•";
+      }
+    })();
+
+    const follows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
+    const followers = (Social.getFollowers ? Social.getFollowers() : followersNow) || [];
+
+    // Mutual count (UI only; no new storage keys)
+    const followsSet = {};
+    follows.forEach(id => { const k = String(id || ""); if(k) followsSet[k] = true; });
+    const mutualCount = (followers || []).reduce((n, id) => {
+      const k = String(id || "");
+      return n + (k && followsSet[k] ? 1 : 0);
+    }, 0);
+
+    const notifCount = (Social.getNotifications ? Social.getNotifications().length : 0);
+
+    const avatar = el("div", {
+      style:[
+        "width:46px",
+        "height:46px",
+        "border-radius:999px",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "font-weight:1000",
+        "letter-spacing:.5px",
+        "border:1px solid rgba(255,255,255,.14)",
+        "background: radial-gradient(18px 18px at 30% 30%, rgba(255,255,255,.35), transparent 55%), linear-gradient(135deg, rgba(120,140,255,.35), rgba(56,210,111,.22))"
+      ].join(";"),
+      text: initials
+    });
+
+    const sub = el("div", {
+      class:"meta",
+      style:"font-size:12px; opacity:.72; font-weight:800;",
+      text: (dn && dn !== "You") ? dn : (isSignedIn ? "Signed in" : "Signed out")
+    });
+
+    const bellBtn = (user)
+      ? el("button", {
           class:"pill",
-          style:"position:absolute; top:0; right:0;",
-          text: Social.isSignedIn() ? "Signed in" : "Signed out"
-        })
-      : null,
+          style:"cursor:pointer; padding:8px 10px; gap:10px;",
+          onClick: async () => {
+            try{
+              if(Social.fetchNotifications) await Social.fetchNotifications();
+              // Use the actual modal opener (openNotificationsModal() was previously out-of-scope here)
+              openFollowerNotifsModal();
+            }catch(_){}
+          }
+        }, [
+          el("span", { text:"🔔" }),
+          el("span", {
+            style:[
+              "min-width:22px",
+              "height:22px",
+              "padding:0 7px",
+              "border-radius:999px",
+              "display:inline-flex",
+              "align-items:center",
+              "justify-content:center",
+              "font-size:12px",
+              "font-weight:1000",
+              "border:1px solid rgba(56,210,111,.40)",
+              "background: rgba(56,210,111,.14)"
+            ].join(";"),
+            text: String(notifCount || 0)
+          })
+        ])
+      : null;
 
-  ].filter(Boolean)),
+    const statBtn = ({ label, value, onClick }) => el("button", {
+      type:"button",
+      style:[
+        "flex:1",
+        "background:transparent",
+        "border:none",
+        "color: rgba(255,255,255,.92)",
+        "padding: 10px 6px",
+        "border-radius: 14px",
+        "cursor:pointer",
+        "display:flex",
+        "flex-direction:column",
+        "align-items:center",
+        "gap:4px"
+      ].join(";"),
+      onClick
+    }, [
+      el("div", { style:"font-size:18px; font-weight:1000;", text: String(value || 0) }),
+      el("div", { style:"font-size:12px; opacity:.68; font-weight:900;", text: label })
+    ]);
 
-  el("div", { style:"height:10px" }),
-
-  !configured
-    ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
-    : null,
-
-  configured ? el("div", {
-  style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
-}, [
-
-  // Left: Following / Followers pills (LEFT-ALIGNED)
-  el("div", { class:"pillRow", style:"justify-content:flex-start;" }, [
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer;",
-      onClick: async () => {
+    const openConn = async (tab) => {
+      if(!configured){
+        showToast("Set up Friends in Settings first");
+        return;
+      }
+      try{
         if(Social.fetchFollows) { try{ await Social.fetchFollows(); }catch(_){} }
         if(Social.fetchFollowers) { try{ await Social.fetchFollowers(); }catch(_){} }
-        openConnectionsModal("following");
-      }
+      }catch(_){}
+      openConnectionsModal(tab);
+    };
+
+    const headerTop = el("div", {
+      style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
     }, [
-      el("div", { class:"t", text:"Following" }),
-      el("div", { class:"x", text: String((Social.getFollows ? Social.getFollows() : followsNow).length) })
-    ]),
+      el("div", { style:"display:flex; align-items:center; gap:12px; min-width:0;" }, [
+        avatar,
+        el("div", { style:"display:flex; flex-direction:column; gap:2px; min-width:0;" }, [
+          el("h2", { text:"Friends", style:"margin:0;" }),
+          sub
+        ])
+      ]),
+      bellBtn
+    ].filter(Boolean));
 
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer;",
-      onClick: async () => {
-        if(Social.fetchFollows) { try{ await Social.fetchFollows(); }catch(_){} }
-        if(Social.fetchFollowers) { try{ await Social.fetchFollowers(); }catch(_){} }
-        openConnectionsModal("followers");
-      }
+    const statsRow = configured ? el("div", { style:"display:flex; justify-content:space-between; gap:10px;" }, [
+      statBtn({ label:"Following", value: follows.length, onClick: () => openConn("following") }),
+      statBtn({ label:"Followers", value: followers.length, onClick: () => openConn("followers") }),
+      // No special mutual filtering here (UI-only). Opens Connections where mutual rows are badged.
+      statBtn({ label:"Mutual", value: mutualCount, onClick: () => openConn("followers") })
+    ]) : null;
+
+    const actionsRow = configured ? el("div", {
+      style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
     }, [
-      el("div", { class:"t", text:"Followers" }),
-      el("div", { class:"x", text: String((Social.getFollowers ? Social.getFollowers() : followersNow).length) })
-    ])
-  ]),
+      el("div", { style:"display:flex; gap:10px; flex:1;" }, [
+        el("button", {
+          class:"btn primary",
+          onClick: async () => {
+            if(!user){
+              showToast("Sign in to add friends");
+              return;
+            }
+            await openConn("following");
+          }
+        }, ["Add Friend"])
+      ]),
+      (typeof Social.isSignedIn === "function")
+        ? el("div", { class:"pill", style:"cursor:default;" }, [
+            el("div", { class:"t", text:"Status" }),
+            el("div", { class:"x", text: isSignedIn ? "Signed in" : "Signed out" })
+          ])
+        : null
+    ].filter(Boolean)) : null;
 
-    // Right: bell badge
-    (user)
-    ? el("button", {
-        class:"pill",
-        style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
-        onClick: async () => { try{
-          if(Social.fetchNotifications) await Social.fetchNotifications();
-          openNotificationsModal();
-        }catch(_){} }
-      }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
-    : null
-
-].filter(Boolean)) : null,
-
-el("div", { style:"height:10px" }),
-
-  // Auth row (still only shows CTA when signed out)
-  configured ? el("div", { class:"btnrow" }, [
-    !user ? el("button", {
-      class:"btn primary",
-      onClick: async () => {
-        try{
-          await Social.signInWithOAuth("google");
-        }catch(e){
-          showToast(e?.message || "Google sign-in failed");
+    const authRow = configured ? el("div", { class:"btnrow" }, [
+      !user ? el("button", {
+        class:"btn primary",
+        style:"width:100%;",
+        onClick: async () => {
+          try{
+            await Social.signInWithOAuth("google");
+          }catch(e){
+            showToast(e?.message || "Google sign-in failed");
+          }
         }
-      }
-    }, ["Continue with Google"]) : null
-  ].filter(Boolean)) : null
+      }, ["Continue with Google"]) : null
+    ].filter(Boolean)) : null;
+
+    return el("div", {}, [
+      headerTop,
+
+      el("div", { style:"height:10px" }),
+
+      !configured
+        ? el("div", {
+            class:"note",
+            style:"color: rgba(255,92,122,.95);",
+            text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)."
+          })
+        : null,
+
+      configured ? el("div", { style:"height:10px" }) : null,
+      statsRow,
+
+      configured ? el("div", { style:"height:10px" }) : null,
+      actionsRow,
+
+      authRow ? el("div", { style:"height:10px" }) : null,
+      authRow
+    ].filter(Boolean));
+  })()
 ].filter(Boolean)));
-
-
    // Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
