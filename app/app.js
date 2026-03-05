@@ -716,6 +716,61 @@ async function fetchNames(ids){
   return _names;
 }
 
+  async function fetchNames(ids){
+  const sb = await ensureClient();
+  if(!sb || !_user) return _names;
+
+  const uniq = Array.from(new Set((ids || [])
+    .map(x => String(x || ""))
+    .filter(Boolean)
+  ));
+
+  if(!uniq.length) return _names;
+
+  try{
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", uniq);
+
+    if(error) throw error;
+
+    (data || []).forEach(r => {
+      const id = String(r.id || "");
+      const dn = String(r.display_name || "").trim();
+      if(id && dn) _names[id] = dn;
+    });
+  }catch(_){}
+
+  return _names;
+}
+
+// ✅ NEW: follow counts for any user (for Profile UI)
+async function fetchFollowCounts(userId){
+  const sb = await ensureClient();
+  if(!sb) return { following: 0, followers: 0 };
+
+  const id = String(userId || "").trim();
+  if(!id) return { following: 0, followers: 0 };
+
+  try{
+    const [{ count: followingCount, error: e1 }, { count: followerCount, error: e2 }] = await Promise.all([
+      sb.from("follows").select("id", { count:"exact", head:true }).eq("follower_id", id),
+      sb.from("follows").select("id", { count:"exact", head:true }).eq("followee_id", id)
+    ]);
+
+    if(e1) throw e1;
+    if(e2) throw e2;
+
+    return {
+      following: Number(followingCount || 0) || 0,
+      followers: Number(followerCount || 0) || 0
+    };
+  }catch(_){
+    return { following: 0, followers: 0 };
+  }
+}
+
   async function configure({ url, anonKey }){
     const clean = {
       url: (url || "").trim(),
@@ -1094,6 +1149,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     __setNotifications: (arr) => { _notifications = Array.isArray(arr) ? arr : []; notify(); },
     __clearNotifications: () => { _notifications = []; notify(); },
     fetchNames,
+    fetchFollowCounts,   // ✅ ADD
     nameFor,
     fetchFollows,
     fetchFollowers,
@@ -5616,6 +5672,267 @@ el("div", { style:"height:10px" }),
 ].filter(Boolean)));
 
 
+// ─────────────────────────────────────────────
+// Profiles (My Profile + Friend Profiles)
+// ─────────────────────────────────────────────
+ui.profileUserId = ui.profileUserId || null;
+
+function avatarTextForName(dn){
+  const s = String(dn || "").trim();
+  if(!s) return "•";
+  const parts = s.split(/\s+/).filter(Boolean);
+  const a = (parts[0]||"")[0] || "";
+  const b = (parts.length>1 ? (parts[parts.length-1]||"")[0] : "") || "";
+  return (a + b).toUpperCase().slice(0,2) || "•";
+}
+
+function profileFromFeed(userId){
+  const id = String(userId || "");
+  const feedAll = Social.getFeed ? (Social.getFeed() || []) : [];
+  const mine = feedAll.filter(ev => String(ev?.actorId||"") === id);
+
+  const weekStartISO = (() => {
+    try{
+      const now = new Date();
+      const day = now.getDay(); // 0 Sun - 6 Sat
+      const mondayOffset = (day === 0) ? 6 : (day - 1);
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
+      return start.toISOString().slice(0,10);
+    }catch(_){ return Dates.todayISO(); }
+  })();
+
+  const weekEvents = mine.filter(ev => {
+    try{
+      const dISO = String(ev?.payload?.dateISO || "");
+      return dISO && dISO >= weekStartISO;
+    }catch(_){ return false; }
+  });
+
+  const weekWorkouts = weekEvents.filter(ev => ev.type === "workout_completed");
+  const weekExerciseLogs = weekEvents.filter(ev => ev.type === "exercise_logged");
+
+  const weekPRs = weekEvents.reduce((sum, ev) => {
+    try{
+      const p = ev.payload || {};
+      const n = Number(p.prCount || p.highlights?.prCount || 0);
+      return sum + (Number.isFinite(n) ? n : 0);
+    }catch(_){ return sum; }
+  }, 0);
+
+  const weekVolume = weekEvents.reduce((sum, ev) => {
+    try{
+      const h = ev?.payload?.highlights || {};
+      const v = Number(h.totalVolume || 0);
+      return sum + (Number.isFinite(v) ? v : 0);
+    }catch(_){ return sum; }
+  }, 0);
+
+  const recentWorkouts = mine
+    .filter(ev => ev.type === "workout_completed")
+    .slice(0, 8)
+    .map(ev => {
+      const d = ev?.payload?.details || {};
+      return {
+        id: ev?.id,
+        createdAt: ev?.createdAt,
+        dateISO: ev?.payload?.dateISO || d?.dateISO || "",
+        dayLabel: d?.dayLabel || "Workout",
+        exerciseCount: ev?.payload?.highlights?.exerciseCount || null,
+        prCount: ev?.payload?.highlights?.prCount || ev?.payload?.prCount || 0
+      };
+    });
+
+  const prEvents = weekEvents
+    .filter(ev => Number(ev?.payload?.prCount || ev?.payload?.highlights?.prCount || 0) > 0)
+    .slice(0, 10)
+    .map(ev => {
+      const p = ev.payload || {};
+      const d = p.details || {};
+      return {
+        type: ev.type,
+        dateISO: p.dateISO || d.dateISO || "",
+        label:
+          (ev.type === "workout_completed")
+            ? (d.dayLabel || "Workout")
+            : (p.exerciseName || "Exercise"),
+        prCount: Number(p.prCount || p.highlights?.prCount || 0) || 0
+      };
+    });
+
+  return {
+    weekStartISO,
+    weekWorkouts: weekWorkouts.length,
+    weekExercises: weekExerciseLogs.length,
+    weekPRs,
+    weekVolume,
+    recentWorkouts,
+    prEvents
+  };
+}
+
+function renderProfileNode({ userId, displayName, counts, stats, isMe }){
+  const dn = String(displayName || "User");
+  const av = avatarTextForName(dn);
+
+  const header = el("div", { style:"display:flex; gap:12px; align-items:center;" }, [
+    el("div", {
+      style:[
+        "width:56px","height:56px","border-radius:999px",
+        "display:flex","align-items:center","justify-content:center",
+        "font-weight:900","letter-spacing:.5px",
+        "background: rgba(255,255,255,.10)",
+        "border:1px solid rgba(255,255,255,.14)"
+      ].join(";")
+    }, [av]),
+    el("div", { style:"flex:1; min-width:0;" }, [
+      el("div", { style:"font-weight:900; font-size:16px; line-height:1.1;", text: dn }),
+      el("div", { class:"meta", text: isMe ? "My profile" : "Profile" })
+    ])
+  ]);
+
+  const pills = el("div", { class:"pillRow", style:"justify-content:flex-start; gap:10px; flex-wrap:wrap;" }, [
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer;",
+      onClick: () => { if(isMe) openConnectionsModal("following"); }
+    }, [
+      el("div", { class:"t", text:"Following" }),
+      el("div", { class:"x", text:String(counts?.following || 0) })
+    ]),
+    el("button", {
+      class:"pill",
+      style:"cursor:pointer;",
+      onClick: () => { if(isMe) openConnectionsModal("followers"); }
+    }, [
+      el("div", { class:"t", text:"Followers" }),
+      el("div", { class:"x", text:String(counts?.followers || 0) })
+    ])
+  ]);
+
+  const kpis = el("div", {
+    style:[
+      "display:grid",
+      "grid-template-columns: repeat(2, minmax(0, 1fr))",
+      "gap:10px",
+      "margin-top:10px"
+    ].join(";")
+  }, [
+    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
+      el("div", { class:"t", text:"This week workouts" }),
+      el("div", { class:"x", text:String(stats?.weekWorkouts || 0) })
+    ]),
+    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
+      el("div", { class:"t", text:"This week PRs" }),
+      el("div", { class:"x", text:String(stats?.weekPRs || 0) })
+    ]),
+    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
+      el("div", { class:"t", text:"This week volume" }),
+      el("div", { class:"x", text:(Number(stats?.weekVolume || 0) || 0).toLocaleString() })
+    ]),
+    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
+      el("div", { class:"t", text:"Since Monday" }),
+      el("div", { class:"x", text:String(stats?.weekStartISO || "") })
+    ])
+  ]);
+
+  const prList = el("div", { class:"list", style:"margin-top:10px;" });
+  if(!stats?.prEvents?.length){
+    prList.appendChild(el("div", { class:"note", text:"No PRs this week yet." }));
+  }else{
+    stats.prEvents.forEach(r => {
+      prList.appendChild(el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: r.label }),
+          el("div", { class:"meta", text: r.dateISO ? r.dateISO : "" })
+        ]),
+        el("div", { class:"actions" }, [
+          el("div", { class:"meta", text: `🏅 ${r.prCount}` })
+        ])
+      ]));
+    });
+  }
+
+  const recent = el("div", { class:"list", style:"margin-top:10px;" });
+  if(!stats?.recentWorkouts?.length){
+    recent.appendChild(el("div", { class:"note", text:"No recent workouts in feed yet." }));
+  }else{
+    stats.recentWorkouts.forEach(w => {
+      const metaBits = [];
+      if(w.exerciseCount) metaBits.push(`${w.exerciseCount} exercises`);
+      if(w.prCount) metaBits.push(`PRs: ${w.prCount}`);
+      recent.appendChild(el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: w.dayLabel }),
+          el("div", { class:"meta", text: [w.dateISO, metaBits.join(" • ")].filter(Boolean).join(" • ") })
+        ])
+      ]));
+    });
+  }
+
+  return el("div", { class:"grid" }, [
+    header,
+    el("div", { style:"height:10px" }),
+    pills,
+    kpis,
+    el("div", { style:"height:12px" }),
+    el("div", { class:"note", text:"PR list (this week)" }),
+    prList,
+    el("div", { style:"height:12px" }),
+    el("div", { class:"note", text:"Recent workouts" }),
+    recent
+  ]);
+}
+
+async function openProfileModal(userId){
+  try{
+    const id = String(userId || "").trim();
+    if(!id) return;
+
+    const dn = (Social.nameFor && Social.nameFor(id)) || "User";
+    try{ if(Social.fetchNames) await Social.fetchNames([id]); }catch(_){}
+
+    let counts = { following: 0, followers: 0 };
+    try{
+      if(Social.fetchFollowCounts) counts = await Social.fetchFollowCounts(id);
+    }catch(_){}
+
+    const stats = profileFromFeed(id);
+
+    Modal.open({
+      title: dn,
+      bodyNode: renderProfileNode({
+        userId: id,
+        displayName: (Social.nameFor && Social.nameFor(id)) || dn,
+        counts,
+        stats,
+        isMe: (user && String(user.id) === id)
+      })
+    });
+  }catch(_){}
+}
+
+// My Profile card (lives inside Friends page)
+if(user){
+  try{
+    const myId = String(user.id || "");
+    const dn = (Social.nameFor && Social.nameFor(myId)) || state?.profile?.name || "Me";
+    const counts = {
+      following: (Social.getFollows ? Social.getFollows() : []).length,
+      followers: (Social.getFollowers ? Social.getFollowers() : []).length
+    };
+    const stats = profileFromFeed(myId);
+
+    root.appendChild(el("div", { class:"card" }, [
+      el("div", { class:"note", text:"My Profile" }),
+      el("div", { style:"height:10px" }),
+      renderProfileNode({ userId: myId, displayName: dn, counts, stats, isMe:true })
+    ]));
+
+    root.appendChild(el("div", { style:"height:10px" }));
+  }catch(_){}
+}
+
+     
    // Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
@@ -6335,8 +6652,10 @@ onClick: () => openExerciseHistoryFromFeed(
             "justify-content:center",
             "font-weight:900",
             "letter-spacing:.2px",
-            "flex:0 0 auto"
+            "flex:0 0 auto",
+            "cursor:pointer"
           ].join(";"),
+          onClick: (e) => { try{ e?.stopPropagation?.(); openProfileModal(ev.actorId); }catch(_){} },
           text: initial
         });
 
