@@ -5982,15 +5982,6 @@ if(ui.friendsTab === "profile"){
         followers: (Social.getFollowers ? Social.getFollowers() : []).length
       };
       const stats = profileFromFeed(myId);
-
-      // renderProfileNode already includes its own cards/layout
-      root.appendChild(renderProfileNode({
-        userId: myId,
-        displayName: dn,
-        counts,
-        stats,
-        isMe: true
-      }));
     }catch(_){}
   }
 
