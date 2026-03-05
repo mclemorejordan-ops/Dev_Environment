@@ -1845,27 +1845,50 @@ const openProteinModal = (dateISO = todayISO) => {
         el("div", { style:"height:10px" }),
 
     // Week labels + dots aligned perfectly
-    el("div", { style:"display:flex; flex-direction:column; gap:4px;" }, [
-    
-      // Labels
-      el("div", {
-        style:"display:flex; gap:6px; opacity:.72; font-size:11px; font-weight:900; user-select:none;"
-      }, ((weekStartsOn === "sun")
-          ? ["S","M","T","W","T","F","S"]
-          : ["M","T","W","T","F","S","S"]
-        ).map(ch => el("div", {
-            text: ch,
-            style:"flex:1; text-align:center;"
-        }))
-      ),
-    
-      // Dots row
-      el("div", {
-        onClick: () => navigate("attendance"),
-        style:"cursor:pointer;"
-      }, [ dots ])
-    
-    ]),
+el("div", { style:"display:flex; flex-direction:column; gap:4px;" }, [
+
+  // Labels (use SAME 7-col grid as dots)
+  el("div", {
+    style:[
+      "display:grid",
+      "grid-template-columns:repeat(7, 1fr)",
+      "gap:6px",
+      "opacity:.72",
+      "font-size:11px",
+      "font-weight:900",
+      "user-select:none",
+      "padding:0 2px",
+      "justify-items:center",
+      "align-items:center"
+    ].join(";")
+  }, ((weekStartsOn === "sun")
+      ? ["S","M","T","W","T","F","S"]
+      : ["M","T","W","T","F","S","S"]
+    ).map(ch => el("div", {
+      text: ch,
+      style:"text-align:center; line-height:1;"
+    }))
+  ),
+
+  // Dots row (force dots node into SAME 7-col grid)
+  el("div", {
+    onClick: () => navigate("attendance"),
+    style:"cursor:pointer;"
+  }, [
+    (() => {
+      // ✅ override .dots CSS so it aligns with labels
+      // (safe: UI-only; does not change dot logic)
+      dots.style.display = "grid";
+      dots.style.gridTemplateColumns = "repeat(7, 1fr)";
+      dots.style.gap = "6px";
+      dots.style.padding = "0 2px";
+      dots.style.justifyItems = "center";
+      dots.style.alignItems = "center";
+      return dots;
+    })()
+  ])
+
+]),
 
     el("div", { style:"height:10px" }),
 
