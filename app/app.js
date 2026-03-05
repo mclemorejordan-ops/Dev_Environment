@@ -4899,20 +4899,30 @@ function openFollowerNotifsModal(){
 
   // Back-compat: bell button currently calls openNotificationsModal()
   function openNotificationsModal(){
-    return openFollowerNotifsModal();
-  }
+  return openFollowerNotifsModal();
+}
+
+  // Instagram-style shell
+  const topRow = el("div", { class:"igNotifTop" }, []);
+  const title = el("div", { class:"igNotifTitle", text:"Notifications" });
+
+  const clearBtn = el("button", {
+    class:"igNotifLinkBtn",
+    onClick: () => {
+      try{ Social.__clearNotifications && Social.__clearNotifications(); }catch(_){}
+      showToast("Cleared");
+      repaint();
+    }
+  }, ["Clear all"]);
+
+  topRow.appendChild(title);
+  topRow.appendChild(clearBtn);
 
   const listHost = el("div", { class:"igNotifList" });
 
-  const bottomClose = el("button", {
-    class:"btn primary",
-    onClick: Modal.close
-  }, ["Close"]);
-
   const body = el("div", { class:"igNotif" }, [
-    listHost,
-    el("div", { style:"height:12px" }),
-    bottomClose
+    topRow,
+    listHost
   ]);
 
   function relTimeISO(iso){
@@ -4970,52 +4980,87 @@ function openFollowerNotifsModal(){
       showToast("Workout not found (refresh feed)");
       return;
     }
+
+    // Follow → open Connections modal on Followers tab
+    if(type === "follow"){
+      try{ openConnectionsModal("followers"); }catch(_){}
+      return;
+    }
   }
 
   function rowForNotif(n, follows){
     const type = String(n?.type || "");
     const actorId = String(n?.actorId || "");
-    const name = (Social.nameFor ? (Social.nameFor(actorId) || "User") : "User");
-    const when = n?.createdAt ? relTimeISO(n.createdAt) : "";
+    const dn = (Social.nameFor && Social.nameFor(actorId)) || "User";
+    const alreadyFollowing = actorId ? follows.includes(actorId) : false;
 
-    const avatar = el("div", { class:"igNotifAvatar" }, [ avatarLetter(name) ]);
+    const timeTxt = relTimeISO(n?.createdAt);
+    const avatar = el("div", { class:"igNotifAvatar", text: avatarLetter(dn) });
 
-    const mainText = (() => {
-      if(type === "follow") return `${name} started following you.`;
-      if(type === "like") return `${name} liked your workout.`;
-      if(type === "comment") return `${name} commented: ${String(n?.body || "").slice(0, 80)}`;
-      return `${name} — activity`;
-    })();
+    const verb = (type === "like") ? " liked your workout"
+      : (type === "comment") ? " commented on your workout"
+      : " followed you";
 
     const textBlock = el("div", { class:"igNotifText" }, [
-      el("div", { class:"t", text: mainText }),
-      el("div", { class:"m", text: when })
-    ]);
+      el("div", { class:"igNotifLine" }, [
+        el("span", { class:"igNotifName", text: dn }),
+        el("span", { class:"igNotifMsg", text: verb }),
+        timeTxt ? el("span", { class:"igNotifTime", text:` • ${timeTxt}` }) : null
+      ].filter(Boolean)),
+      (type === "comment" && n?.body)
+        ? el("div", { class:"igNotifSub", text: String(n.body).slice(0, 90) })
+        : null
+    ].filter(Boolean));
 
-    const actions = el("div", { class:"igNotifActions" }, []);
-
-    // Basic action example (kept minimal)
-    if(type === "follow"){
-      const isFollowingBack = (follows || []).some(x => String(x||"") === actorId);
-      actions.appendChild(
-        isFollowingBack
-          ? el("button", { class:"btn sm", disabled:true, style:"opacity:.65; cursor:default;" }, ["Following"])
-          : el("button", {
-              class:"btn primary sm",
-              onClick: async (e) => {
-                e?.stopPropagation?.();
-                try{
-                  await Social.follow(actorId);
-                  showToast("Following");
-                  renderView();
-                  repaint();
-                }catch(err){
-                  showToast(err?.message || "Follow failed");
+    const actions = el("div", { class:"igNotifActions" }, [
+      type === "follow"
+        ? (alreadyFollowing
+            ? el("button", {
+                class:"btn danger sm",
+                onClick: async (e) => {
+                  e?.stopPropagation?.();
+                  try{
+                    await Social.unfollow(actorId);
+                    showToast("Unfollowed");
+                    renderView();
+                    repaint();
+                  }catch(err){
+                    showToast(err?.message || "Couldn't unfollow");
+                  }
                 }
-              }
-            }, ["Follow back"])
-      );
-    }
+              }, ["Unfollow"])
+            : el("button", {
+                class:"btn primary sm",
+                onClick: async (e) => {
+                  e?.stopPropagation?.();
+                  try{
+                    await Social.follow(actorId);
+                    showToast("Following");
+                    renderView();
+                    repaint();
+                  }catch(err){
+                    showToast(err?.message || "Follow failed");
+                  }
+                }
+              }, ["Follow back"]))
+        : el("button", { class:"btn sm", disabled:true, style:"opacity:.65; cursor:default;" }, ["View"]),
+
+      // Dismiss (UI-only)
+      el("button", {
+        class:"igNotifX",
+        title:"Dismiss",
+        onClick: (e) => {
+          e?.stopPropagation?.();
+          try{
+            const all = Social.getNotifications ? Social.getNotifications() : [];
+            const next = (all || []).filter(x => x !== n);
+            if(Social.__setNotifications) Social.__setNotifications(next);
+          }catch(_){}
+          showToast("Dismissed");
+          repaint();
+        }
+      }, ["✕"])
+    ]);
 
     return el("div", {
       class:"igNotifRow",
@@ -5072,15 +5117,7 @@ function openFollowerNotifsModal(){
 
   Modal.open({
     title: "Notifications",
-    bodyNode: body,
-
-    // ✅ Header button becomes "Clear All" for this modal
-    closeText: "Clear All",
-    onClose: () => {
-      try{ Social.__clearNotifications && Social.__clearNotifications(); }catch(_){}
-      showToast("Cleared");
-      repaint();
-    }
+    bodyNode: body
   });
 
   repaint();
