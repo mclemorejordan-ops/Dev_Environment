@@ -5918,275 +5918,215 @@ root.appendChild(el("div", { class:"card" }, [
     : "No events yet. Your activity (and friends you follow) will show here.";
 
   
- // ─────────────────────────────
+// ─────────────────────────────
 // My Profile — top stats card
 // ─────────────────────────────
 if(viewBody === "profile" && user){
 
-  // Helpers
-  const myId = String(user?.id || "");
-
-  function isPREntry(e){
+  // Build PR moments from MY feed events (same source the feed uses)
+  const prMoments = (() => {
+    const out = [];
     try{
-      const pr = e?.pr || {};
-      return !!(pr.isPRWeight || pr.isPR1RM || pr.isPRVolume || pr.isPRPace);
-    }catch(_){
-      return false;
-    }
-  }
+      (feedList || []).forEach(ev => {
+        if(!ev) return;
+        const p = ev.payload || {};
+        const d = p.details || null;
 
-  function prBadges(pr){
-    if(!pr) return "";
-    const b = [];
-    if(pr.isPRWeight) b.push("PR W");
-    if(pr.isPR1RM) b.push("PR 1RM");
-    if(pr.isPRVolume) b.push("PR Vol");
-    if(pr.isPRPace) b.push("PR Pace");
-    return b.join(" • ");
-  }
+        // Workout-completed events carry detailed items with prBadges
+        const isWorkout = (ev.type === "workout_completed");
+        const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
 
-  function resolveExerciseName(type, exerciseId, fallback){
-    try{
-      const lib = state?.exerciseLibrary?.[type] || [];
-      const found = (lib || []).find(x => String(x.id||"") === String(exerciseId||""));
-      return found?.name || fallback || "Exercise";
-    }catch(_){
-      return fallback || "Exercise";
-    }
-  }
+        items.forEach(it => {
+          const badges = Array.isArray(it?.prBadges) ? it.prBadges : [];
+          if(!badges.length) return;
 
-  function openExerciseHistoryModal(type, exerciseId, titleName){
+          out.push({
+            createdAt: ev.createdAt || null,
+            dateISO: String((d && d.dateISO) ? d.dateISO : (p.dateISO || "")),
+            dayLabel: String((d && d.dayLabel) ? d.dayLabel : ""),
+            type: String(it?.type || ""),
+            exerciseId: it?.exerciseId || null,
+            exerciseName: String(it?.exerciseName || it?.name || "Exercise"),
+            prBadges: badges.slice(0, 6)
+          });
+        });
+      });
+    }catch(_){}
+    return out;
+  })();
+
+  // ✅ This is the number the tile shows
+  const prTotal = prMoments.length;
+
+  function openExerciseHistoryFromProfile(type, exerciseId, exName, onBack){
     try{
       if(!exerciseId) return;
       LogEngine.ensure();
 
-      const entries = LogEngine.entriesForExercise(type, exerciseId) || []; // desc
+      const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
 
-      const list = el("div", { style:"display:grid; gap:10px;" });
+      function prBadges(pr){
+        if(!pr) return "";
+        const b = [];
+        if(pr.isPRWeight) b.push("PR W");
+        if(pr.isPR1RM) b.push("PR 1RM");
+        if(pr.isPRVolume) b.push("PR Vol");
+        if(pr.isPRPace) b.push("PR Pace");
+        return b.join(" • ");
+      }
 
+      function formatEntryDetail(type, entry){
+        try{
+          if(type === "weightlifting"){
+            const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
+            const top = entry.summary?.bestWeight ?? "—";
+            const vol = entry.summary?.totalVolume ?? "—";
+            return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
+          }
+          if(type === "cardio"){
+            const d = entry.summary?.distance ?? "—";
+            const t = formatTime(entry.summary?.timeSec ?? 0);
+            const p = formatPace(entry.summary?.paceSecPerUnit);
+            return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
+          }
+          if(type === "core"){
+            const sets = entry.summary?.sets ?? "—";
+            const reps = entry.summary?.reps ?? "—";
+            const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
+            return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
+          }
+        }catch(_){}
+        return "";
+      }
+
+      const list = el("div", { class:"list" });
       if(!entries.length){
-        list.appendChild(el("div", { class:"note", text:"No history yet." }));
+        list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
       }else{
-        entries.slice(0, 100).forEach(e => {
-          const when = e?.dateISO ? String(e.dateISO) : "";
-          const badge = prBadges(e?.pr);
-          const sub = [
-            when,
-            badge ? `🏅 ${badge}` : ""
-          ].filter(Boolean).join(" • ");
-
-          list.appendChild(el("div", { class:"setRow", style:"cursor:pointer;" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:900;", text: titleName || "Exercise" }),
-              el("div", { class:"meta", text: sub || "—" })
+        entries.slice(0, 12).forEach(e => {
+          list.appendChild(el("div", { class:"item" }, [
+            el("div", { class:"left" }, [
+              el("div", { class:"name", text: e.dateISO }),
+              el("div", { class:"meta", text: formatEntryDetail(type, e) })
             ]),
-            el("div", { class:"meta", text:"›" })
+            el("div", { class:"actions" }, [
+              el("div", { class:"meta", text: prBadges(e.pr) })
+            ])
           ]));
         });
       }
 
+      const hasBack = (typeof onBack === "function");
+      const backBtn = el("button", {
+        class:"btn",
+        onClick: () => {
+          try{
+            if(hasBack) onBack();
+            else Modal.close();
+          }catch(_){
+            Modal.close();
+          }
+        }
+      }, [hasBack ? "Back" : "Close"]);
+
       Modal.open({
-        title: titleName || "Exercise history",
-        size: "lg",
-        bodyNode: el("div", {}, [
-          el("div", { class:"note", text:"Most recent first." }),
-          el("div", { style:"height:10px" }),
+        title: "History",
+        center: true,
+        bodyNode: el("div", { class:"grid" }, [
+          el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
           list,
-          el("div", { style:"height:12px" }),
-          el("div", { class:"btnrow" }, [
-            el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-          ])
+          el("div", { style:"height:10px" }),
+          backBtn
         ])
       });
-    }catch(_){
-      try{ showToast("Could not open history"); }catch(__){}
-    }
+    }catch(_){}
   }
 
   function openMyPRsModal(){
     try{
-      LogEngine.ensure();
+      const body = el("div", { class:"grid" }, [
+        el("div", {
+          class:"note",
+          text:"Your PR moments (tap one to open that exercise’s full history)."
+        })
+      ]);
 
-      const mine = (state?.logs?.workouts || []).filter(e => String(e?.userId || myId) === myId || true);
-      const prEntries = (mine || []).filter(isPREntry);
-
-      // Sort newest first by dateISO then createdAt if present
-      prEntries.sort((a,b) => {
-        const da = String(a?.dateISO || "");
-        const db = String(b?.dateISO || "");
-        if(da !== db) return db.localeCompare(da);
-        return Number(b?.createdAt || 0) - Number(a?.createdAt || 0);
-      });
-
-      const body = el("div", {}, []);
-      body.appendChild(el("div", { class:"note", text:"Your PR moments (tap one to open that exercise’s full history)." }));
-      body.appendChild(el("div", { style:"height:10px" }));
-
-      if(!prEntries.length){
-        body.appendChild(el("div", { class:"note", text:"No PRs yet. Keep logging — they’ll show up here automatically." }));
+      if(!prMoments.length){
+        body.appendChild(el("div", {
+          class:"note",
+          text:"No PRs yet. Keep logging — they’ll show up here automatically."
+        }));
       }else{
-        const list = el("div", { style:"display:grid; gap:10px;" });
+        const list = el("div", { class:"list" });
 
-        prEntries.slice(0, 80).forEach(e => {
-          const type = String(e?.type || "");
-          const exId = e?.exerciseId || null;
-          const exName = resolveExerciseName(type, exId, e?.nameSnap);
-          const when = e?.dateISO ? String(e.dateISO) : "";
-          const badge = prBadges(e?.pr);
+        prMoments.slice(0, 60).forEach(m => {
+          const metaBits = [];
+          if(m.dateISO) metaBits.push(m.dateISO);
+          if(m.dayLabel) metaBits.push(m.dayLabel);
+          if(m.prBadges && m.prBadges.length) metaBits.push(m.prBadges.join(" • "));
 
-          list.appendChild(el("div", {
-            class:"setRow",
+          const row = el("div", {
+            class:"item",
             style:"cursor:pointer;",
             onClick: () => {
-              Modal.close();
-              openExerciseHistoryModal(type, exId, exName);
+              // Open history for this PR exercise
+              openExerciseHistoryFromProfile(m.type, m.exerciseId, m.exerciseName, () => openMyPRsModal());
             }
           }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:900;", text: exName }),
-              el("div", { class:"meta", text: [when, badge ? `🏅 ${badge}` : ""].filter(Boolean).join(" • ") || "—" })
+            el("div", { class:"left" }, [
+              el("div", { class:"name", text: m.exerciseName }),
+              el("div", { class:"meta", text: metaBits.filter(Boolean).join(" • ") })
             ]),
-            el("div", { class:"meta", text:"›" })
-          ]));
+            el("div", { class:"actions" }, [
+              el("div", { class:"meta", text:"›" })
+            ])
+          ]);
+
+          list.appendChild(row);
         });
 
         body.appendChild(list);
       }
 
-      body.appendChild(el("div", { style:"height:12px" }));
-      body.appendChild(el("div", { class:"btnrow" }, [
-        el("button", { class:"btn", onClick: Modal.close }, ["Close"])
-      ]));
-
       Modal.open({
-        title: "PRs",
-        size: "lg",
+        title: "Your PR moments",
+        center: true,
         bodyNode: body
       });
-
-    }catch(_){
-      try{ showToast("Could not open PRs"); }catch(__){}
-    }
+    }catch(_){}
   }
 
-  function openMyRoutineModal(){
-    try{
-      const active = (typeof Routines !== "undefined" && Routines.getActive) ? Routines.getActive() : null;
-
-      if(!active){
-        Modal.open({
-          title: "My Routine",
-          bodyNode: el("div", {}, [
-            el("div", { class:"note", text:"No active routine set yet." }),
-            el("div", { style:"height:12px" }),
-            el("div", { class:"btnrow" }, [
-              el("button", { class:"btn", onClick: Modal.close }, ["Close"]),
-              el("button", {
-                class:"btn primary",
-                onClick: () => { Modal.close(); try{ navigate("routine"); }catch(_){} }
-              }, ["Open Routine"])
-            ])
-          ])
-        });
-        return;
-      }
-
-      const days = Array.isArray(active?.days) ? active.days : [];
-      const wrap = el("div", {}, [
-        el("div", { class:"note", text:"Active routine overview." }),
-        el("div", { style:"height:10px" })
-      ]);
-
-      if(!days.length){
-        wrap.appendChild(el("div", { class:"note", text:"This routine has no days yet." }));
-      }else{
-        const list = el("div", { style:"display:grid; gap:10px;" });
-
-        days.forEach((d, idx) => {
-          const label = String(d?.label || "").trim();
-          const title = label ? label : `Day ${idx + 1}`;
-
-          const ex = Array.isArray(d?.exercises) ? d.exercises : [];
-          const exNames = ex.slice(0, 6).map(rx => {
-            const t = String(rx?.type || "");
-            const id = rx?.exerciseId || null;
-            return resolveExerciseName(t, id, rx?.nameSnap);
-          }).filter(Boolean);
-
-          const more = (ex.length > 6) ? ` +${ex.length - 6} more` : "";
-          const sub = exNames.length ? (exNames.join(" • ") + more) : "No exercises";
-
-          list.appendChild(el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:900;", text: title }),
-              el("div", { class:"meta", text: sub })
-            ])
-          ]));
-        });
-
-        wrap.appendChild(list);
-      }
-
-      wrap.appendChild(el("div", { style:"height:12px" }));
-      wrap.appendChild(el("div", { class:"btnrow" }, [
-        el("button", { class:"btn", onClick: Modal.close }, ["Close"]),
-        el("button", {
-          class:"btn primary",
-          onClick: () => { Modal.close(); try{ navigate("routine"); }catch(_){} }
-        }, ["Open Routine"])
-      ]));
-
-      Modal.open({
-        title: "My Routine",
-        size: "lg",
-        bodyNode: wrap
-      });
-
-    }catch(_){
-      try{ showToast("Could not open routine"); }catch(__){}
-    }
-  }
-
-  // PR count (from my feed events; safe sum)
-  const prTotal = (feedList || []).reduce((sum, ev) => {
-    try{
-      const h = ev?.payload?.highlights || {};
-      const n = Number(h.prCount || 0);
-      return sum + (Number.isFinite(n) ? n : 0);
-    }catch(_){ return sum; }
-  }, 0);
-
-  // Active routine name (safe)
-  let routineName = "—";
-  try{
-    const r = (typeof Routines !== "undefined" && Routines.getActive) ? Routines.getActive() : null;
-    routineName = (r && r.name) ? String(r.name) : "—";
-  }catch(_){ routineName = "—"; }
-
-  // Workouts count (safe)
-  const workoutCount = (() => {
-    try{
-      const arr = (state?.logs?.workouts || []);
-      return Array.isArray(arr) ? arr.length : 0;
-    }catch(_){ return 0; }
+  const routineName = (() => {
+    const all = (Routines?.getAll ? Routines.getAll() : []) || [];
+    const active = all.find(r => String(r.id) === String(state.activeRoutineId || ""));
+    return active?.name || "None";
   })();
 
-  const statTile = (label, value, onClick) => el("div", {
+  // Mini stat tile (tapable)
+  const statTile = (label, value, onClick) => el("button", {
+    class:"btn",
     style:[
-      "flex:1",
-      "min-width:0",
-      "padding:12px 10px",
-      "border-radius:14px",
-      "border:1px solid rgba(255,255,255,.10)",
-      "background: rgba(255,255,255,.04)",
-      "cursor:pointer",
-      "user-select:none"
-    ].join(";"),
-    onClick: () => { try{ onClick && onClick(); }catch(_){} }
+      "flex:1;",
+      "min-height:64px;",
+      "display:flex;",
+      "flex-direction:column;",
+      "align-items:flex-start;",
+      "justify-content:center;",
+      "gap:4px;",
+      "padding:10px 12px;",
+      "border-radius:14px;",
+      "background: rgba(255,255,255,06);",
+      "border: 1px solid rgba(255,255,255,10);",
+      "text-align:left;"
+    ].join(""),
+    onClick: (e) => {
+      e && e.preventDefault && e.preventDefault();
+      e && e.stopPropagation && e.stopPropagation();
+      try{ onClick && onClick(); }catch(_){}
+    }
   }, [
-    el("div", { class:"meta", style:"font-weight:900; letter-spacing:.2px;", text: label }),
-    el("div", { style:"height:6px" }),
-    el("div", { style:"font-size:20px; font-weight:1000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;", text: String(value) })
+    el("div", { style:"font-size:12px; opacity:.75; font-weight:800;", text: label }),
+    el("div", { style:"font-size:16px; font-weight:900;", text: String(value ?? "—") })
   ]);
 
   const profileTopCard = el("div", { class:"card" }, [
@@ -6197,10 +6137,16 @@ if(viewBody === "profile" && user){
     el("div", { style:"height:10px" }),
 
     el("div", { style:"display:flex; gap:10px;" }, [
-      statTile("PRs", prTotal, () => openMyPRsModal()),
-      statTile("Routine", routineName, () => openMyRoutineModal()),
-      statTile("Workouts", workoutCount, () => {
-        try{ showToast("Workouts tile coming next"); }catch(_){}
+      statTile("PRs", prTotal, () => {
+        openMyPRsModal();
+      }),
+      statTile("Routine", routineName, () => {
+        try{ navigate("routine"); }catch(_){
+          try{ showToast("Open Routine from Routines tab"); }catch(__){}
+        }
+      }),
+      statTile("More", "—", () => {
+        try{ showToast("Pick the 3rd tile next (streak, totals, badges, etc.)"); }catch(_){}
       })
     ])
   ]);
