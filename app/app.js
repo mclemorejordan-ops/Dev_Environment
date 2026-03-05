@@ -5785,11 +5785,15 @@ root.appendChild(el("div", { class:"card" }, [
       ]))("Mutual", mutualCount, () => openConn("mutual"))
     ]) : null;
 
-        // Actions row (status only — Add Friend removed from header)
+        // Actions row (tabs + status in one line)
     const actionsRow = configured
       ? el("div", {
-          style:"display:flex; align-items:center; justify-content:flex-end; gap:10px;"
+          style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
         }, [
+          // Left: Feed | My Profile
+          viewToggle,
+
+          // Right: Signed in/out pill
           el("div", {
             style:[
               "display:inline-flex",
@@ -5797,12 +5801,13 @@ root.appendChild(el("div", { class:"card" }, [
               "gap:10px",
               "padding:8px 10px",
               "border-radius:999px",
-              "border:1px solid rgba(255,255,255,.12)",
-              "background:rgba(255,255,255,.05)",
-              "color:rgba(255,255,255,.82)",
+              "border:1px solid rgba(255,255,255,12)",
+              "background:rgba(255,255,255,05)",
+              "color:rgba(255,255,255,82)",
               "font-weight:1000",
               "font-size:12px",
-              "white-space:nowrap"
+              "white-space:nowrap",
+              "flex:0 0 auto"
             ].join(";")
           }, [
             el("span", {
@@ -5810,8 +5815,8 @@ root.appendChild(el("div", { class:"card" }, [
                 "width:10px",
                 "height:10px",
                 "border-radius:999px",
-                "background:rgba(56,210,111,.95)",
-                "box-shadow:0 0 0 3px rgba(56,210,111,.14)"
+                "background:rgba(56,210,111,95)",
+                "box-shadow:0 0 0 3px rgba(56,210,111,14)"
               ].join(";")
             }),
             el("span", { text: isSignedIn ? "Signed in" : "Signed out" })
@@ -5825,9 +5830,10 @@ root.appendChild(el("div", { class:"card" }, [
     const tabBtn = (key, label) => el("button", {
       class:"pill",
       style:[
-        "flex:1",
+        "flex:0 0 auto",
         "min-width:0",
         "text-align:center",
+        "white-space:nowrap",
         "padding:10px 12px",
         "border-radius:999px",
         (view === key) ? "background: rgba(255,255,255,.12)" : "background: rgba(255,255,255,.06)",
@@ -5883,9 +5889,6 @@ root.appendChild(el("div", { class:"card" }, [
 
       configured ? el("div", { style:"height:12px" }) : null,
       actionsRow,
-
-      el("div", { style:"height:12px" }),
-      viewToggle,
 
       authRow ? el("div", { style:"height:10px" }) : null,
       authRow
