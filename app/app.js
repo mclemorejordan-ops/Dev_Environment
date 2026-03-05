@@ -693,17 +693,20 @@ async function fetchNames(ids){
   if(!sb || !_user) return _names;
 
   const uniq = Array.from(new Set((ids || [])
-    .map(x => String(x || ""))
-    .filter(Boolean)
-  ));
+  .map(x => String(x || ""))
+  .filter(Boolean)
+));
 
-  if(!uniq.length) return _names;
+// ✅ Only fetch missing names (cache-friendly for 12s polling)
+const missing = uniq.filter(id => !_names[String(id)]);
+
+if(!missing.length) return _names;
 
   try{
     const { data, error } = await sb
       .from("profiles")
       .select("id, display_name")
-      .in("id", uniq);
+      .in("id", missing);
 
     if(error) throw error;
 
@@ -832,8 +835,14 @@ if(_user){
 }
 
   async function fetchFeed(){
-    const sb = await ensureClient();
-    if(!sb || !_user) { _feed = []; notify(); return; }
+  const sb = await ensureClient();
+
+  // 🛡 Guard: never attempt feed queries without a configured Supabase client
+  if(!sb || !_user || !isConfigured()){
+    _feed = [];
+    notify();
+    return;
+  }
 
       // Ensure we know who we're following + who follows us (UI header counts)
   await fetchFollows();
@@ -856,13 +865,16 @@ if(_user){
         createdAt: r.created_at
       }));
       try{
-        const ids = (_feed || []).map(x => x.id);
-        const actors = (_feed || []).map(x => x.actorId);
+  const ids = (_feed || []).map(x => x.id);
+  const actors = (_feed || []).map(x => x.actorId);
 
-        await fetchNames(actors);
-        await fetchFeedLikes(ids);
-        await fetchFeedCommentCounts(ids);
-      }catch(_){}
+  // ✅ Batch hydration (parallel): faster feed paint, same results
+  await Promise.all([
+    fetchNames(actors),
+    fetchFeedLikes(ids),
+    fetchFeedCommentCounts(ids)
+  ]);
+}catch(_){}
       
     }catch(_){
       // keep last known feed if query fails
