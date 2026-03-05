@@ -5704,8 +5704,8 @@ root.appendChild(el("div", { class:"card" }, [
       style:[
         "display:flex",
         "gap:0",
-        "border:1px solid rgba(255,255,255,10)",
-        "background: rgba(255,255,255,04)",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background: rgba(255,255,255,.04)",
         "border-radius:14px",
         "overflow:hidden"
       ].join(";")
