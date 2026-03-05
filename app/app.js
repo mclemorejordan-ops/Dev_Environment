@@ -4810,6 +4810,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   const ui = UIState.social || (UIState.social = {});
   ui.friendId = ui.friendId || "";
   ui.email = ui.email || "";
+  ui.view = ui.view || "feed"; // "feed" | "profile" (UI-only)
 
   const root = el("div", { class:"grid" });
 
@@ -5818,6 +5819,37 @@ root.appendChild(el("div", { class:"card" }, [
         ])
       : null;
 
+
+        // View toggle (UI-only): Feed vs My Profile (own activity)
+    const view = ui.view || "feed";
+    const tabBtn = (key, label) => el("button", {
+      class:"pill",
+      style:[
+        "flex:1",
+        "min-width:0",
+        "text-align:center",
+        "padding:10px 12px",
+        "border-radius:999px",
+        (view === key) ? "background: rgba(255,255,255,.12)" : "background: rgba(255,255,255,.06)",
+        "border: 1px solid rgba(255,255,255,.10)",
+        "font-weight:900",
+        "letter-spacing:.2px",
+        (view === key) ? "color: rgba(255,255,255,.95)" : "color: rgba(255,255,255,.78)",
+        "cursor:pointer"
+      ].join(";"),
+      onClick: () => {
+        if(ui.view === key) return;
+        ui.view = key;
+        try{ renderView(); }catch(_){}
+      }
+    }, [label]);
+
+    const viewToggle = el("div", { class:"pillRow", style:"gap:8px;" }, [
+      tabBtn("feed", "Feed"),
+      tabBtn("profile", "My Profile")
+    ]);
+
+    
     // Auth CTA row (unchanged behavior)
     const authRow = configured ? el("div", { class:"btnrow" }, [
       !user ? el("button", {
@@ -5852,22 +5884,35 @@ root.appendChild(el("div", { class:"card" }, [
       configured ? el("div", { style:"height:12px" }) : null,
       actionsRow,
 
+      el("div", { style:"height:12px" }),
+      viewToggle,
+
       authRow ? el("div", { style:"height:10px" }) : null,
       authRow
     ].filter(Boolean));
   })()
 ].filter(Boolean)));
    
-     // Feed
-  const feed = Social.getFeed ? Social.getFeed() : [];
+     // Feed / My Profile (same cards; body list switches)
+  const feedAll = Social.getFeed ? Social.getFeed() : [];
+  const viewBody = ui.view || "feed";
+  const myId = user ? String(user.id || "") : "";
+  const feedList = (viewBody === "profile" && user)
+    ? (feedAll || []).filter(ev => String(ev?.actorId || "") === myId)
+    : (feedAll || []);
+  const bodyTitle = (viewBody === "profile") ? "My Activity" : "Feed";
+  const emptyMsg = (viewBody === "profile")
+    ? "No posts yet. Log a workout and it will appear here."
+    : "No events yet. Your activity (and friends you follow) will show here.";
+
   root.appendChild(el("div", { class:"card" }, [
-    el("div", { class:"note", text:"Feed" }),
+    el("div", { class:"note", text: bodyTitle }),
     el("div", { style:"height:10px" }),
 
     !user ? el("div", { class:"note", text:"Sign in to see your feed." }) : null,
-    user && !feed.length ? el("div", { class:"note", text:"No events yet. Your activity (and friends you follow) will show here." }) : null,
+    user && !feedList.length ? el("div", { class:"note", text: emptyMsg }) : null,
 
-    user && feed.length ? (() => {
+    user && feedList.length ? (() => {
       const timeline = el("div", {
         style:"position:relative; display:flex; flex-direction:column; gap:10px;"
       });
@@ -5999,7 +6044,7 @@ root.appendChild(el("div", { class:"card" }, [
         }
       }
 
-      (feed || []).forEach(ev => {
+      (feedList || []).forEach(ev => {
         const p = ev.payload || {};
         const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
 
