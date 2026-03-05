@@ -5783,71 +5783,39 @@ root.appendChild(el("div", { class:"card" }, [
       ]))("Mutual", mutualCount, () => openConn("mutual"))
     ]) : null;
 
-    // Actions row
-    const actionsRow = configured ? el("div", {
-      style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
-    }, [
-      // Actions row (status only)
-const actionsRow = configured
-  ? el("div", {
-      style:"display:flex; align-items:center; justify-content:flex-end; gap:10px;"
-    }, [
-      el("div", {
-        style:[
-          "display:inline-flex",
-          "align-items:center",
-          "gap:10px",
-          "padding:8px 10px",
-          "border-radius:999px",
-          "border:1px solid rgba(255,255,255,.12)",
-          "background:rgba(255,255,255,.05)",
-          "color:rgba(255,255,255,.82)",
-          "font-weight:1000",
-          "font-size:12px",
-          "white-space:nowrap"
-        ].join(";")
-      }, [
-        el("span", {
-          style:[
-            "width:10px",
-            "height:10px",
-            "border-radius:999px",
-            "background:rgba(56,210,111,.95)",
-            "box-shadow:0 0 0 3px rgba(56,210,111,.14)"
-          ].join(";")
-        }),
-        el("span", { text: isSignedIn ? "Signed in" : "Signed out" })
-      ])
-    ])
-  : null;
-
-      el("div", {
-        style:[
-          "display:inline-flex",
-          "align-items:center",
-          "gap:10px",
-          "padding: 8px 10px",
-          "border-radius: 999px",
-          "border:1px solid rgba(255,255,255,.12)",
-          "background: rgba(255,255,255,.05)",
-          "color: rgba(255,255,255,.82)",
-          "font-weight:1000",
-          "font-size:12px",
-          "white-space:nowrap"
-        ].join(";")
-      }, [
-        el("span", {
-          style:[
-            "width:10px",
-            "height:10px",
-            "border-radius:999px",
-            "background: rgba(56,210,111,.95)",
-            "box-shadow: 0 0 0 3px rgba(56,210,111,.14)"
-          ].join(";")
-        }),
-        el("span", { text: isSignedIn ? "Signed in" : "Signed out" })
-      ])
-    ]) : null;
+        // Actions row (status only — Add Friend removed from header)
+    const actionsRow = configured
+      ? el("div", {
+          style:"display:flex; align-items:center; justify-content:flex-end; gap:10px;"
+        }, [
+          el("div", {
+            style:[
+              "display:inline-flex",
+              "align-items:center",
+              "gap:10px",
+              "padding:8px 10px",
+              "border-radius:999px",
+              "border:1px solid rgba(255,255,255,.12)",
+              "background:rgba(255,255,255,.05)",
+              "color:rgba(255,255,255,.82)",
+              "font-weight:1000",
+              "font-size:12px",
+              "white-space:nowrap"
+            ].join(";")
+          }, [
+            el("span", {
+              style:[
+                "width:10px",
+                "height:10px",
+                "border-radius:999px",
+                "background:rgba(56,210,111,.95)",
+                "box-shadow:0 0 0 3px rgba(56,210,111,.14)"
+              ].join(";")
+            }),
+            el("span", { text: isSignedIn ? "Signed in" : "Signed out" })
+          ])
+        ])
+      : null;
 
     // Auth CTA row (unchanged behavior)
     const authRow = configured ? el("div", { class:"btnrow" }, [
