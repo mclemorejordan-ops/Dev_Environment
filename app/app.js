@@ -5699,38 +5699,17 @@ root.appendChild(el("div", { class:"card" }, [
         : null
     ].filter(Boolean));
 
-    // Stats bar (following/followers/mutual)
+        // Stats bar (following/followers/mutual)
     const statsBar = configured ? el("div", {
       style:[
         "display:flex",
         "gap:0",
-        "border:1px solid rgba(255,255,255,.10)",
-        "background: rgba(255,255,255,.04)",
+        "border:1px solid rgba(255,255,255,10)",
+        "background: rgba(255,255,255,04)",
         "border-radius:14px",
         "overflow:hidden"
       ].join(";")
     }, [
-      (label, value, onClick) => el("button", {
-        type:"button",
-        style:[
-          "flex:1",
-          "border:none",
-          "background:transparent",
-          "color: rgba(255,255,255,.92)",
-          "padding: 12px 6px",
-          "cursor:pointer",
-          "display:flex",
-          "flex-direction:column",
-          "align-items:center",
-          "gap:4px",
-          "-webkit-tap-highlight-color: transparent"
-        ].join(";"),
-        onClick
-      }, [
-        el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
-        el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
-      ]),
-
       // Following
       ((label, value, onClick) => el("button", {
         type:"button",
@@ -5781,7 +5760,7 @@ root.appendChild(el("div", { class:"card" }, [
       // divider
       el("div", { style:"width:1px; background: rgba(255,255,255,.10);" }),
 
-      // Mutual (opens followers list; mutual rows are badged inside modal)
+      // Mutual
       ((label, value, onClick) => el("button", {
         type:"button",
         style:[
@@ -5801,7 +5780,7 @@ root.appendChild(el("div", { class:"card" }, [
       }, [
         el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
         el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
-      ]))("Mutual", mutualCount, () => openConn("followers"))
+      ]))("Mutual", mutualCount, () => openConn("mutual"))
     ]) : null;
 
     // Actions row
