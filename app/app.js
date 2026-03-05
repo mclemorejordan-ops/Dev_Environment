@@ -5923,175 +5923,150 @@ root.appendChild(el("div", { class:"card" }, [
 // ─────────────────────────────
 if(viewBody === "profile" && user){
 
-  // Build PR moments from MY feed events (same source the feed uses)
-  const prMoments = (() => {
-    const out = [];
+  // Keep this safe + UI-only (no new storage/state keys)
+  // Count PR badges from your own saved logs (matches how PR flags are stored on log entries).
+  const prTotal = (() => {
     try{
-      (feedList || []).forEach(ev => {
-        if(!ev) return;
-        const p = ev.payload || {};
-        const d = p.details || null;
-
-        // Workout-completed events carry detailed items with prBadges
-        const isWorkout = (ev.type === "workout_completed");
-        const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
-
-        items.forEach(it => {
-          const badges = Array.isArray(it?.prBadges) ? it.prBadges : [];
-          if(!badges.length) return;
-
-          out.push({
-            createdAt: ev.createdAt || null,
-            dateISO: String((d && d.dateISO) ? d.dateISO : (p.dateISO || "")),
-            dayLabel: String((d && d.dayLabel) ? d.dayLabel : ""),
-            type: String(it?.type || ""),
-            exerciseId: it?.exerciseId || null,
-            exerciseName: String(it?.exerciseName || it?.name || "Exercise"),
-            prBadges: badges.slice(0, 6)
-          });
-        });
+      const rows = (state.logs?.workouts || []);
+      let n = 0;
+      rows.forEach(e => {
+        const pr = e?.pr || {};
+        if(pr.isPRWeight) n++;
+        if(pr.isPR1RM) n++;
+        if(pr.isPRVolume) n++;
+        if(pr.isPRPace) n++;
       });
-    }catch(_){}
-    return out;
+      return n;
+    }catch(_){
+      return 0;
+    }
   })();
 
-  // ✅ This is the number the tile shows
-  const prTotal = prMoments.length;
-
-  function openExerciseHistoryFromProfile(type, exerciseId, exName, onBack){
+  function openMyPRsModal(){
     try{
-      if(!exerciseId) return;
       LogEngine.ensure();
 
-      const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
+      const rows = (state.logs?.workouts || []).filter(e => {
+        const pr = e?.pr || {};
+        return !!(pr.isPRWeight || pr.isPR1RM || pr.isPRVolume || pr.isPRPace);
+      });
 
-      function prBadges(pr){
-        if(!pr) return "";
-        const b = [];
-        if(pr.isPRWeight) b.push("PR W");
-        if(pr.isPR1RM) b.push("PR 1RM");
-        if(pr.isPRVolume) b.push("PR Vol");
-        if(pr.isPRPace) b.push("PR Pace");
-        return b.join(" • ");
-      }
-
-      function formatEntryDetail(type, entry){
-        try{
-          if(type === "weightlifting"){
-            const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
-            const top = entry.summary?.bestWeight ?? "—";
-            const vol = entry.summary?.totalVolume ?? "—";
-            return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
-          }
-          if(type === "cardio"){
-            const d = entry.summary?.distance ?? "—";
-            const t = formatTime(entry.summary?.timeSec ?? 0);
-            const p = formatPace(entry.summary?.paceSecPerUnit);
-            return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
-          }
-          if(type === "core"){
-            const sets = entry.summary?.sets ?? "—";
-            const reps = entry.summary?.reps ?? "—";
-            const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
-            return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
-          }
-        }catch(_){}
-        return "";
-      }
+      // Newest first
+      rows.sort((a,b) => String(b?.dateISO || "").localeCompare(String(a?.dateISO || "")));
 
       const list = el("div", { class:"list" });
-      if(!entries.length){
-        list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
+
+      if(!rows.length){
+        list.appendChild(el("div", { class:"note", text:"No PRs yet. Keep logging — they’ll show up here automatically." }));
       }else{
-        entries.slice(0, 12).forEach(e => {
-          list.appendChild(el("div", { class:"item" }, [
+        const badgeLine = (pr) => {
+          const b = [];
+          if(pr?.isPRWeight) b.push("PR W");
+          if(pr?.isPR1RM) b.push("PR 1RM");
+          if(pr?.isPRVolume) b.push("PR Vol");
+          if(pr?.isPRPace) b.push("PR Pace");
+          return b.join(" • ");
+        };
+
+        const exNameOf = (e) => {
+          try{
+            if(e?.nameSnap) return String(e.nameSnap);
+            if(typeof resolveExerciseName === "function" && e?.type && e?.exerciseId){
+              return resolveExerciseName(String(e.type), String(e.exerciseId), "Exercise");
+            }
+          }catch(_){}
+          return "Exercise";
+        };
+
+        function openHistory(type, exerciseId, exName){
+          try{
+            if(!exerciseId) return;
+            const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
+
+            const hist = el("div", { class:"list" });
+            if(!entries.length){
+              hist.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
+            }else{
+              const formatEntryDetail = (type, entry) => {
+                try{
+                  if(type === "weightlifting"){
+                    const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
+                    const top = entry.summary?.bestWeight ?? "—";
+                    const vol = entry.summary?.totalVolume ?? "—";
+                    return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
+                  }
+                  if(type === "cardio"){
+                    const d = entry.summary?.distance ?? "—";
+                    const t = formatTime(entry.summary?.timeSec ?? 0);
+                    const p = formatPace(entry.summary?.paceSecPerUnit);
+                    return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
+                  }
+                  // core
+                  const sets = entry.summary?.sets ?? "—";
+                  const reps = entry.summary?.reps ?? "—";
+                  const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
+                  return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
+                }catch(_){}
+                return "";
+              };
+
+              entries.slice(0, 12).forEach(en => {
+                hist.appendChild(el("div", { class:"item" }, [
+                  el("div", { class:"left" }, [
+                    el("div", { class:"name", text: en.dateISO }),
+                    el("div", { class:"meta", text: formatEntryDetail(type, en) })
+                  ]),
+                  el("div", { class:"actions" }, [
+                    el("div", { class:"meta", text: badgeLine(en.pr || {}) })
+                  ])
+                ]));
+              });
+            }
+
+            Modal.open({
+              title: "History",
+              center: true,
+              bodyNode: el("div", { class:"grid" }, [
+                el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
+                hist,
+                el("div", { style:"height:10px" }),
+                el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+              ])
+            });
+          }catch(_){}
+        }
+
+        rows.slice(0, 60).forEach(e => {
+          const type = String(e?.type || "");
+          const exId = String(e?.exerciseId || "");
+          const exName = exNameOf(e);
+          const badges = badgeLine(e?.pr || {});
+
+          list.appendChild(el("button", {
+            class:"item",
+            style:"cursor:pointer;",
+            onClick: () => openHistory(type, exId, exName)
+          }, [
             el("div", { class:"left" }, [
-              el("div", { class:"name", text: e.dateISO }),
-              el("div", { class:"meta", text: formatEntryDetail(type, e) })
+              el("div", { class:"name", text: exName }),
+              el("div", { class:"meta", text: `${String(e?.dateISO || "")}${badges ? ` • ${badges}` : ""}` })
             ]),
             el("div", { class:"actions" }, [
-              el("div", { class:"meta", text: prBadges(e.pr) })
+              el("div", { class:"meta", text:"Tap" })
             ])
           ]));
         });
       }
 
-      const hasBack = (typeof onBack === "function");
-      const backBtn = el("button", {
-        class:"btn",
-        onClick: () => {
-          try{
-            if(hasBack) onBack();
-            else Modal.close();
-          }catch(_){
-            Modal.close();
-          }
-        }
-      }, [hasBack ? "Back" : "Close"]);
-
       Modal.open({
-        title: "History",
+        title: "PRs",
         center: true,
         bodyNode: el("div", { class:"grid" }, [
-          el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
+          el("div", { class:"note", text:"Your PR moments (tap one to open that exercise’s full history)." }),
           list,
           el("div", { style:"height:10px" }),
-          backBtn
+          el("button", { class:"btn", onClick: Modal.close }, ["Close"])
         ])
-      });
-    }catch(_){}
-  }
-
-  function openMyPRsModal(){
-    try{
-      const body = el("div", { class:"grid" }, [
-        el("div", {
-          class:"note",
-          text:"Your PR moments (tap one to open that exercise’s full history)."
-        })
-      ]);
-
-      if(!prMoments.length){
-        body.appendChild(el("div", {
-          class:"note",
-          text:"No PRs yet. Keep logging — they’ll show up here automatically."
-        }));
-      }else{
-        const list = el("div", { class:"list" });
-
-        prMoments.slice(0, 60).forEach(m => {
-          const metaBits = [];
-          if(m.dateISO) metaBits.push(m.dateISO);
-          if(m.dayLabel) metaBits.push(m.dayLabel);
-          if(m.prBadges && m.prBadges.length) metaBits.push(m.prBadges.join(" • "));
-
-          const row = el("div", {
-            class:"item",
-            style:"cursor:pointer;",
-            onClick: () => {
-              // Open history for this PR exercise
-              openExerciseHistoryFromProfile(m.type, m.exerciseId, m.exerciseName, () => openMyPRsModal());
-            }
-          }, [
-            el("div", { class:"left" }, [
-              el("div", { class:"name", text: m.exerciseName }),
-              el("div", { class:"meta", text: metaBits.filter(Boolean).join(" • ") })
-            ]),
-            el("div", { class:"actions" }, [
-              el("div", { class:"meta", text:"›" })
-            ])
-          ]);
-
-          list.appendChild(row);
-        });
-
-        body.appendChild(list);
-      }
-
-      Modal.open({
-        title: "Your PR moments",
-        center: true,
-        bodyNode: body
       });
     }catch(_){}
   }
@@ -6115,8 +6090,8 @@ if(viewBody === "profile" && user){
       "gap:4px;",
       "padding:10px 12px;",
       "border-radius:14px;",
-      "background: rgba(255,255,255,06);",
-      "border: 1px solid rgba(255,255,255,10);",
+      "background: rgba(255,255,255,.06);",
+      "border: 1px solid rgba(255,255,255,.10);",
       "text-align:left;"
     ].join(""),
     onClick: (e) => {
@@ -6138,19 +6113,20 @@ if(viewBody === "profile" && user){
 
     el("div", { style:"display:flex; gap:10px;" }, [
       statTile("PRs", prTotal, () => {
-        openMyPRsModal();
+        try{ openMyPRsModal(); }catch(_){}
       }),
       statTile("Routine", routineName, () => {
         try{ navigate("routine"); }catch(_){
           try{ showToast("Open Routine from Routines tab"); }catch(__){}
         }
       }),
-      statTile("More", "—", () => {
+      statTile("More", "Soon", () => {
         try{ showToast("Pick the 3rd tile next (streak, totals, badges, etc.)"); }catch(_){}
       })
     ])
   ]);
 
+  // ✅ THIS was missing — without this, the card never renders
   root.appendChild(profileTopCard);
 }
      
