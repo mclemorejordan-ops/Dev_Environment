@@ -1731,7 +1731,34 @@ const openProteinModal = (dateISO = todayISO) => {
           dots.appendChild(dot);
         });
 
-        const weekLabel = weekStartsOn === "sun" ? "Week (Sun–Sat)" : "Week (Mon–Sun)";
+        // Build week date range label (ex: Mar 1st – Mar 7th)
+        function ordinal(n){
+          const s = ["th","st","nd","rd"];
+          const v = n % 100;
+          return n + (s[(v-20)%10] || s[v] || s[0]);
+        }
+        
+        function formatWeekRange(startISO){
+          const start = new Date(startISO);
+          const end = new Date(startISO);
+          end.setDate(end.getDate() + 6);
+        
+          const monthFmt = { month:"short" };
+        
+          const startMonth = start.toLocaleString(undefined, monthFmt);
+          const endMonth = end.toLocaleString(undefined, monthFmt);
+        
+          const startDay = ordinal(start.getDate());
+          const endDay = ordinal(end.getDate());
+        
+          if(startMonth === endMonth){
+            return `${startMonth} ${startDay} – ${endDay}`;
+          }
+        
+          return `${startMonth} ${startDay} – ${endMonth} ${endDay}`;
+        }
+        
+        const weekRangeLabel = formatWeekRange(weekStartISO);
 
         const wLatest = WeightEngine.latest();
         const wPrev = WeightEngine.previous();
@@ -1825,10 +1852,16 @@ const openProteinModal = (dateISO = todayISO) => {
   });
 
   return el("div", { class:"card" }, [
-    el("div", {}, [
-      el("h2", { text:"This Week" }),
-      el("div", { class:"note", text: weekLabel })
-    ]),
+    el("div", {
+  style:"display:flex; align-items:baseline; justify-content:space-between; gap:10px;"
+}, [
+  el("div", {
+    style:"display:flex; align-items:baseline; gap:10px; min-width:0;"
+  }, [
+    el("h2", { text:"This Week" }),
+    el("div", { class:"note", text:`| ${weekRangeLabel}` })
+  ])
+]),
 
     // Attendance section
     el("div", { class:"homeRow" }, [
