@@ -5579,7 +5579,7 @@ root.appendChild(el("div", { class:"card" }, [
             ].join(";"),
             text: dn
           })
-        ])
+        ]),
   
 
       // Right: signed-in pill + bell
