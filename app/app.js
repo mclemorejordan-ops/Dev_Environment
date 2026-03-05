@@ -6639,16 +6639,7 @@ onClick: () => openExerciseHistoryFromFeed(
           text: initial
         });
 
-        const row = el("div", {
-          style:"display:flex; gap:10px; align-items:flex-start;"
-        }, [
-          avatar,
-
-          el("div", {
-            class:"setLink",
-            style:"width:100%;",
-            onClick: () => openFeedEventModal(ev, title, who, when)
-          }, [const interactionsNode = (() => {
+  const interactionsNode = (() => {
   const eventId = ev.id;
   const liked = (Social.didILike ? Social.didILike(eventId) : false);
   const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : 0);
