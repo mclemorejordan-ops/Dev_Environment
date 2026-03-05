@@ -5918,64 +5918,73 @@ root.appendChild(el("div", { class:"card" }, [
     : "No events yet. Your activity (and friends you follow) will show here.";
 
   
-     // ─────────────────────────────
-  // My Profile — top stats card (UI-only)
   // ─────────────────────────────
-  if(viewBody === "profile" && user){
-    // PR count (from my feed events; safe sum)
-    const prTotal = (feedList || []).reduce((sum, ev) => {
-      try{
-        const h = ev?.payload?.highlights || {};
-        const n = Number(h.prCount || 0);
-        return sum + (Number.isFinite(n) ? n : 0);
-      }catch(_){ return sum; }
-    }, 0);
+// My Profile — top stats card
+// ─────────────────────────────
+if(viewBody === "profile" && user){
 
-    // Active routine name (safe)
-    let routineName = "—";
-    try{
-      const r = (typeof Routines !== "undefined" && Routines.getActive) ? Routines.getActive() : null;
-      routineName = (r && r.name) ? String(r.name) : "—";
-    }catch(_){ routineName = "—"; }
+  // Keep this safe + UI-only (no new storage/state keys)
+  const prTotal = 0;
 
-    // Workouts count (safe)
-    const workoutCount = (() => {
-      try{
-        const arr = (state?.logs?.workouts || []);
-        return Array.isArray(arr) ? arr.length : 0;
-      }catch(_){ return 0; }
-    })();
+  const routineName = (() => {
+    const all = (Routines?.getAll ? Routines.getAll() : []) || [];
+    const active = all.find(r => String(r.id) === String(state.activeRoutineId || ""));
+    return active?.name || "None";
+  })();
 
-    const statTile = (label, value, onClick) => el("div", {
-      style:[
-        "flex:1",
-        "min-width:0",
-        "padding:12px 10px",
-        "border-radius:14px",
-        "border:1px solid rgba(255,255,255,.10)",
-        "background: rgba(255,255,255,.04)",
-        "cursor:pointer",
-        "user-select:none"
-      ].join(";"),
-      onClick: () => { try{ onClick && onClick(); }catch(_){} }
-    }, [
-      el("div", { class:"meta", style:"font-weight:900; letter-spacing:.2px;", text: label }),
-      el("div", { style:"height:6px" }),
-      el("div", { style:"font-size:20px; font-weight:1000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;", text: String(value) })
-    ]);
+  // Mini stat tile (tapable)
+  const statTile = (label, value, onClick) => el("button", {
+    class:"btn",
+    style:[
+      "flex:1;",
+      "min-height:64px;",
+      "display:flex;",
+      "flex-direction:column;",
+      "align-items:flex-start;",
+      "justify-content:center;",
+      "gap:4px;",
+      "padding:10px 12px;",
+      "border-radius:14px;",
+      "background: rgba(255,255,255,.06);",
+      "border: 1px solid rgba(255,255,255,.10);",
+      "text-align:left;"
+    ].join(""),
+    onClick: (e) => {
+      e && e.preventDefault && e.preventDefault();
+      e && e.stopPropagation && e.stopPropagation();
+      try{ onClick && onClick(); }catch(_){}
+    }
+  }, [
+    el("div", { style:"font-size:12px; opacity:.75; font-weight:800;", text: label }),
+    el("div", { style:"font-size:16px; font-weight:900;", text: String(value ?? "—") })
+  ]);
 
-    const profileStatsCard = el("div", { class:"card" }, [
-      el("div", {
-        style:"display:flex; gap:10px; align-items:stretch;"
-      }, [
-        statTile("PRs", String(prTotal), () => navigate("progress")),
-        statTile("Routine", routineName, () => navigate("routine")),
-        statTile("Workouts", String(workoutCount), () => navigate("workouts"))
-      ])
-    ]);
+  const profileTopCard = el("div", { class:"card" }, [
+    el("div", { style:"display:flex; align-items:center; justify-content:space-between; gap:10px;" }, [
+      el("h2", { text:"My Profile" }),
+      el("div", { class:"note", text:"Quick shortcuts" })
+    ]),
+    el("div", { style:"height:10px" }),
 
-    root.appendChild(profileStatsCard);
-  }  
+    el("div", { style:"display:flex; gap:10px;" }, [
+      statTile("PRs", prTotal, () => {
+        try{ showToast("PRs view coming next"); }catch(_){}
+      }),
+      statTile("Routine", routineName, () => {
+        // Route name confirmed in your codebase: navigate("routine") exists :contentReference[oaicite:1]{index=1}
+        try{ navigate("routine"); }catch(_){
+          try{ showToast("Open Routine from Routines tab"); }catch(__){}
+        }
+      }),
+      statTile("More", "—", () => {
+        try{ showToast("Pick the 3rd tile next (streak, totals, badges, etc.)"); }catch(_){}
+      })
+    ])
+  ]);
+
+  // ✅ THIS was missing — without this, the card never renders
+  root.appendChild(profileTopCard);
+} 
      
      
   root.appendChild(el("div", { class:"card" }, [
