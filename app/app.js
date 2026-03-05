@@ -5531,7 +5531,7 @@ function openFollowerNotifsModal(){
      
      
 root.appendChild(el("div", { class:"card" }, [
-  // Instagram-style header (UI-only)
+  // Enhanced IG-style header (UI-only)
   (() => {
     const isSignedIn = (typeof Social.isSignedIn === "function") ? !!Social.isSignedIn() : !!user;
 
@@ -5561,7 +5561,7 @@ root.appendChild(el("div", { class:"card" }, [
     const follows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
     const followers = (Social.getFollowers ? Social.getFollowers() : followersNow) || [];
 
-    // Mutual count (UI only; no new storage keys)
+    // Mutual count (UI-only; no new storage keys)
     const followsSet = {};
     follows.forEach(id => { const k = String(id || ""); if(k) followsSet[k] = true; });
     const mutualCount = (followers || []).reduce((n, id) => {
@@ -5570,81 +5570,6 @@ root.appendChild(el("div", { class:"card" }, [
     }, 0);
 
     const notifCount = (Social.getNotifications ? Social.getNotifications().length : 0);
-
-    const avatar = el("div", {
-      style:[
-        "width:46px",
-        "height:46px",
-        "border-radius:999px",
-        "display:flex",
-        "align-items:center",
-        "justify-content:center",
-        "font-weight:1000",
-        "letter-spacing:.5px",
-        "border:1px solid rgba(255,255,255,.14)",
-        "background: radial-gradient(18px 18px at 30% 30%, rgba(255,255,255,.35), transparent 55%), linear-gradient(135deg, rgba(120,140,255,.35), rgba(56,210,111,.22))"
-      ].join(";"),
-      text: initials
-    });
-
-    const sub = el("div", {
-      class:"meta",
-      style:"font-size:12px; opacity:.72; font-weight:800;",
-      text: (dn && dn !== "You") ? dn : (isSignedIn ? "Signed in" : "Signed out")
-    });
-
-    const bellBtn = (user)
-      ? el("button", {
-          class:"pill",
-          style:"cursor:pointer; padding:8px 10px; gap:10px;",
-          onClick: async () => {
-            try{
-              if(Social.fetchNotifications) await Social.fetchNotifications();
-              // Use the actual modal opener (openNotificationsModal() was previously out-of-scope here)
-              openFollowerNotifsModal();
-            }catch(_){}
-          }
-        }, [
-          el("span", { text:"🔔" }),
-          el("span", {
-            style:[
-              "min-width:22px",
-              "height:22px",
-              "padding:0 7px",
-              "border-radius:999px",
-              "display:inline-flex",
-              "align-items:center",
-              "justify-content:center",
-              "font-size:12px",
-              "font-weight:1000",
-              "border:1px solid rgba(56,210,111,.40)",
-              "background: rgba(56,210,111,.14)"
-            ].join(";"),
-            text: String(notifCount || 0)
-          })
-        ])
-      : null;
-
-    const statBtn = ({ label, value, onClick }) => el("button", {
-      type:"button",
-      style:[
-        "flex:1",
-        "background:transparent",
-        "border:none",
-        "color: rgba(255,255,255,.92)",
-        "padding: 10px 6px",
-        "border-radius: 14px",
-        "cursor:pointer",
-        "display:flex",
-        "flex-direction:column",
-        "align-items:center",
-        "gap:4px"
-      ].join(";"),
-      onClick
-    }, [
-      el("div", { style:"font-size:18px; font-weight:1000;", text: String(value || 0) }),
-      el("div", { style:"font-size:12px; opacity:.68; font-weight:900;", text: label })
-    ]);
 
     const openConn = async (tab) => {
       if(!configured){
@@ -5658,49 +5583,272 @@ root.appendChild(el("div", { class:"card" }, [
       openConnectionsModal(tab);
     };
 
-    const headerTop = el("div", {
+    // Top row (avatar ring + title/subtitle + bell icon)
+    const topRow = el("div", {
       style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
     }, [
       el("div", { style:"display:flex; align-items:center; gap:12px; min-width:0;" }, [
-        avatar,
-        el("div", { style:"display:flex; flex-direction:column; gap:2px; min-width:0;" }, [
+        // IG ring avatar
+        el("div", {
+          style:[
+            "width:50px",
+            "height:50px",
+            "border-radius:999px",
+            "padding:2px",
+            "background: conic-gradient(from 20deg, rgba(56,210,111,.95), rgba(120,140,255,.75), rgba(255,120,170,.55), rgba(56,210,111,.95))",
+            "box-shadow: 0 10px 18px rgba(0,0,0,.25)",
+            "position:relative",
+            "flex:0 0 auto"
+          ].join(";")
+        }, [
+          el("div", {
+            style:[
+              "width:100%",
+              "height:100%",
+              "border-radius:999px",
+              "border:1px solid rgba(255,255,255,.14)",
+              "background: radial-gradient(18px 18px at 30% 30%, rgba(255,255,255,.35), transparent 55%), linear-gradient(135deg, rgba(120,140,255,.28), rgba(56,210,111,.18))",
+              "display:flex",
+              "align-items:center",
+              "justify-content:center",
+              "font-weight:1100",
+              "letter-spacing:.6px"
+            ].join(";"),
+            text: initials
+          }),
+          // Online dot (only when signed in)
+          isSignedIn ? el("div", {
+            style:[
+              "position:absolute",
+              "right:-1px",
+              "bottom:-1px",
+              "width:14px",
+              "height:14px",
+              "border-radius:999px",
+              "background: rgba(56,210,111,.95)",
+              "border:2px solid rgba(10,14,20,1)",
+              "box-shadow: 0 0 0 3px rgba(56,210,111,.12)"
+            ].join(";")
+          }) : null
+        ].filter(Boolean)),
+
+        // Title + subtitle
+        el("div", { style:"display:flex; flex-direction:column; gap:3px; min-width:0;" }, [
           el("h2", { text:"Friends", style:"margin:0;" }),
-          sub
+          el("div", {
+            class:"meta",
+            style:[
+              "font-size:12px",
+              "font-weight:850",
+              "opacity:.72",
+              "overflow:hidden",
+              "text-overflow:ellipsis",
+              "white-space:nowrap",
+              "max-width:260px"
+            ].join(";"),
+            text: (dn && dn !== "You") ? dn : (isSignedIn ? "Signed in" : "Signed out")
+          })
         ])
       ]),
-      bellBtn
+
+      // Bell icon button + overlay badge (signed-in only)
+      (user)
+        ? el("button", {
+            type:"button",
+            style:[
+              "width:44px",
+              "height:44px",
+              "border-radius:14px",
+              "border:1px solid rgba(255,255,255,.14)",
+              "background: rgba(255,255,255,.06)",
+              "display:flex",
+              "align-items:center",
+              "justify-content:center",
+              "cursor:pointer",
+              "position:relative",
+              "-webkit-tap-highlight-color: transparent"
+            ].join(";"),
+            onClick: async () => {
+              try{
+                if(Social.fetchNotifications) await Social.fetchNotifications();
+                // ✅ correct in-scope modal opener
+                openFollowerNotifsModal();
+              }catch(_){}
+            }
+          }, [
+            el("div", { style:"font-size:18px;", text:"🔔" }),
+            el("div", {
+              style:[
+                "position:absolute",
+                "top:-6px",
+                "right:-6px",
+                "width:22px",
+                "height:22px",
+                "border-radius:999px",
+                "background: rgba(56,210,111,.95)",
+                "border:2px solid rgba(10,14,20,1)",
+                "display:flex",
+                "align-items:center",
+                "justify-content:center",
+                "font-size:12px",
+                "font-weight:1100"
+              ].join(";"),
+              text: String(notifCount || 0)
+            })
+          ])
+        : null
     ].filter(Boolean));
 
-    const statsRow = configured ? el("div", { style:"display:flex; justify-content:space-between; gap:10px;" }, [
-      statBtn({ label:"Following", value: follows.length, onClick: () => openConn("following") }),
-      statBtn({ label:"Followers", value: followers.length, onClick: () => openConn("followers") }),
-      // No special mutual filtering here (UI-only). Opens Connections where mutual rows are badged.
-      statBtn({ label:"Mutual", value: mutualCount, onClick: () => openConn("followers") })
+    // Stats bar (following/followers/mutual)
+    const statsBar = configured ? el("div", {
+      style:[
+        "display:flex",
+        "gap:0",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background: rgba(255,255,255,.04)",
+        "border-radius:14px",
+        "overflow:hidden"
+      ].join(";")
+    }, [
+      (label, value, onClick) => el("button", {
+        type:"button",
+        style:[
+          "flex:1",
+          "border:none",
+          "background:transparent",
+          "color: rgba(255,255,255,.92)",
+          "padding: 12px 6px",
+          "cursor:pointer",
+          "display:flex",
+          "flex-direction:column",
+          "align-items:center",
+          "gap:4px",
+          "-webkit-tap-highlight-color: transparent"
+        ].join(";"),
+        onClick
+      }, [
+        el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
+        el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
+      ]),
+
+      // Following
+      ((label, value, onClick) => el("button", {
+        type:"button",
+        style:[
+          "flex:1",
+          "border:none",
+          "background:transparent",
+          "color: rgba(255,255,255,.92)",
+          "padding: 12px 6px",
+          "cursor:pointer",
+          "display:flex",
+          "flex-direction:column",
+          "align-items:center",
+          "gap:4px",
+          "-webkit-tap-highlight-color: transparent"
+        ].join(";"),
+        onClick
+      }, [
+        el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
+        el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
+      ]))("Following", follows.length, () => openConn("following")),
+
+      // divider
+      el("div", { style:"width:1px; background: rgba(255,255,255,.10);" }),
+
+      // Followers
+      ((label, value, onClick) => el("button", {
+        type:"button",
+        style:[
+          "flex:1",
+          "border:none",
+          "background:transparent",
+          "color: rgba(255,255,255,.92)",
+          "padding: 12px 6px",
+          "cursor:pointer",
+          "display:flex",
+          "flex-direction:column",
+          "align-items:center",
+          "gap:4px",
+          "-webkit-tap-highlight-color: transparent"
+        ].join(";"),
+        onClick
+      }, [
+        el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
+        el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
+      ]))("Followers", followers.length, () => openConn("followers")),
+
+      // divider
+      el("div", { style:"width:1px; background: rgba(255,255,255,.10);" }),
+
+      // Mutual (opens followers list; mutual rows are badged inside modal)
+      ((label, value, onClick) => el("button", {
+        type:"button",
+        style:[
+          "flex:1",
+          "border:none",
+          "background:transparent",
+          "color: rgba(255,255,255,.92)",
+          "padding: 12px 6px",
+          "cursor:pointer",
+          "display:flex",
+          "flex-direction:column",
+          "align-items:center",
+          "gap:4px",
+          "-webkit-tap-highlight-color: transparent"
+        ].join(";"),
+        onClick
+      }, [
+        el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
+        el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
+      ]))("Mutual", mutualCount, () => openConn("followers"))
     ]) : null;
 
+    // Actions row
     const actionsRow = configured ? el("div", {
       style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
     }, [
-      el("div", { style:"display:flex; gap:10px; flex:1;" }, [
-        el("button", {
-          class:"btn primary",
-          onClick: async () => {
-            if(!user){
-              showToast("Sign in to add friends");
-              return;
-            }
-            await openConn("following");
+      el("button", {
+        class:"btn primary",
+        style:"height:44px; padding:0 14px;",
+        onClick: async () => {
+          if(!user){
+            showToast("Sign in to add friends");
+            return;
           }
-        }, ["Add Friend"])
-      ]),
-      (typeof Social.isSignedIn === "function")
-        ? el("div", { class:"pill", style:"cursor:default;" }, [
-            el("div", { class:"t", text:"Status" }),
-            el("div", { class:"x", text: isSignedIn ? "Signed in" : "Signed out" })
-          ])
-        : null
-    ].filter(Boolean)) : null;
+          await openConn("following");
+        }
+      }, ["Add Friend"]),
 
+      el("div", {
+        style:[
+          "display:inline-flex",
+          "align-items:center",
+          "gap:10px",
+          "padding: 8px 10px",
+          "border-radius: 999px",
+          "border:1px solid rgba(255,255,255,.12)",
+          "background: rgba(255,255,255,.05)",
+          "color: rgba(255,255,255,.82)",
+          "font-weight:1000",
+          "font-size:12px",
+          "white-space:nowrap"
+        ].join(";")
+      }, [
+        el("span", {
+          style:[
+            "width:10px",
+            "height:10px",
+            "border-radius:999px",
+            "background: rgba(56,210,111,.95)",
+            "box-shadow: 0 0 0 3px rgba(56,210,111,.14)"
+          ].join(";")
+        }),
+        el("span", { text: isSignedIn ? "Signed in" : "Signed out" })
+      ])
+    ]) : null;
+
+    // Auth CTA row (unchanged behavior)
     const authRow = configured ? el("div", { class:"btnrow" }, [
       !user ? el("button", {
         class:"btn primary",
@@ -5716,9 +5864,9 @@ root.appendChild(el("div", { class:"card" }, [
     ].filter(Boolean)) : null;
 
     return el("div", {}, [
-      headerTop,
+      topRow,
 
-      el("div", { style:"height:10px" }),
+      el("div", { style:"height:12px" }),
 
       !configured
         ? el("div", {
@@ -5728,10 +5876,10 @@ root.appendChild(el("div", { class:"card" }, [
           })
         : null,
 
-      configured ? el("div", { style:"height:10px" }) : null,
-      statsRow,
+      configured ? el("div", { style:"height:12px" }) : null,
+      statsBar,
 
-      configured ? el("div", { style:"height:10px" }) : null,
+      configured ? el("div", { style:"height:12px" }) : null,
       actionsRow,
 
       authRow ? el("div", { style:"height:10px" }) : null,
@@ -5739,7 +5887,8 @@ root.appendChild(el("div", { class:"card" }, [
     ].filter(Boolean));
   })()
 ].filter(Boolean)));
-   // Feed
+   
+     // Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
     el("div", { class:"note", text:"Feed" }),
