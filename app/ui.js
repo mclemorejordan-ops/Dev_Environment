@@ -9,6 +9,31 @@
 export const $  = (sel) => document.querySelector(sel);
 export const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
+// DOM element helper (used across the app)
+export function el(tag, props = {}, children = []){
+  const node = document.createElement(tag);
+
+  Object.entries(props || {}).forEach(([k,v]) => {
+    if(k === "class") node.className = v;
+    else if(k === "text") node.textContent = v;
+    else if(k === "html") node.innerHTML = v;
+    else if(k === "style") node.style.cssText = v;
+    else if(k.startsWith("on") && typeof v === "function"){
+      node.addEventListener(k.substring(2).toLowerCase(), v);
+    }
+    else node.setAttribute(k,v);
+  });
+
+  (Array.isArray(children) ? children : [children]).forEach(c => {
+    if(c == null) return;
+    node.appendChild(
+      c instanceof Node ? c : document.createTextNode(String(c))
+    );
+  });
+
+  return node;
+}
+
 let __modalLastFocus = null;
 let __modalKeydownHandler = null;
 
