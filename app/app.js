@@ -4866,6 +4866,10 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   ui.friendId = ui.friendId || "";
   ui.email = ui.email || "";
 
+  // Friends page sub-tabs
+  // "feed" (default) | "profile"
+  ui.friendsTab = ui.friendsTab || "feed";
+
   const root = el("div", { class:"grid" });
 
   const user = Social.getUser && Social.getUser();
@@ -5584,10 +5588,8 @@ function openFollowerNotifsModal(){
 
   refreshLists().then(repaintModal);
 }
-
-  // Tabs state (Friends header)
-  ui.tab = ui.tab || "feed"; // "feed" | "profile"
-
+     
+     
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right) + bell badge (bottom-right)
   el("div", { style:"position:relative; min-height:52px;" }, [
@@ -5672,23 +5674,18 @@ el("div", { style:"height:10px" }),
     }, ["Continue with Google"]) : null
   ].filter(Boolean)) : null,
 
+  // Friends header tabs: Feed | My Profile
   el("div", { style:"height:10px" }),
-
-  // Tabs: Feed | My Profile (Friends header)
-  el("div", { style:"display:flex; gap:8px;" }, [
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer; flex:1; justify-content:center;" + (ui.tab === "feed" ? "" : " opacity:.6;"),
-      onClick: () => { ui.tab = "feed"; renderView(); }
+  el("div", { class:"chips", style:"justify-content:flex-start;" }, [
+    el("div", {
+      class:"chip" + (ui.friendsTab === "feed" ? " on" : ""),
+      onClick: () => { ui.friendsTab = "feed"; renderView(); }
     }, ["Feed"]),
-
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer; flex:1; justify-content:center;" + (ui.tab === "profile" ? "" : " opacity:.6;"),
-      onClick: () => { ui.tab = "profile"; renderView(); }
+    el("div", {
+      class:"chip" + (ui.friendsTab === "profile" ? " on" : ""),
+      onClick: () => { ui.friendsTab = "profile"; renderView(); }
     }, ["My Profile"])
   ])
-
 ].filter(Boolean)));
 
 
@@ -5931,15 +5928,29 @@ async function openProfileModal(userId){
   }catch(_){}
 }
 
-// My Profile tab content (separate tab inside Friends)
-if(ui.tab === "profile"){
-  if(!user){
+// Friends sub-tabs: "feed" | "profile"
+if(ui.friendsTab === "profile"){
+
+  // Profile tab
+  if(!configured){
+    root.appendChild(el("div", { class:"card" }, [
+      el("div", { class:"note", text:"My Profile" }),
+      el("div", { style:"height:10px" }),
+      el("div", {
+        class:"note",
+        style:"color: rgba(255,92,122,.95);",
+        text:"Connect Social in Settings → Friends (Beta) to enable profiles."
+      })
+    ]));
+  }
+  else if(!user){
     root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"note", text:"My Profile" }),
       el("div", { style:"height:10px" }),
       el("div", { class:"note", text:"Sign in to view your profile." })
     ]));
-  }else{
+  }
+  else{
     try{
       const myId = String(user.id || "");
       const dn = (Social.nameFor && Social.nameFor(myId)) || state?.profile?.name || "Me";
@@ -5949,18 +5960,20 @@ if(ui.tab === "profile"){
       };
       const stats = profileFromFeed(myId);
 
-      root.appendChild(el("div", { class:"card" }, [
-        renderProfileNode({ userId: myId, displayName: dn, counts, stats, isMe:true })
-      ]));
+      // renderProfileNode already includes its own cards/layout
+      root.appendChild(renderProfileNode({
+        userId: myId,
+        displayName: dn,
+        counts,
+        stats,
+        isMe: true
+      }));
     }catch(_){}
   }
 
-  root.appendChild(el("div", { style:"height:10px" }));
-}
+} else {
 
-if(ui.tab !== "profile"){
-
-// Feed
+  // Feed tab
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
     el("div", { class:"note", text:"Feed" }),
