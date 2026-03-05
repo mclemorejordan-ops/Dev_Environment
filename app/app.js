@@ -4899,32 +4899,20 @@ function openFollowerNotifsModal(){
 
   // Back-compat: bell button currently calls openNotificationsModal()
   function openNotificationsModal(){
-  return openFollowerNotifsModal();
-}
-
-    // Instagram-style shell
-  const topRow = el("div", { class:"igNotifTop" }, []);
-
-  // ✅ Spacer keeps "Clear all" aligned right without a second "Notifications" title
-  const spacer = el("div", { style:"flex:1;" });
-
-  const clearBtn = el("button", {
-    class:"igNotifLinkBtn",
-    onClick: () => {
-      try{ Social.__clearNotifications && Social.__clearNotifications(); }catch(_){}
-      showToast("Cleared");
-      repaint();
-    }
-  }, ["Clear all"]);
-
-  topRow.appendChild(spacer);
-  topRow.appendChild(clearBtn);
+    return openFollowerNotifsModal();
+  }
 
   const listHost = el("div", { class:"igNotifList" });
 
+  const bottomClose = el("button", {
+    class:"btn primary",
+    onClick: Modal.close
+  }, ["Close"]);
+
   const body = el("div", { class:"igNotif" }, [
-    topRow,
-    listHost
+    listHost,
+    el("div", { style:"height:12px" }),
+    bottomClose
   ]);
 
   function relTimeISO(iso){
@@ -4982,43 +4970,35 @@ function openFollowerNotifsModal(){
       showToast("Workout not found (refresh feed)");
       return;
     }
-
-    // Follow → open Connections modal on Followers tab
-    if(type === "follow"){
-      try{ openConnectionsModal("followers"); }catch(_){}
-      return;
-    }
   }
 
   function rowForNotif(n, follows){
     const type = String(n?.type || "");
     const actorId = String(n?.actorId || "");
-    const dn = (Social.nameFor && Social.nameFor(actorId)) || "User";
-    const alreadyFollowing = actorId ? follows.includes(actorId) : false;
+    const name = (Social.nameFor ? (Social.nameFor(actorId) || "User") : "User");
+    const when = n?.createdAt ? relTimeISO(n.createdAt) : "";
 
-    const timeTxt = relTimeISO(n?.createdAt);
-    const avatar = el("div", { class:"igNotifAvatar", text: avatarLetter(dn) });
+    const avatar = el("div", { class:"igNotifAvatar" }, [ avatarLetter(name) ]);
 
-    const verb = (type === "like") ? " liked your workout"
-      : (type === "comment") ? " commented on your workout"
-      : " followed you";
+    const line = (() => {
+      if(type === "follow") return `${name} followed you`;
+      if(type === "like") return `${name} liked your workout`;
+      if(type === "comment") return `${name} commented on your workout`;
+      return `${name} activity`;
+    })();
 
     const textBlock = el("div", { class:"igNotifText" }, [
-      el("div", { class:"igNotifLine" }, [
-        el("span", { class:"igNotifName", text: dn }),
-        el("span", { class:"igNotifMsg", text: verb }),
-        timeTxt ? el("span", { class:"igNotifTime", text:` • ${timeTxt}` }) : null
-      ].filter(Boolean)),
-      (type === "comment" && n?.body)
-        ? el("div", { class:"igNotifSub", text: String(n.body).slice(0, 90) })
-        : null
-    ].filter(Boolean));
+      el("div", { class:"t", text: line }),
+      el("div", { class:"m", text: when })
+    ]);
+
+    const isFollowingBack = (follows || []).some(fid => String(fid||"") === actorId);
 
     const actions = el("div", { class:"igNotifActions" }, [
-      type === "follow"
-        ? (alreadyFollowing
+      (type === "follow")
+        ? (isFollowingBack
             ? el("button", {
-                class:"btn danger sm",
+                class:"btn outline sm",
                 onClick: async (e) => {
                   e?.stopPropagation?.();
                   try{
@@ -5119,7 +5099,15 @@ function openFollowerNotifsModal(){
 
   Modal.open({
     title: "Notifications",
-    bodyNode: body
+    bodyNode: body,
+
+    // ✅ Header button becomes "Clear all" for this modal
+    closeText: "Clear all",
+    onClose: () => {
+      try{ Social.__clearNotifications && Social.__clearNotifications(); }catch(_){}
+      showToast("Cleared");
+      repaint();
+    }
   });
 
   repaint();
