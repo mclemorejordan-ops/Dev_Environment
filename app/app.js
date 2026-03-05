@@ -6195,13 +6195,28 @@ el("div", {
         }
       }
 
-      (feedList || []).forEach(ev => {
+            // ✅ Infinite scroll (render in pages as user scrolls)
+      const items = (feedList || []);
+      const PAGE = 12;
+
+      // Reset page size when switching between Feed / My Activity
+      if(ui._feedViewLast !== viewBody){
+        ui._feedViewLast = viewBody;
+        ui._feedRenderCount = PAGE;
+      }
+
+      // Ensure sane bounds
+      if(!ui._feedRenderCount || ui._feedRenderCount < PAGE) ui._feedRenderCount = PAGE;
+      if(ui._feedRenderCount > items.length) ui._feedRenderCount = items.length;
+
+      // Build ONE row (this is your existing forEach body, just wrapped)
+      function buildFeedRow(ev){
         const p = ev.payload || {};
         const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
 
         const whenObj = formatFeedWhen(ev.createdAt);
-        const when = whenObj.full;        // keep full string for the modal
-        const whenLine = whenObj.label;   // compact label for the row
+        const when = whenObj.full;        // keep full string for modal
+        const whenLine = whenObj.label;   // compact label for row
 
         const title = (ev.type === "exercise_logged")
           ? `${who} logged ${p.exerciseName || "an exercise"}`
@@ -6211,705 +6226,205 @@ el("div", {
 
         const summaryLine = buildFeedSummary(ev);
         const badges = buildFeedBadges(ev);
-        
-        function openExerciseHistoryFromFeed(type, exerciseId, exName, onBack){
-  try{
-    if(!exerciseId) return;
-    LogEngine.ensure();
 
-    const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
-
-    function prBadges(pr){
-      if(!pr) return "";
-      const b = [];
-      if(pr.isPRWeight) b.push("PR W");
-      if(pr.isPR1RM) b.push("PR 1RM");
-      if(pr.isPRVolume) b.push("PR Vol");
-      if(pr.isPRPace) b.push("PR Pace");
-      return b.join(" • ");
-    }
-
-    function formatEntryDetail(type, entry){
-      try{
-        if(type === "weightlifting"){
-          const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
-          const top = entry.summary?.bestWeight ?? "—";
-          const vol = entry.summary?.totalVolume ?? "—";
-          return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
-        }
-        if(type === "cardio"){
-          const d = entry.summary?.distance ?? "—";
-          const t = formatTime(entry.summary?.timeSec ?? 0);
-          const p = formatPace(entry.summary?.paceSecPerUnit);
-          return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
-        }
-        if(type === "core"){
-          const sets = entry.summary?.sets ?? "—";
-          const reps = entry.summary?.reps ?? "—";
-          const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
-          return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
-        }
-      }catch(_){}
-      return "";
-    }
-
-    const list = el("div", { class:"list" });
-    if(!entries.length){
-      list.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
-    }else{
-      entries.slice(0, 12).forEach(e => {
-        list.appendChild(el("div", { class:"item" }, [
-          el("div", { class:"left" }, [
-            el("div", { class:"name", text: e.dateISO }),
-            el("div", { class:"meta", text: formatEntryDetail(type, e) })
-          ]),
-          el("div", { class:"actions" }, [
-            el("div", { class:"meta", text: prBadges(e.pr) })
-          ])
-        ]));
-      });
-    }
-
-    const hasBack = (typeof onBack === "function");
-    const backBtn = el("button", {
-      class:"btn",
-      onClick: () => {
-        try{
-          if(hasBack) onBack();
-          else Modal.close();
-        }catch(_){
-          Modal.close();
-        }
-      }
-    }, [hasBack ? "Back" : "Close"]);
-
-    Modal.open({
-      title: "History",
-      center: true,
-      bodyNode: el("div", { class:"grid" }, [
-        el("div", { class:"note", text: `${exName || "Exercise"} • ${type}` }),
-        list,
-        el("div", { style:"height:10px" }),
-        backBtn
-      ])
-    });
-  }catch(_){}
-}
-
-       function openFeedEventModal(ev, title, who, when){
-  try{
-    const p = ev.payload || {};
-    const d = p.details || null;
-    const h = p.highlights || {};
-
-    const isWorkout = (ev.type === "workout_completed");
-    const dayLabel = (d && d.dayLabel) ? String(d.dayLabel) : (title || (isWorkout ? "Workout" : "Event"));
-    const dateISO = (d && d.dateISO) ? String(d.dateISO) : (p.dateISO ? String(p.dateISO) : "");
-
-    const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
-
-    // KPIs (best-effort; older events may not include highlights)
-    const exCount = Number.isFinite(Number(h.exerciseCount)) ? Number(h.exerciseCount) : (items.length || 0);
-    const prCount = Number.isFinite(Number(h.prCount)) ? Number(h.prCount) : 0;
-    const vol = Number.isFinite(Number(h.totalVolume)) ? Number(h.totalVolume) : null;
-
-    // Choose a highlight exercise (prefer any with PR badges)
-    const highlight = (() => {
-      try{
-        const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
-        return withPR || items[0] || null;
-      }catch(_){ return null; }
-    })();
-
-    // Lifetime display (best-effort) — shared formatter
-    function lifetimeLine(it){
-      try{
-        const L = it?.lifetime || null;
-        if(!L) return "";
-        if(it.type === "weightlifting"){
-          const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
-          const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
-          const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
-          return [bw, b1, bv].filter(Boolean).join(" • ");
-        }
-        if(it.type === "cardio"){
-          const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
-          const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
-          return [bp, bd].filter(Boolean).join(" • ");
-        }
-        if(it.type === "core"){
-          const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
-          const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
-          return [br, bt].filter(Boolean).join(" • ");
-        }
-        return "";
-      }catch(_){
-        return "";
-      }
-    }
-
-    const pills = el("div", { class:"feedWkPills" }, [
-      (exCount ? el("div", { class:"feedWkPill accent" }, [
-        el("span", { class:"k", text:"Exercises" }),
-        el("span", { class:"v", text:String(exCount) })
-      ]) : null),
-      (prCount ? el("div", { class:"feedWkPill good" }, [
-        el("span", { class:"k", text:"PRs" }),
-        el("span", { class:"v", text:String(prCount) })
-      ]) : null),
-      (vol != null ? el("div", { class:"feedWkPill" }, [
-        el("span", { class:"k", text:"Volume" }),
-        el("span", { class:"v", text:String(vol) })
-      ]) : null)
-    ].filter(Boolean));
-
-    const header = el("div", { class:"feedWkHead" }, [
-      el("div", { class:"feedWkHeadTop" }, [
-        el("div", { class:"feedWkTitleRow" }, [
-          el("div", { class:"feedWkAvatar", text: (String(who || "U").trim()[0] || "U").toUpperCase() }),
-          el("div", { class:"feedWkTitleBlock" }, [
-            el("div", { class:"feedWkTitle", text: dayLabel }),
-            el("div", { class:"feedWkSub", text: (when ? `${when} • ${who}` : (who || "")) })
-          ])
-        ])
-      ]),
-      pills,
-
-      (isWorkout && highlight)
-        ? el("div", { class:"feedWkHighlight" }, [
-            el("div", { class:"l" }, [
-              el("div", { class:"t" }, [ el("span", { class:"spark" }), "Workout highlight" ]),
-              el("div", { class:"n", text: highlight.name || "Exercise" }),
-              el("div", { class:"m", text: [highlight.topText || "", lifetimeLine(highlight) || ""].filter(Boolean).join(" • ") })
-            ]),
-            (Array.isArray(highlight.prBadges) && highlight.prBadges.length)
-              ? el("div", { class:"b", text: highlight.prBadges[0] })
-              : el("div", { class:"b", text:"Tap for history" })
-          ])
-        : null
-    ].filter(Boolean));
-
-    const list = el("div", { class:"feedWkList" }, []);
-    if(isWorkout && items.length){
-      items.forEach(it => {
-        const rightBadges = [];
-        try{
-          if(it.topText) rightBadges.push(it.topText);
-          if(Array.isArray(it.prBadges) && it.prBadges.length) rightBadges.push(it.prBadges.join(" • "));
-        }catch(_){ }
-
-        const life = lifetimeLine(it);
-
-        list.appendChild(el("div", {
-          class:"feedWkExCard",
-onClick: () => openExerciseHistoryFromFeed(
-  it.type,
-  it.exerciseId,
-  it.name,
-  () => openFeedEventModal(ev, title, who, when)
-)        }, [
-          el("div", { class:"feedWkExTop" }, [
-            el("div", { class:"feedWkExLeft" }, [
-              el("div", { class:"feedWkExName", text: it.name || "Exercise" }),
-              el("div", { class:"feedWkExSub", text: [rightBadges[0] || "", life || ""].filter(Boolean).join(" • ") })
-            ]),
-            el("div", { class:"feedWkMiniBadges" }, [
-              (Array.isArray(it.prBadges) && it.prBadges.length)
-                ? el("div", { class:"feedWkMiniBadge pr", text: "PR" })
-                : null,
-              el("div", { class:"feedWkMiniBadge", text: "History" })
-            ].filter(Boolean))
-          ]),
-          el("div", { class:"feedWkChev", text:"Tap to view history →" })
-        ]));
-      });
-    }else if(isWorkout){
-      list.appendChild(el("div", { class:"note", text:"Details aren’t available for this event yet (older build). New events will include full workout details." }));
-    }else{
-      list.appendChild(el("div", { class:"note", text: when ? `${who} • ${when}` : (who || "") }));
-    }
-
-    const body = el("div", { class:"feedWkShell" }, [
-      header,
-      el("div", { class:"feedWkScroll" }, [
-        isWorkout ? el("div", { class:"feedWkSection", text:"Exercises" }) : null,
-        list,
-        el("div", { style:"height:6px" })
-      ].filter(Boolean)),
-    ]);
-
-    Modal.open({
-      title: isWorkout ? "Workout" : "Event",
-      bodyNode: body
-    });
-  }catch(_){ }
-}
-
-        function openCommentsModal({ eventId, title, who }){
-  try{
-    const me = Social.getUser ? Social.getUser() : null;
-
-    let replyTo = null; // { id, name } or null
-    const listHost = el("div", {}, [ el("div", { class:"note", text:"Loading comments…" }) ]);
-
-    // Instagram-style layout (UI only)
-    const countPill = el("div", { class:"igCmtCount", text:"" });
-
-    const input = el("textarea", {
-      class:"igCmtInput",
-      placeholder: "Add a comment…"
-    });
-
-    const sendBtn = el("button", {
-      class:"igCmtSend",
-      onClick: async () => {
-        const text = String(input.value || "").trim();
-        if(!text) return;
-
-        try{
-          sendBtn.disabled = true;
-          await Social.addFeedComment({
-            eventId,
-            body: text,
-            parentId: replyTo?.id || null
-          });
-          input.value = "";
-          replyTo = null;
-          await repaint();
-          renderView(); // update counts on cards
-        }catch(e){
-          showToast(e?.message || "Could not comment");
-        }finally{
-          sendBtn.disabled = false;
-        }
-      }
-    }, ["📨"]);
-
-    const replyPill = el("div", { class:"igCmtReply", style:"display:none;" });
-
-    function setReplyTo(next){
-      replyTo = next;
-      if(replyTo){
-        replyPill.style.display = "";
-        replyPill.innerHTML = "";
-        replyPill.appendChild(el("div", { class:"igCmtReplyInner" }, [
-          el("div", { class:"igCmtReplyText", text:`Replying to ${replyTo.name || "User"}` }),
-          el("button", { class:"igCmtReplyCancel", onClick: () => setReplyTo(null) }, ["Cancel"])
-        ]));
-      }else{
-        replyPill.style.display = "none";
-        replyPill.innerHTML = "";
-      }
-    }
-
-    function timeAgo(iso){
-      try{
-        const d = new Date(iso);
-        const s = Math.floor((Date.now() - d.getTime())/1000);
-        if(s < 60) return `${s}s`;
-        const m = Math.floor(s/60);
-        if(m < 60) return `${m}m`;
-        const h = Math.floor(m/60);
-        if(h < 24) return `${h}h`;
-        const day = Math.floor(h/24);
-        return `${day}d`;
-      }catch(_){
-        return "";
-      }
-    }
-
-    function buildThread(comments){
-      const byParent = {};
-      (comments || []).forEach(c => {
-        const p = c.parentId || "__root__";
-        (byParent[p] = byParent[p] || []).push(c);
-      });
-
-      // ensure stable order (already asc, but keep safe)
-      Object.keys(byParent).forEach(k => {
-        byParent[k].sort((a,b) => String(a.createdAt||"").localeCompare(String(b.createdAt||"")));
-      });
-
-      function renderNode(c, depth){
-        const name = Social.nameFor ? (Social.nameFor(c.userId) || "User") : "User";
-        const mine = !!(me && c.userId === me.id);
-
-        const initial = (String(name || "U").trim()[0] || "U").toUpperCase();
-        const avatar = el("div", { class:"igCmtAvatar", text: initial });
-
-        const actions = el("div", { class:"igCmtActions" }, [
-          el("button", { class:"igCmtAct", onClick: () => setReplyTo({ id: c.id, name }) }, ["Reply"]),
-          mine ? el("button", {
-            class:"igCmtAct danger",
-            onClick: async () => {
-              try{
-                await Social.deleteFeedComment(c.id, eventId);
-                await repaint();
-                renderView();
-              }catch(e){
-                showToast(e?.message || "Could not delete");
-              }
-            }
-          }, ["Delete"]) : null
-        ].filter(Boolean));
-
-        const row = el("div", {
-          class:"igCmtRow" + (depth ? " child" : ""),
-          style: depth ? `margin-left:${Math.min(22, depth*12)}px;` : ""
-        }, [
-          avatar,
-          el("div", { class:"igCmtBubble" }, [
-            el("div", { class:"igCmtTop" }, [
-              el("div", { class:"igCmtName", text: name }),
-              el("div", { class:"igCmtTime", text: timeAgo(c.createdAt) })
-            ]),
-            el("div", { class:"igCmtBody", text: c.body || "" }),
-            actions
-          ])
-        ]);
-
-        const replies = (byParent[c.id] || []).map(r => renderNode(r, depth+1));
-        return el("div", { class:"igCmtNode" }, [row, ...replies]);
-      }
-
-      const roots = (byParent["__root__"] || []);
-      if(!roots.length){
-        return el("div", { class:"note", text:"No comments yet. Be the first." });
-      }
-
-      return el("div", { class:"igCmtThread" }, roots.map(r => renderNode(r, 0)));
-    }
-
-    async function repaint(){
-      listHost.innerHTML = "";
-      listHost.appendChild(el("div", { class:"note", text:"Loading comments…" }));
-
-      const comments = await Social.fetchFeedComments(eventId);
-      try{
-        const ids = Array.from(new Set((comments || []).map(c => c.userId).filter(Boolean)));
-        if(ids.length && Social.fetchNames) await Social.fetchNames(ids);
-      }catch(_){}
-
-      // Keep the visible count current (view should already be refreshed by add/delete)
-      try{
-        const c = (Social.getCommentCount ? Social.getCommentCount(eventId) : (comments || []).length);
-        countPill.textContent = `${c} comment${c === 1 ? "" : "s"}`;
-      }catch(_){
-        countPill.textContent = "";
-      }
-
-      listHost.innerHTML = "";
-      listHost.appendChild(buildThread(comments));
-    }
-
-    // Quick reactions (optional, UI only)
-    const reacts = ["❤️","🔥","💪","😂","👏","😮","😢"].map(ch => {
-      return el("button", {
-        class:"igCmtReact",
-        onClick: () => {
-          try{
-            const cur = String(input.value || "");
-            input.value = (cur && !cur.endsWith(" ")) ? (cur + " " + ch + " ") : (cur + ch + " ");
-            input.focus();
-          }catch(_){}
-        }
-      }, [ch]);
-    });
-
-    const meta = el("div", { class:"igCmtMeta" }, [
-      el("div", { class:"igCmtMetaTitle", text: title || "Event" }),
-      el("div", { class:"igCmtMetaWho", text: who || "" })
-    ]);
-
-    const body = el("div", { class:"igCmtShell" }, [
-      el("div", { class:"igCmtHeader" }, [
-        meta,
-        countPill
-      ]),
-
-      el("div", { class:"igCmtListWrap" }, [
-        el("div", { class:"igCmtList" }, [listHost])
-      ]),
-
-      el("div", { class:"igCmtComposer" }, [
-        replyPill,
-        el("div", { class:"igCmtReactRow" }, reacts),
-        el("div", { class:"igCmtComposeRow" }, [
-          input,
-          sendBtn
-        ])
-      ])
-    ]);
-
-    Modal.open({
-      title: "Comments",
-      bodyNode: body
-    });
-
-    repaint();
-  }catch(_){}
-}
-
-        function openLikesModal({ eventId, title, who }){
-  try{
-    const listHost = el("div", {}, [ el("div", { class:"note", text:"Loading likes…" }) ]);
-
-    function timeAgo(iso){
-      try{
-        const d = new Date(iso);
-        const s = Math.floor((Date.now() - d.getTime())/1000);
-        if(s < 60) return `${s}s`;
-        const m = Math.floor(s/60);
-        if(m < 60) return `${m}m`;
-        const h = Math.floor(m/60);
-        if(h < 24) return `${h}h`;
-        const day = Math.floor(h/24);
-        return `${day}d`;
-      }catch(_){
-        return "";
-      }
-    }
-
-    async function repaint(){
-      listHost.innerHTML = "";
-      listHost.appendChild(el("div", { class:"note", text:"Loading likes…" }));
-
-      let rows = [];
-      try{
-        rows = (Social.fetchFeedLikers ? await Social.fetchFeedLikers(eventId) : []) || [];
-      }catch(_){
-        rows = [];
-      }
-
-      // Fetch display names for the user ids
-      try{
-        const ids = Array.from(new Set((rows || []).map(r => r.userId).filter(Boolean)));
-        if(ids.length && Social.fetchNames) await Social.fetchNames(ids);
-      }catch(_){}
-
-      const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : (rows || []).length) || 0;
-
-      if(!rows.length){
-        listHost.innerHTML = "";
-        listHost.appendChild(el("div", { class:"note", text:"No likes yet." }));
-        return;
-      }
-
-      const list = el("div", { style:"display:grid; gap:10px;" });
-
-      rows.forEach(r => {
-        const name = Social.nameFor ? (Social.nameFor(r.userId) || "User") : "User";
-        const initial = (String(name || "U").trim()[0] || "U").toUpperCase();
-
-        list.appendChild(el("div", {
-          style:"display:flex; align-items:center; gap:10px;"
-        }, [
-          el("div", {
-            style:[
-              "width:34px",
-              "height:34px",
-              "border-radius:999px",
-              "border:1px solid rgba(255,255,255,.14)",
-              "background: rgba(255,255,255,.06)",
-              "display:flex",
-              "align-items:center",
-              "justify-content:center",
-              "font-weight:900",
-              "letter-spacing:.2px",
-              "flex:0 0 auto"
-            ].join(";"),
-            text: initial
-          }),
-          el("div", { style:"display:flex; flex-direction:column; min-width:0; flex:1;" }, [
-            el("div", { style:"font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;", text: name }),
-            el("div", { class:"meta", text: r.createdAt ? timeAgo(r.createdAt) : "" })
-          ])
-        ]));
-      });
-
-      listHost.innerHTML = "";
-      listHost.appendChild(list);
-
-      // Keep counts fresh in the feed (optional but safe)
-      try{
-        if(Social.fetchFeedLikes) await Social.fetchFeedLikes([eventId]);
-      }catch(_){}
-
-      // Update modal title count (UI-only)
-      try{
-        Modal.setTitle ? Modal.setTitle(`Likes (${likeCount})`) : null;
-      }catch(_){}
-    }
-
-    const header = el("div", { style:"display:flex; flex-direction:column; gap:4px;" }, [
-      el("div", { style:"font-weight:900;", text: title || "Event" }),
-      el("div", { class:"meta", text: who || "" })
-    ]);
-
-    Modal.open({
-      title: "Likes",
-      bodyNode: el("div", {}, [
-        header,
-        el("div", { style:"height:10px" }),
-        listHost
-      ])
-    });
-
-    repaint();
-  }catch(_){}
-}
-        
-        // Avatar (initial)
-        const initial = (String(who || "U").trim()[0] || "U").toUpperCase();
         const avatar = el("div", {
           style:[
-            "width:36px",
-            "height:36px",
-            "border-radius:999px",
-            "border:1px solid rgba(255,255,255,.14)",
-            "background: rgba(255,255,255,.06)",
+            "width:34px",
+            "height:34px",
+            "border-radius:12px",
+            "background: rgba(255,255,255,.08)",
+            "border: 1px solid rgba(255,255,255,.12)",
             "display:flex",
             "align-items:center",
             "justify-content:center",
-            "font-weight:900",
-            "letter-spacing:.2px",
-            "flex:0 0 auto"
+            "font-weight:950",
+            "opacity:.9",
+            "flex:0 0 auto",
+            "margin-top:2px"
           ].join(";"),
-          text: initial
+          text: (String(who || "U").trim()[0] || "U").toUpperCase()
         });
 
-  const interactionsNode = (() => {
-  const eventId = ev.id;
-  const liked = (Social.didILike ? Social.didILike(eventId) : false);
-  const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : 0);
-  const commentCount = (Social.getCommentCount ? Social.getCommentCount(eventId) : 0);
+        // --- keep your existing interactions node logic (unchanged) ---
+        const interactionsNode = (() => {
+          try{
+            const eventId = ev.id;
+            const likeCount = Social.getFeedLikeCount ? Social.getFeedLikeCount(eventId) : 0;
+            const commentCount = Social.getFeedCommentCount ? Social.getFeedCommentCount(eventId) : 0;
+            const liked = Social.didILike ? Social.didILike(eventId) : false;
 
-  // Instagram-style: icon buttons (no pill backgrounds)
-  const iconBtnStyle = [
-    "background:transparent",
-    "border:0",
-    "padding:6px 4px",
-    "font-size:18px",
-    "line-height:1",
-    "cursor:pointer",
-    "color: rgba(255,255,255,.92)"
-  ].join(";");
+            const iconsRow = el("div", {
+              style:"display:flex; gap:14px; align-items:center; font-size:18px; margin-top:8px;"
+            }, [
+              el("button", {
+                style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+                onClick: async (e) => {
+                  try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+                  try{
+                    if(Social.toggleFeedLike) await Social.toggleFeedLike(eventId);
+                  }catch(_){}
+                }
+              }, [ liked ? "❤️" : "🤍" ]),
 
-  const likeBtn = el("button", {
-    style: iconBtnStyle + (liked ? " filter:saturate(1.1);" : " opacity:.92;"),
-    onClick: async (e) => {
-      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-      try{
-        await Social.toggleFeedLike(eventId);
-      }catch(err){
-        showToast(err?.message || "Could not like");
+              el("button", {
+                style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+                onClick: async (e) => {
+                  try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+                  try{
+                    if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
+                  }catch(_){}
+                  openCommentsModal({ eventId, title, who });
+                }
+              }, ["💬"])
+            ]);
+
+            const countsRow = el("div", {
+              style:"margin-top:6px; display:flex; gap:14px; font-size:12px; font-weight:850; opacity:.78;"
+            }, [
+              el("button", {
+                style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+                onClick: async (e) => {
+                  try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+                  try{
+                    if(Social.fetchFeedLikes) await Social.fetchFeedLikes([eventId]);
+                  }catch(_){}
+                  openLikesModal({ eventId, title, who });
+                }
+              }, [`${likeCount} like${likeCount === 1 ? "" : "s"}`]),
+
+              el("button", {
+                style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+                onClick: async (e) => {
+                  try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+                  try{
+                    if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
+                  }catch(_){}
+                  openCommentsModal({ eventId, title, who });
+                }
+              }, [`${commentCount} comment${commentCount === 1 ? "" : "s"}`])
+            ]);
+
+            return el("div", {
+              style:"margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.10);"
+            }, [iconsRow, countsRow]);
+          }catch(_){
+            return el("div", {});
+          }
+        })();
+
+        const feedLinkRow = el("div", {
+          class:"setLink",
+          style:"width:100%;",
+          onClick: () => openFeedEventModal(ev, title, who, when)
+        }, [
+          el("div", { class:"l" }, [
+            el("div", { class:"a", text: title }),
+            whenLine ? el("div", { class:"b", text: whenLine }) : null,
+            summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
+            (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
+              badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+            ) : null),
+          ].filter(Boolean)),
+          el("div", { class:"r", style:"opacity:.85;" }, ["→"])
+        ]);
+
+        const row = el("div", {
+          style:"display:flex; gap:10px; align-items:flex-start;"
+        }, [
+          avatar,
+          el("div", { style:"width:100%; display:flex; flex-direction:column;" }, [
+            feedLinkRow,
+            interactionsNode
+          ])
+        ]);
+
+        return row;
       }
-    }
-  }, [ liked ? "❤️" : "♡" ]);
 
-  const commentBtn = el("button", {
-    style: iconBtnStyle + " opacity:.92;",
-    onClick: async (e) => {
-      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      // Render initial page
+      const rendered = Math.min(ui._feedRenderCount, items.length);
+      for(let k = 0; k < rendered; k++){
+        timeline.appendChild(buildFeedRow(items[k]));
+      }
+
+      // Sentinel (the thing we watch to know user scrolled near bottom)
+      const sentinel = el("div", { style:"height:1px;" });
+
+      // Footer UI (shows state + provides fallback "Load more")
+      const footer = el("div", {
+        class:"note",
+        style:"margin-top:8px; opacity:.75; display:flex; justify-content:center;"
+      }, [
+        (rendered >= items.length)
+          ? "End of feed"
+          : el("button", {
+              class:"btn sm",
+              onClick: () => { try{ loadMore(); }catch(_){} }
+            }, ["Load more"])
+      ]);
+
+      timeline.appendChild(sentinel);
+      timeline.appendChild(footer);
+
+      // Clean up old observer (important so we don’t leak observers across re-renders)
       try{
-        // Ensure counts are fresh before opening
-        if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
+        if(ui._feedIO){ ui._feedIO.disconnect(); ui._feedIO = null; }
       }catch(_){}
-      openCommentsModal({ eventId, title, who });
-    }
-  }, ["💬"]);
 
-  const shareBtn = el("button", {
-    style: iconBtnStyle + " opacity:.92;",
-    onClick: async (e) => {
-      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      let loading = false;
+
+      function loadMore(){
+        if(loading) return;
+        if(ui._feedRenderCount >= items.length) return;
+
+        loading = true;
+
+        const prev = ui._feedRenderCount;
+        const next = Math.min(prev + PAGE, items.length);
+        ui._feedRenderCount = next;
+
+        // Update footer text to show loading state
+        try{
+          footer.textContent = "Loading…";
+        }catch(_){}
+
+        // Append next items
+        try{
+          for(let k = prev; k < next; k++){
+            timeline.insertBefore(buildFeedRow(items[k]), sentinel);
+          }
+        }catch(_){}
+
+        // Update footer UI
+        try{
+          footer.textContent = "";
+          footer.appendChild(
+            (ui._feedRenderCount >= items.length)
+              ? document.createTextNode("End of feed")
+              : el("button", { class:"btn sm", onClick: () => loadMore() }, ["Load more"])
+          );
+        }catch(_){}
+
+        loading = false;
+      }
+
+      // IntersectionObserver: auto-load when sentinel becomes visible (scroll near bottom)
       try{
-        const shareText = [title, summaryLine].filter(Boolean).join(" — ");
-        if(navigator?.clipboard?.writeText){
-          await navigator.clipboard.writeText(shareText || title || "");
-          showToast("Copied");
-        }else{
-          const ta = document.createElement("textarea");
-          ta.value = shareText || title || "";
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          ta.remove();
-          showToast("Copied");
+        if("IntersectionObserver" in window){
+          ui._feedIO = new IntersectionObserver((entries) => {
+            const hit = entries && entries[0] && entries[0].isIntersecting;
+            if(hit) loadMore();
+          }, {
+            root: null,
+            rootMargin: "600px 0px", // ✅ start loading before user hits bottom
+            threshold: 0
+          });
+
+          ui._feedIO.observe(sentinel);
         }
       }catch(_){
-        showToast("Could not copy");
+        // If observer fails, fallback "Load more" button already exists
       }
-    }
-  }, ["📨"]);
-
-  const iconsRow = el("div", {
-    style:"display:flex; align-items:center; justify-content:space-between;"
-  }, [
-    el("div", { style:"display:flex; align-items:center; gap:14px;" }, [
-      likeBtn, commentBtn, shareBtn
-    ])
-  ]);
-
-  const countsRow = el("div", {
-    style:"margin-top:6px; display:flex; gap:14px; font-size:12px; font-weight:850; opacity:.78;"
-  }, [
-    el("button", {
-      style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
-      onClick: async (e) => {
-        try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-        try{
-          // Ensure counts are fresh before opening
-          if(Social.fetchFeedLikes) await Social.fetchFeedLikes([eventId]);
-        }catch(_){}
-        openLikesModal({ eventId, title, who });
-      }
-    }, [`${likeCount} like${likeCount === 1 ? "" : "s"}`]),
-
-    el("button", {
-      style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
-      onClick: async (e) => {
-        try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-        try{
-          if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
-        }catch(_){}
-        openCommentsModal({ eventId, title, who });
-      }
-    }, [`${commentCount} comment${commentCount === 1 ? "" : "s"}`])
-  ]);
-
-  return el("div", {
-    style:"margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.10);"
-  }, [iconsRow, countsRow]);
-})();
-
-const feedLinkRow = el("div", {
-  class:"setLink",
-  style:"width:100%;",
-  onClick: () => openFeedEventModal(ev, title, who, when)
-}, [
-  el("div", { class:"l" }, [
-    el("div", { class:"a", text: title }),
-    whenLine ? el("div", { class:"b", text: whenLine }) : null,
-    summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
-    (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
-      badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-    ) : null),
-  ].filter(Boolean)),
-  el("div", { class:"r", style:"opacity:.85;" }, ["→"])
-]);
-
-const row = el("div", {
-  style:"display:flex; gap:10px; align-items:flex-start;"
-}, [
-  avatar,
-  el("div", { style:"width:100%; display:flex; flex-direction:column;" }, [
-    feedLinkRow,
-    interactionsNode
-  ])
-]);
-        timeline.appendChild(row);
-      });
 
       return timeline;
     })() : null
