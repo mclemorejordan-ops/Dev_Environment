@@ -1880,28 +1880,62 @@ const openProteinModal = (dateISO = todayISO) => {
     // Week labels + dots aligned perfectly
 el("div", { style:"display:flex; flex-direction:column; gap:4px;" }, [
 
-  // Labels (use SAME 7-col grid as dots)
-  el("div", {
-    style:[
-      "display:grid",
-      "grid-template-columns:repeat(7, 1fr)",
-      "gap:6px",
-      "opacity:.72",
-      "font-size:11px",
-      "font-weight:900",
-      "user-select:none",
-      "padding:0 2px",
-      "justify-items:center",
-      "align-items:center"
-    ].join(";")
-  }, ((weekStartsOn === "sun")
+  (() => {
+    // Keep labels aligned with trainedThisWeek ordering (same as dots)
+    const dayLabels = (weekStartsOn === "sun")
       ? ["S","M","T","W","T","F","S"]
-      : ["M","T","W","T","F","S","S"]
-    ).map(ch => el("div", {
-      text: ch,
-      style:"text-align:center; line-height:1;"
-    }))
-  ),
+      : ["M","T","W","T","F","S","S"];
+
+    const todayIdx = Math.max(0, trainedThisWeek.findIndex(x => x?.dateISO === todayISO));
+    const todayColor = "rgba(255,92,122,.98)"; // accent highlight (UI-only)
+
+    // Labels (use SAME 7-col grid as dots)
+    return el("div", {
+      style:[
+        "display:grid",
+        "grid-template-columns:repeat(7, 1fr)",
+        "gap:6px",
+        "opacity:.72",
+        "font-size:11px",
+        "font-weight:900",
+        "user-select:none",
+        "padding:0 2px",
+        "justify-items:center",
+        "align-items:center"
+      ].join(";")
+    }, dayLabels.map((ch, i) => {
+      const isToday = (i === todayIdx);
+
+      return el("div", {
+        style:[
+          "display:flex",
+          "flex-direction:column",
+          "align-items:center",
+          "justify-content:center",
+          "line-height:1"
+        ].join(";")
+      }, [
+        el("div", {
+          text: ch,
+          style:[
+            "text-align:center",
+            "line-height:1",
+            isToday ? `color:${todayColor}; opacity:1;` : ""
+          ].join(";")
+        }),
+        // underline bar (reserve space so layout doesn't jump)
+        el("div", {
+          style:[
+            "height:2px",
+            "width:14px",
+            "border-radius:999px",
+            "margin-top:3px",
+            isToday ? `background:${todayColor};` : "background:transparent;"
+          ].join(";")
+        })
+      ]);
+    }));
+  })(),
 
   // Dots row (force dots node into SAME 7-col grid)
   el("div", {
