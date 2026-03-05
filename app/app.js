@@ -4902,9 +4902,11 @@ function openFollowerNotifsModal(){
   return openFollowerNotifsModal();
 }
 
-  // Instagram-style shell
+    // Instagram-style shell
   const topRow = el("div", { class:"igNotifTop" }, []);
-  const title = el("div", { class:"igNotifTitle", text:"Notifications" });
+
+  // ✅ Spacer keeps "Clear all" aligned right without a second "Notifications" title
+  const spacer = el("div", { style:"flex:1;" });
 
   const clearBtn = el("button", {
     class:"igNotifLinkBtn",
@@ -4915,7 +4917,7 @@ function openFollowerNotifsModal(){
     }
   }, ["Clear all"]);
 
-  topRow.appendChild(title);
+  topRow.appendChild(spacer);
   topRow.appendChild(clearBtn);
 
   const listHost = el("div", { class:"igNotifList" });
