@@ -6044,24 +6044,57 @@ root.appendChild(el("div", { class:"card" }, [
     return null;
   })();
      
-    root.appendChild(el("div", { class:"card" }, [
-el("div", {
-  style:"display:flex; align-items:center; gap:8px;"
-}, [
-  el("div", { class:"note", text: bodyTitle }),
+    // ✅ Real “Last Updated” (only changes when we actually refresh)
+const lastUpdatedAt = ui._feedLastUpdatedAt || 0;
+const lastUpdatedText = lastUpdatedAt
+  ? new Date(lastUpdatedAt).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
+  : "—";
+const isRefreshing = !!ui._feedRefreshing;
 
-  el("div", { style:"opacity:.5;" }, ["|"]),
-
+root.appendChild(el("div", { class:"card" }, [
   el("div", {
-    class:"note",
-    style:"opacity:.75;"
+    style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
   }, [
-    "Last Updated ",
-    new Date().toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
-  ])
-]),    el("div", { style:"height:10px" }),
+    // Left: Feed | Last Updated
+    el("div", { style:"display:flex; align-items:center; gap:8px; min-width:0;" }, [
+      el("div", { class:"note", text: bodyTitle }),
+      el("div", { style:"opacity:.5;" }, ["|"]),
+      el("div", { class:"note", style:"opacity:.75; white-space:nowrap;" }, [
+        "Last Updated ",
+        lastUpdatedText
+      ])
+    ]),
 
-    emptyStateNode,
+    // Right: Refresh button (only useful when configured + signed in)
+    el("button", {
+      class:"btn sm",
+      style:[
+        "white-space:nowrap",
+        "opacity:" + ((configured && user) ? (isRefreshing ? ".75" : "1") : ".5"),
+        "pointer-events:" + ((configured && user && !isRefreshing) ? "auto" : "none")
+      ].join(";"),
+      onClick: async () => {
+        try{
+          ui._feedRefreshing = true;
+          try{ renderView(); }catch(_){}
+
+          // Manual refresh
+          if(Social.fetchFeed) await Social.fetchFeed();
+
+          ui._feedLastUpdatedAt = Date.now();
+        }catch(e){
+          showToast(e?.message || "Refresh failed");
+        }finally{
+          ui._feedRefreshing = false;
+          try{ renderView(); }catch(_){}
+        }
+      }
+    }, [isRefreshing ? "⟳" : "↻"])
+  ]),
+
+  el("div", { style:"height:10px" }),
+
+  emptyStateNode,
 
     user && feedList.length ? (() => {
       const timeline = el("div", {
