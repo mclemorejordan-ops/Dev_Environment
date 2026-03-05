@@ -4647,26 +4647,59 @@ function openFollowerNotifsModal(){
     return;
   }
 
-  const body = el("div", {});
-  const titleNote = el("div", { class:"note", text:"New followers (tap actions to interact)" });
-  const listHost = el("div", {});
-  const btnRowHost = el("div", { class:"btnrow" });
+  // Instagram-style shell
+  const topRow = el("div", { class:"igNotifTop" }, []);
+  const title = el("div", { class:"igNotifTitle", text:"Notifications" });
 
-  body.appendChild(titleNote);
-  body.appendChild(el("div", { style:"height:10px" }));
-  body.appendChild(listHost);
-  body.appendChild(el("div", { style:"height:10px" }));
-  body.appendChild(btnRowHost);
+  const clearBtn = el("button", {
+    class:"igNotifLinkBtn",
+    onClick: () => {
+      ui._followerNotifs = [];
+      showToast("Cleared");
+      repaint();
+    }
+  }, ["Clear all"]);
+
+  topRow.appendChild(title);
+  topRow.appendChild(clearBtn);
+
+  const sectionLabel = el("div", { class:"igNotifSection", text:"New" });
+  const listHost = el("div", { class:"igNotifList" });
+
+  const body = el("div", { class:"igNotif" }, [
+    topRow,
+    sectionLabel,
+    listHost
+  ]);
+
+  function relTime(ts){
+    try{
+      const t = Number(ts || 0);
+      if(!t) return "";
+      const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+      if(s < 60) return `${s}s`;
+      const m = Math.floor(s / 60);
+      if(m < 60) return `${m}m`;
+      const h = Math.floor(m / 60);
+      if(h < 24) return `${h}h`;
+      const d = Math.floor(h / 24);
+      return `${d}d`;
+    }catch(_){ return ""; }
+  }
+
+  function avatarLetter(name){
+    const s = String(name || "").trim();
+    return (s && s[0]) ? s[0].toUpperCase() : "•";
+  }
 
   function repaint(){
     const notifs = ui._followerNotifs || [];
     const follows = Social.getFollows ? Social.getFollows() : [];
 
     listHost.innerHTML = "";
-    btnRowHost.innerHTML = "";
 
     if(!notifs.length){
-      listHost.appendChild(el("div", { class:"note", text:"No new follower notifications." }));
+      listHost.appendChild(el("div", { class:"note", text:"No new notifications." }));
       return;
     }
 
@@ -4676,77 +4709,79 @@ function openFollowerNotifsModal(){
       if(Social.fetchNames) Social.fetchNames(ids).catch(() => {});
     }catch(_){}
 
-    listHost.appendChild(el("div", { class:"list" },
-      notifs.map(n => {
-        const fid = String(n?.id || "");
-        const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
-        const alreadyFollowing = follows.includes(fid);
+    notifs.forEach(n => {
+      const fid = String(n?.id || "");
+      const dn = (Social.nameFor && Social.nameFor(fid)) || "User";
+      const alreadyFollowing = follows.includes(fid);
 
-        return el("div", { class:"item" }, [
-          el("div", { class:"left" }, [
-            el("div", { class:"name", text: dn }),
-            el("div", { class:"meta", text:"followed you" })
-          ]),
+      const timeTxt = relTime(n?.at);
 
-          el("div", { class:"actions" }, [
-            alreadyFollowing
-              ? el("button", {
-                  class:"btn danger sm",
-                  onClick: async () => {
-                    try{
-                      await Social.unfollow(fid);
-                      showToast("Unfollowed");
-                      renderView();
-                      repaint();
-                    }catch(e){
-                      showToast(e?.message || "Couldn't unfollow");
-                    }
-                  }
-                }, ["Unfollow"])
-              : el("button", {
-                  class:"btn primary sm",
-                  onClick: async () => {
-                    try{
-                      await Social.follow(fid);
-                      showToast("Following");
-                      renderView();
-                      repaint();
-                    }catch(e){
-                      showToast(e?.message || "Follow failed");
-                    }
-                  }
-                }, ["Follow back"]),
+      const avatar = el("div", { class:"igNotifAvatar", text: avatarLetter(dn) });
 
-            el("button", {
-              class:"btn sm",
-              onClick: () => {
-                ui._followerNotifs = (ui._followerNotifs || []).filter(x => String(x?.id||"") !== fid);
-                showToast("Dismissed");
-                repaint();
+      const textBlock = el("div", { class:"igNotifText" }, [
+        el("div", { class:"igNotifLine" }, [
+          el("span", { class:"igNotifName", text: dn }),
+          el("span", { class:"igNotifMsg", text:" followed you" }),
+          timeTxt ? el("span", { class:"igNotifTime", text:` • ${timeTxt}` }) : null
+        ].filter(Boolean))
+      ]);
+
+      const actions = el("div", { class:"igNotifActions" }, [
+        alreadyFollowing
+          ? el("button", {
+              class:"btn danger sm",
+              onClick: async () => {
+                try{
+                  await Social.unfollow(fid);
+                  showToast("Unfollowed");
+                  renderView();
+                  repaint();
+                }catch(e){
+                  showToast(e?.message || "Couldn't unfollow");
+                }
               }
-            }, ["Dismiss"])
-          ])
-        ]);
-      })
-    ));
+            }, ["Unfollow"])
+          : el("button", {
+              class:"btn primary sm",
+              onClick: async () => {
+                try{
+                  await Social.follow(fid);
+                  showToast("Following");
+                  renderView();
+                  repaint();
+                }catch(e){
+                  showToast(e?.message || "Follow failed");
+                }
+              }
+            }, ["Follow back"]),
 
-    btnRowHost.appendChild(el("button", {
-      class:"btn",
-      onClick: () => {
-        ui._followerNotifs = [];
-        showToast("Cleared");
-        repaint();
-      }
-    }, ["Clear all"]));
+        // Instagram-style dismiss icon button (keeps same logic)
+        el("button", {
+          class:"igNotifX",
+          title:"Dismiss",
+          onClick: () => {
+            ui._followerNotifs = (ui._followerNotifs || []).filter(x => String(x?.id||"") !== fid);
+            showToast("Dismissed");
+            repaint();
+          }
+        }, ["✕"])
+      ]);
+
+      listHost.appendChild(el("div", { class:"igNotifRow" }, [
+        avatar,
+        textBlock,
+        actions
+      ]));
+    });
   }
 
   Modal.open({
-    title: "Follower notifications",
+    title: "Notifications",
     bodyNode: body
   });
 
   repaint();
-} 
+}
 
 
      function openConnectionsModal(initialTab){
