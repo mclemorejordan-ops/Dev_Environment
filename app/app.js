@@ -5535,32 +5535,93 @@ function openFollowerNotifsModal(){
      
      
 root.appendChild(el("div", { class:"card" }, [
-  // Header title + auth pill (top-right) + bell badge (bottom-right)
-  el("div", { style:"position:relative; min-height:52px;" }, [
-    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
+  // Header: Avatar + name (left) + Signed-in pill + bell (right)
+  (() => {
+    const myId = user ? String(user.id || "") : "";
+    const dn =
+      (myId && Social.nameFor ? Social.nameFor(myId) : null) ||
+      String(state?.profile?.name || "").trim() ||
+      (user?.email ? String(user.email).split("@")[0] : "") ||
+      "My Profile";
 
-    (typeof Social.isSignedIn === "function")
-      ? el("div", {
-          class:"pill",
-          style:"position:absolute; top:0; right:0;",
-          text: Social.isSignedIn() ? "Signed in" : "Signed out"
-        })
-      : null,
+    const av = avatarTextForName(dn);
 
-  ].filter(Boolean)),
+    return el("div", {
+      style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
+    }, [
+      // Left: avatar + name
+      el("div", { style:"display:flex; align-items:center; gap:12px; min-width:0;" }, [
+        el("div", {
+          style:[
+            "width:52px",
+            "height:52px",
+            "border-radius:999px",
+            "display:flex",
+            "align-items:center",
+            "justify-content:center",
+            "font-weight:950",
+            "letter-spacing:.6px",
+            "background: rgba(255,255,255,.08)",
+            "border: 1px solid rgba(255,255,255,.14)",
+            "flex:0 0 auto"
+          ].join(";"),
+          text: av
+        }),
+        el("div", { style:"min-width:0;" }, [
+          el("div", {
+            style:[
+              "font-weight:950",
+              "font-size:18px",
+              "line-height:1.1",
+              "white-space:nowrap",
+              "overflow:hidden",
+              "text-overflow:ellipsis"
+            ].join(";"),
+            text: dn
+          }),
+          el("div", { class:"note", style:"margin-top:2px;", text:"My profile" })
+        ])
+      ]),
+
+      // Right: signed-in pill + bell
+      el("div", { style:"display:flex; align-items:center; gap:8px; flex:0 0 auto;" }, [
+        (typeof Social.isSignedIn === "function")
+          ? el("div", {
+              class:"pill",
+              style:"padding:6px 10px; font-size:12px;",
+              text: Social.isSignedIn() ? "Signed in" : "Signed out"
+            })
+          : null,
+
+        (user)
+          ? el("button", {
+              class:"pill",
+              style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
+              onClick: async () => { try{
+                if(Social.fetchNotifications) await Social.fetchNotifications();
+                openNotificationsModal();
+              }catch(_){} }
+            }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
+          : null
+      ].filter(Boolean))
+    ]);
+  })(),
 
   el("div", { style:"height:10px" }),
 
+  // Not configured warning
   !configured
-    ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
+    ? el("div", {
+        class:"note",
+        style:"color: rgba(255,92,122,.95);",
+        text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)."
+      })
     : null,
 
+  // Following | Followers
   configured ? el("div", {
-  style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
-}, [
-
-  // Left: Following / Followers pills (LEFT-ALIGNED)
-  el("div", { class:"pillRow", style:"justify-content:flex-start;" }, [
+    style:"display:flex; align-items:center; gap:10px; flex-wrap:wrap;"
+  }, [
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
@@ -5574,6 +5635,8 @@ root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"x", text: String((Social.getFollows ? Social.getFollows() : followsNow).length) })
     ]),
 
+    el("div", { class:"note", style:"opacity:.65; font-weight:950;", text:"|" }),
+
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
@@ -5586,26 +5649,42 @@ root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"t", text:"Followers" }),
       el("div", { class:"x", text: String((Social.getFollowers ? Social.getFollowers() : followersNow).length) })
     ])
-  ]),
+  ]) : null,
 
-    // Right: bell badge
-    (user)
-    ? el("button", {
-        class:"pill",
-        style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
-        onClick: async () => { try{
-          if(Social.fetchNotifications) await Social.fetchNotifications();
-          openNotificationsModal();
-        }catch(_){} }
-      }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
-    : null
+  configured ? el("div", { style:"height:10px" }) : null,
 
-].filter(Boolean)) : null,
+  // Weekly stats: This week workouts / PRs / Volume / Since Day
+  configured ? (() => {
+    const myId = user ? String(user.id || "") : "";
+    const stats = (myId && typeof profileFromFeed === "function") ? profileFromFeed(myId) : null;
 
-el("div", { style:"height:10px" }),
+    const weekWorkouts = Number(stats?.weekWorkouts || 0) || 0;
+    const weekPRs = Number(stats?.weekPRs || 0) || 0;
+    const weekVolume = Number(stats?.weekVolume || 0) || 0;
+    const sinceDay = String(stats?.weekStartISO || Dates.todayISO());
+
+    const statPill = (label, value) => el("div", {
+      class:"pill",
+      style:"display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:10px 12px;"
+    }, [
+      el("div", { class:"t", text: label }),
+      el("div", { class:"x", text: value })
+    ]);
+
+    return el("div", {
+      style:"display:grid; grid-template-columns:1fr 1fr; gap:8px;"
+    }, [
+      statPill("This week workouts", String(weekWorkouts)),
+      statPill("This Week PRs", String(weekPRs)),
+      statPill("This Week Volume", String(Math.round(weekVolume).toLocaleString())),
+      statPill("Since Day", sinceDay)
+    ]);
+  })() : null,
+
+  el("div", { style:"height:10px" }),
 
   // Auth row (still only shows CTA when signed out)
-    configured ? el("div", { class:"btnrow" }, [
+  configured ? el("div", { class:"btnrow" }, [
     !user ? el("button", {
       class:"btn primary",
       onClick: async () => {
@@ -5618,7 +5697,7 @@ el("div", { style:"height:10px" }),
     }, ["Continue with Google"]) : null
   ].filter(Boolean)) : null,
 
-  // Friends header tabs: Feed | My Profile
+  // Tabs: Feed | My Profile
   el("div", { style:"height:10px" }),
   el("div", { class:"chips", style:"justify-content:flex-start;" }, [
     el("div", {
@@ -5630,7 +5709,6 @@ el("div", { style:"height:10px" }),
       onClick: () => { ui.friendsTab = "profile"; renderView(); }
     }, ["My Profile"])
   ])
-
 ].filter(Boolean)));
 
 
