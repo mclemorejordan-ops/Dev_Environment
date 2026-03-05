@@ -813,7 +813,7 @@ if(_user){
     }
   }
   
-    async function fetchFollowers(){
+  async function fetchFollowers(){
   const sb = await ensureClient();
   if(!sb || !_user) { _followers = []; return []; }
   try{
@@ -829,36 +829,6 @@ if(_user){
     return [];
   }
 }
-
-  // Follow counts for ANY user (for profile viewing)
-  // - additive helper, does not touch app state/schema
-  async function fetchFollowCounts(userId){
-    const sb = await ensureClient();
-    if(!sb || !_user) return { followers: 0, following: 0 };
-    const id = String(userId || "").trim();
-    if(!id) return { followers: 0, following: 0 };
-
-    let followers = 0;
-    let following = 0;
-
-    try{
-      const { count, error } = await sb
-        .from("follows")
-        .select("follower_id", { count: "exact", head: true })
-        .eq("followee_id", id);
-      if(!error) followers = Number(count || 0) || 0;
-    }catch(_){ followers = 0; }
-
-    try{
-      const { count, error } = await sb
-        .from("follows")
-        .select("followee_id", { count: "exact", head: true })
-        .eq("follower_id", id);
-      if(!error) following = Number(count || 0) || 0;
-    }catch(_){ following = 0; }
-
-    return { followers, following };
-  }
 
   async function fetchFeed(){
     const sb = await ensureClient();
@@ -1127,7 +1097,6 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     nameFor,
     fetchFollows,
     fetchFollowers,
-    fetchFollowCounts,
     getFeed,
     startFeed,
     stopFeed,
@@ -5557,292 +5526,9 @@ function openFollowerNotifsModal(){
     ])
   });
 
-    refreshLists().then(repaintModal);
+  refreshLists().then(repaintModal);
 }
      
-     
-  // ─────────────────────────────
-  // Profiles (My Profile + Friend Profiles)
-  // - lightweight, based on feed events + follow counts
-  // - UI-only: no state/storage schema changes
-  // ─────────────────────────────
-  ui.tab = ui.tab || "feed"; // "feed" | "profile"
-
-  function weekStartMs(d){
-    try{
-      const weekStartsOn = state.profile?.weekStartsOn || "mon";
-      const weekStart = (weekStartsOn === "sun") ? 0 : 1; // 0=Sun
-      const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const dow = dt.getDay();
-      let diff = dow - weekStart;
-      if(diff < 0) diff += 7;
-      dt.setDate(dt.getDate() - diff);
-      dt.setHours(0,0,0,0);
-      return dt.getTime();
-    }catch(_){
-      const dt = new Date();
-      dt.setHours(0,0,0,0);
-      return dt.getTime();
-    }
-  }
-
-  function avatarInitial(name){
-    const s = String(name || "").trim();
-    return (s && s[0]) ? s[0].toUpperCase() : "U";
-  }
-
-  function profileFromFeed(userId){
-    const id = String(userId || "");
-    const feed = (Social.getFeed ? Social.getFeed() : []) || [];
-    const mine = feed.filter(ev => String(ev?.actorId || "") === id);
-
-    const isMe = (user && String(user.id || "") === id);
-
-    // Prefer local profile name for "My Profile" so it populates even with empty feed
-    const localName =
-      (state && state.profile && String(state.profile.name || "").trim())
-      || (user && (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)))
-      || (user && user.email ? String(user.email).split("@")[0] : "")
-      || "You";
-    
-    const name = (Social.nameFor ? Social.nameFor(id) : null)
-      || (mine.find(ev => ev?.payload?.displayName)?.payload?.displayName)
-      || (isMe ? localName : "User");
-
-    const now = new Date();
-    const wk0 = weekStartMs(now);
-    const wk1 = wk0 + 7*86400000;
-
-    const workouts = mine.filter(ev => String(ev?.type || "") === "workout_completed");
-
-    let weekSessions = 0;
-    let weekPRs = 0;
-    let weekVol = 0;
-    workouts.forEach(ev => {
-      const t = ev?.createdAt ? new Date(ev.createdAt).getTime() : 0;
-      if(!t || Number.isNaN(t)) return;
-      if(t < wk0 || t >= wk1) return;
-      weekSessions += 1;
-      const h = ev?.payload?.highlights || {};
-      weekPRs += Number(h.prCount || 0) || 0;
-      weekVol += Number(h.totalVolume || 0) || 0;
-    });
-
-    const prEvents = mine
-      .filter(ev => {
-        const p = ev?.payload || {};
-        if(String(ev?.type || "") === "workout_completed") return (Number(p?.highlights?.prCount || 0) || 0) > 0;
-        if(String(ev?.type || "") === "exercise_logged") return (Number(p?.prCount || 0) || 0) > 0;
-        return false;
-      })
-      .slice(0, 12)
-      .map(ev => {
-        const p = ev.payload || {};
-        const when = ev.createdAt ? new Date(ev.createdAt) : null;
-        const whenLabel = when ? when.toLocaleDateString() : "";
-        if(ev.type === "workout_completed"){
-          const d = p.details || {};
-          const c = Number(p?.highlights?.prCount || 0) || 0;
-          return { ev, whenLabel, title: (d.dayLabel || "Workout"), sub: `${c} PR${c===1?"":"s"}` };
-        }
-        const c = Number(p?.prCount || 0) || 0;
-        const ex = p.exerciseName || "Exercise";
-        return { ev, whenLabel, title: ex, sub: `${c} PR${c===1?"":"s"}` };
-      })
-      .slice(0, 6);
-
-    const recentWorkouts = workouts.slice(0, 6).map(ev => {
-      const p = ev.payload || {};
-      const d = p.details || {};
-      const h = p.highlights || {};
-      const when = ev.createdAt ? new Date(ev.createdAt) : null;
-      const whenLabel = when ? when.toLocaleDateString() : "";
-      const title = d.dayLabel || "Workout";
-      const prCount = Number(h.prCount || 0) || 0;
-      const exCount = Number(h.exerciseCount || 0) || 0;
-      const vol = Number(h.totalVolume || 0) || 0;
-      const chips = [];
-      if(exCount) chips.push(`${exCount} ex`);
-      if(prCount) chips.push(`${prCount} PR`);
-      if(vol) chips.push(`Vol ${vol.toLocaleString()}`);
-      return { ev, whenLabel, title, chips };
-    });
-
-    return {
-      id,
-      name,
-      initial: avatarInitial(name),
-      week: { sessions: weekSessions, prs: weekPRs, volume: weekVol },
-      prEvents,
-      recentWorkouts
-    };
-  }
-
-  function openProfileModal(userId){
-    try{
-      const id = String(userId || "").trim();
-      if(!id) return;
-
-      const meId = String(user?.id || "");
-      const isMe = (meId && id === meId);
-      const base = profileFromFeed(id);
-
-      const followCard = el("div", { class:"pill", style:"padding:10px 12px; display:flex; gap:14px; align-items:center;" }, [
-        el("div", { style:"font-weight:950;", text:"Followers" }),
-        el("div", { style:"font-weight:950;", text:"0" })
-      ]);
-      const followingCard = el("div", { class:"pill", style:"padding:10px 12px; display:flex; gap:14px; align-items:center;" }, [
-        el("div", { style:"font-weight:950;", text:"Following" }),
-        el("div", { style:"font-weight:950;", text:"0" })
-      ]);
-
-      const actionBtn = (!isMe && user)
-        ? el("button", {
-            class:"btn primary",
-            onClick: async () => {
-              try{
-                const followsSet = new Set((Social.getFollows ? Social.getFollows() : followsNow) || []);
-                if(followsSet.has(id)){
-                  await Social.unfollow(id);
-                  showToast("Unfollowed");
-                }else{
-                  await Social.follow(id);
-                  showToast("Following");
-                }
-                try{ await Social.fetchFollows(); }catch(_){}
-                try{ await Social.fetchFollowers(); }catch(_){}
-                try{ repaint(); }catch(_){}
-                try{ renderView(); }catch(_){}
-              }catch(e){
-                showToast(e?.message || "Could not update follow");
-              }
-            }
-          }, ["Follow"])
-        : null;
-
-      const header = el("div", { style:"display:flex; align-items:center; gap:12px;" }, [
-        el("div", {
-          style:[
-            "width:56px",
-            "height:56px",
-            "border-radius:999px",
-            "border:1px solid rgba(255,255,255,.14)",
-            "background: rgba(255,255,255,.06)",
-            "display:flex",
-            "align-items:center",
-            "justify-content:center",
-            "font-weight:900",
-            "letter-spacing:.2px",
-            "font-size:20px",
-            "flex:0 0 auto"
-          ].join(";"),
-          text: base.initial
-        }),
-        el("div", { style:"display:flex; flex-direction:column; min-width:0; flex:1;" }, [
-          el("div", { style:"font-weight:950; font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;", text: base.name }),
-          el("div", { class:"meta", text: isMe ? "Your profile" : "Profile" })
-        ]),
-        actionBtn
-      ].filter(Boolean));
-
-      const statsRow = el("div", { style:"display:flex; gap:10px; flex-wrap:wrap;" }, [
-        followCard,
-        followingCard,
-        el("div", { class:"pill", style:"padding:10px 12px; display:flex; gap:10px; align-items:center;" }, [
-          el("div", { style:"font-weight:950;", text:"This week" }),
-          el("div", { class:"meta", text:`${base.week.sessions} sessions • ${base.week.prs} PRs • Vol ${Number(base.week.volume||0).toLocaleString()}` })
-        ])
-      ]);
-
-      const prHost = el("div", { style:"display:grid; gap:8px;" }, [
-        el("div", { class:"note", text:"PRs" })
-      ]);
-      const prList = el("div", { style:"display:grid; gap:8px;" });
-      prHost.appendChild(prList);
-
-      const recentHost = el("div", { style:"display:grid; gap:8px;" }, [
-        el("div", { class:"note", text:"Recent workouts" })
-      ]);
-      const recentList = el("div", { style:"display:grid; gap:8px;" });
-      recentHost.appendChild(recentList);
-
-      async function repaint(){
-        // counts
-        try{
-          if(isMe){
-            followCard.lastChild.textContent = String((Social.getFollowers ? Social.getFollowers() : followersNow).length);
-            followingCard.lastChild.textContent = String((Social.getFollows ? Social.getFollows() : followsNow).length);
-          }else if(Social.fetchFollowCounts){
-            const c = await Social.fetchFollowCounts(id);
-            followCard.lastChild.textContent = String(Number(c?.followers || 0) || 0);
-            followingCard.lastChild.textContent = String(Number(c?.following || 0) || 0);
-          }
-        }catch(_){ }
-
-        // follow button label
-        if(actionBtn){
-          try{
-            const followsSet = new Set((Social.getFollows ? Social.getFollows() : followsNow) || []);
-            actionBtn.className = "btn " + (followsSet.has(id) ? "danger" : "primary");
-            actionBtn.textContent = followsSet.has(id) ? "Unfollow" : "Follow";
-          }catch(_){ }
-        }
-
-        // PR list
-        prList.innerHTML = "";
-        if(!base.prEvents.length){
-          prList.appendChild(el("div", { class:"note", text:"No PRs posted yet." }));
-        }else{
-          base.prEvents.forEach(x => {
-            prList.appendChild(el("div", {
-              class:"setLink",
-              style:"width:100%;",
-              onClick: () => { try{ openFeedEventModal(x.ev, x.title, base.name, x.ev?.createdAt ? new Date(x.ev.createdAt).toLocaleString() : ""); }catch(_){} }
-            }, [
-              el("div", { class:"l" }, [
-                el("div", { class:"a", text: x.title }),
-                el("div", { class:"b", text: x.sub + (x.whenLabel ? (` • ${x.whenLabel}`) : "") })
-              ])
-            ]));
-          });
-        }
-
-        // recent workouts
-        recentList.innerHTML = "";
-        if(!base.recentWorkouts.length){
-          recentList.appendChild(el("div", { class:"note", text:"No workouts posted yet." }));
-        }else{
-          base.recentWorkouts.forEach(w => {
-            recentList.appendChild(el("div", {
-              class:"setLink",
-              style:"width:100%;",
-              onClick: () => { try{ openFeedEventModal(w.ev, w.title, base.name, w.ev?.createdAt ? new Date(w.ev.createdAt).toLocaleString() : ""); }catch(_){} }
-            }, [
-              el("div", { class:"l" }, [
-                el("div", { class:"a", text: w.title }),
-                el("div", { class:"b", text: [w.whenLabel, (w.chips||[]).join(" • ")].filter(Boolean).join(" • ") })
-              ])
-            ]));
-          });
-        }
-      }
-
-      Modal.open({
-        title: "Profile",
-        bodyNode: el("div", {}, [
-          header,
-          el("div", { style:"height:10px" }),
-          statsRow,
-          el("div", { style:"height:14px" }),
-          prHost,
-          el("div", { style:"height:14px" }),
-          recentHost
-        ])
-      });
-
-      repaint();
-    }catch(_){ }
-  }     
      
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right) + bell badge (bottom-right)
@@ -5858,25 +5544,6 @@ root.appendChild(el("div", { class:"card" }, [
       : null,
 
   ].filter(Boolean)),
-
-  el("div", { style:"height:10px" }),
-
-   // Tabs: Feed | Profile  ← INSERT HERE
-  el("div", { style:"display:flex; gap:8px;" }, [
-
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer; flex:1; justify-content:center;" + (ui.tab === "feed" ? "" : " opacity:.6;"),
-      onClick: () => { ui.tab = "feed"; renderView(); }
-    }, ["Feed"]),
-
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer; flex:1; justify-content:center;" + (ui.tab === "profile" ? "" : " opacity:.6;"),
-      onClick: () => { ui.tab = "profile"; renderView(); }
-    }, ["My Profile"])
-
-  ]),
 
   el("div", { style:"height:10px" }),
 
@@ -6668,14 +6335,9 @@ onClick: () => openExerciseHistoryFromFeed(
             "justify-content:center",
             "font-weight:900",
             "letter-spacing:.2px",
-            "flex:0 0 auto",
-            "cursor:pointer"
+            "flex:0 0 auto"
           ].join(";"),
-          text: initial,
-          onClick: (e) => {
-            try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){ }
-            try{ openProfileModal(ev.actorId); }catch(_){ }
-          }
+          text: initial
         });
 
         const row = el("div", {
