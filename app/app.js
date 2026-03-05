@@ -5833,10 +5833,7 @@ function openFollowerNotifsModal(){
 
       repaint();
     }catch(_){ }
-  }
-
-root.appendChild(el("div", { class:"card" }, [
-     
+  }     
      
 root.appendChild(el("div", { class:"card" }, [
   // Header title + auth pill (top-right) + bell badge (bottom-right)
