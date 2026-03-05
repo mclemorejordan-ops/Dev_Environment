@@ -5578,7 +5578,7 @@ root.appendChild(el("div", { class:"card" }, [
               "text-overflow:ellipsis"
             ].join(";"),
             text: dn
-          })
+          }),
         ]),   // ✅ COMMA REQUIRED HERE
 
 
