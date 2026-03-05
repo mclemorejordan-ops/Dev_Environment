@@ -5567,7 +5567,7 @@ root.appendChild(el("div", { class:"card" }, [
           ].join(";"),
           text: av
         }),
-          el("div", { style:"min-width:0;" }, [
+        el("div", { style:"min-width:0;" }, [
           el("div", {
             style:[
               "font-weight:950",
@@ -5579,8 +5579,9 @@ root.appendChild(el("div", { class:"card" }, [
             ].join(";"),
             text: dn
           }),
-        ]),   // ✅ COMMA REQUIRED HERE
-
+          el("div", { class:"note", style:"margin-top:2px;", text:"My profile" })
+        ])
+      ]),
 
       // Right: signed-in pill + bell
       el("div", { style:"display:flex; align-items:center; gap:8px; flex:0 0 auto;" }, [
@@ -5593,23 +5594,15 @@ root.appendChild(el("div", { class:"card" }, [
           : null,
 
         (user)
-  ? el("button", {
-      class:"pill",
-      style:"cursor:pointer; padding:6px 10px; font-size:12px;",
-      onClick: async () => {
-        try{
-          if(Social.fetchNotifications){
-            await Social.fetchNotifications();
-          }
-          openNotificationsModal();
-        }catch(_){}
-      }
-    }, [
-      "🔔",
-      (Social.getNotifications ? Social.getNotifications().length : 0)
-    ])
-  : null,
-      ])
+          ? el("button", {
+              class:"pill",
+              style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
+              onClick: async () => { try{
+                if(Social.fetchNotifications) await Social.fetchNotifications();
+                openNotificationsModal();
+              }catch(_){} }
+            }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
+          : null
       ].filter(Boolean))
     ]);
   })(),
@@ -5705,19 +5698,17 @@ root.appendChild(el("div", { class:"card" }, [
   ].filter(Boolean)) : null,
 
   // Tabs: Feed | My Profile
-el("div", { style:"height:10px" }),
-el("div", { class:"chips", style:"justify-content:center;" }, [
-  el("div", {
-    class:"chip" + (ui.friendsTab === "feed" ? " on" : ""),
-    style:"flex:1; text-align:center;",
-    onClick: () => { ui.friendsTab = "feed"; renderView(); }
-  }, ["Feed"]),
-  el("div", {
-    class:"chip" + (ui.friendsTab === "profile" ? " on" : ""),
-    style:"flex:1; text-align:center;",
-    onClick: () => { ui.friendsTab = "profile"; renderView(); }
-  }, ["My Profile"])
-])
+  el("div", { style:"height:10px" }),
+  el("div", { class:"chips", style:"justify-content:flex-start;" }, [
+    el("div", {
+      class:"chip" + (ui.friendsTab === "feed" ? " on" : ""),
+      onClick: () => { ui.friendsTab = "feed"; renderView(); }
+    }, ["Feed"]),
+    el("div", {
+      class:"chip" + (ui.friendsTab === "profile" ? " on" : ""),
+      onClick: () => { ui.friendsTab = "profile"; renderView(); }
+    }, ["My Profile"])
+  ])
 ].filter(Boolean)));
 
 
@@ -5835,8 +5826,7 @@ function renderProfileNode({ userId, displayName, counts, stats, isMe }){
     }, [av]),
     el("div", { style:"flex:1; min-width:0;" }, [
       el("div", { style:"font-weight:900; font-size:16px; line-height:1.1;", text: dn }),
-      // (UI) avoid duplicate "My Profile" labeling (Friends header card already shows it)
-      (!isMe ? el("div", { class:"meta", text:"Profile" }) : null)
+      el("div", { class:"meta", text: isMe ? "My profile" : "Profile" })
     ])
   ]);
 
@@ -5919,127 +5909,6 @@ function renderProfileNode({ userId, displayName, counts, stats, isMe }){
     });
   }
 
-  // Activity (events) — like Feed, but filtered to this profile
-  const activity = el("div", { class:"list", style:"margin-top:10px;" });
-  (function buildActivity(){
-    const all = (Social.getFeed ? Social.getFeed() : []) || [];
-    const mine = all
-      .filter(ev => String(ev?.actorId || "") === String(userId || ""))
-      .slice();
-
-    mine.sort((a,b) => {
-      const ta = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const tb = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return tb - ta;
-    });
-
-    const rows = mine.slice(0, 40);
-    if(!rows.length){
-      activity.appendChild(el("div", { class:"note", text: isMe ? "No activity yet. Finish a workout to see it here." : "No activity yet." }));
-      return;
-    }
-
-    function formatWhen(createdAt){
-      try{
-        if(!createdAt) return "";
-        const dt = new Date(createdAt);
-        if(Number.isNaN(dt.getTime())) return "";
-        return dt.toLocaleString();
-      }catch(_){ return ""; }
-    }
-
-    function comma(n){
-      try{
-        const x = Number(n);
-        if(!Number.isFinite(x)) return "";
-        return x.toLocaleString();
-      }catch(_){ return String(n || ""); }
-    }
-
-    function buildSummary(ev){
-      try{
-        const p = ev?.payload || {};
-        const bits = [];
-
-        if(ev?.type === "workout_completed"){
-          const d = p.details || null;
-          const h = p.highlights || {};
-          if(d?.dayLabel) bits.push(String(d.dayLabel));
-          if(h.exerciseCount) bits.push(`${h.exerciseCount} exercises`);
-          if(h.prCount) bits.push(`PRs: ${h.prCount}`);
-          if(h.totalVolume) bits.push(`Vol ${comma(h.totalVolume)}`);
-          return bits.filter(Boolean).join(" • ") || "Workout";
-        }
-
-        if(ev?.type === "exercise_logged"){
-          const d = p.details || null;
-          if(d?.exerciseName) bits.push(String(d.exerciseName));
-          if(d?.setCount) bits.push(`${d.setCount} sets`);
-          if(d?.totalReps) bits.push(`${d.totalReps} reps`);
-          if(d?.bestWeight) bits.push(`${d.bestWeight}`);
-          return bits.filter(Boolean).join(" • ") || "Exercise logged";
-        }
-
-        if(ev?.type === "pr"){
-          if(p?.label) bits.push(String(p.label));
-          if(p?.prCount) bits.push(`🏅 ${p.prCount}`);
-          return bits.filter(Boolean).join(" • ") || "PR";
-        }
-
-        return String(ev?.type || "Event");
-      }catch(_){
-        return "Event";
-      }
-    }
-
-    function openEvent(ev){
-      try{
-        const p = ev?.payload || {};
-        const title = (p?.details?.dayLabel)
-          || (ev?.type === "workout_completed" ? "Workout" : "Event");
-        const when = formatWhen(ev?.createdAt);
-        const summary = buildSummary(ev);
-
-        const body = el("div", { class:"grid" }, [
-          el("div", { class:"card" }, [
-            el("div", { style:"font-weight:950; font-size:16px;", text: title }),
-            when ? el("div", { class:"meta", text: when }) : null,
-            el("div", { style:"height:10px" }),
-            el("div", { class:"note", text: summary })
-          ].filter(Boolean))
-        ]);
-
-        Modal.open({ title, bodyNode: body });
-      }catch(_){
-        showToast("Couldn't open event");
-      }
-    }
-
-    rows.forEach(ev => {
-      const p = ev?.payload || {};
-      const title = (p?.details?.dayLabel)
-        || (ev?.type === "workout_completed" ? "Workout" : "Event");
-      const meta = [
-        p?.dateISO || "",
-        buildSummary(ev)
-      ].filter(Boolean).join(" • ");
-
-      activity.appendChild(el("div", {
-        class:"item",
-        style:"cursor:pointer;",
-        onClick: () => openEvent(ev)
-      }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: title }),
-          el("div", { class:"meta", text: meta })
-        ]),
-        el("div", { class:"actions" }, [
-          el("div", { class:"meta", text: "›" })
-        ])
-      ]));
-    });
-  })();
-
   return el("div", { class:"grid" }, [
     header,
     el("div", { style:"height:10px" }),
@@ -6050,10 +5919,7 @@ function renderProfileNode({ userId, displayName, counts, stats, isMe }){
     prList,
     el("div", { style:"height:12px" }),
     el("div", { class:"note", text:"Recent workouts" }),
-    recent,
-    el("div", { style:"height:12px" }),
-    el("div", { class:"note", text: isMe ? "My Activity" : "Activity" }),
-    activity
+    recent
   ]);
 }
 
