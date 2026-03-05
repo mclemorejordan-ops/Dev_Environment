@@ -5916,12 +5916,142 @@ root.appendChild(el("div", { class:"card" }, [
     ? "No posts yet. Log a workout and it will appear here."
     : "No events yet. Your activity (and friends you follow) will show here.";
 
-  root.appendChild(el("div", { class:"card" }, [
+    // Better empty states (UI-only)
+  const emptyStateNode = (() => {
+    // If not signed in
+    if(!user){
+      return el("div", {
+        style:[
+          "margin-top:6px",
+          "padding:12px",
+          "border-radius:14px",
+          "border:1px solid rgba(255,255,255,.10)",
+          "background:rgba(255,255,255,.05)"
+        ].join(";")
+      }, [
+        el("div", { style:"font-weight:950; font-size:14px;", text:"Sign in to use Friends" }),
+        el("div", { style:"height:6px" }),
+        el("div", { class:"note", style:"margin:0; opacity:.86;", text:"See your activity and the workouts of people you follow." }),
+        el("div", { style:"height:10px" }),
+        el("div", { class:"btnrow" }, [
+          el("button", {
+            class:"btn primary",
+            style:"width:100%;",
+            onClick: async () => {
+              try{
+                await Social.signInWithOAuth("google");
+              }catch(e){
+                showToast(e?.message || "Google sign-in failed");
+              }
+            }
+          }, ["Continue with Google"])
+        ])
+      ]);
+    }
+
+    // Signed in but list is empty
+    if(!feedList.length){
+      const follows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
+      const hasNoFollows = (viewBody === "feed") && (follows.length === 0);
+      const myCode = (typeof getMyCode === "function") ? (getMyCode() || "") : "";
+
+      // My Activity empty
+      if(viewBody === "profile"){
+        return el("div", {
+          style:[
+            "margin-top:6px",
+            "padding:12px",
+            "border-radius:14px",
+            "border:1px solid rgba(255,255,255,.10)",
+            "background:rgba(255,255,255,.05)"
+          ].join(";")
+        }, [
+          el("div", { style:"font-weight:950; font-size:14px;", text:"No posts yet" }),
+          el("div", { style:"height:6px" }),
+          el("div", { class:"note", style:"margin:0; opacity:.86;", text:"Log a workout and it will appear here." })
+        ]);
+      }
+
+      // Feed empty because they follow nobody
+      if(hasNoFollows){
+        return el("div", {
+          style:[
+            "margin-top:6px",
+            "padding:12px",
+            "border-radius:14px",
+            "border:1px solid rgba(255,255,255,.10)",
+            "background:rgba(255,255,255,.05)"
+          ].join(";")
+        }, [
+          el("div", { style:"font-weight:950; font-size:14px;", text:"Your feed is empty" }),
+          el("div", { style:"height:6px" }),
+          el("div", { class:"note", style:"margin:0; opacity:.86;", text:"Add a friend to see their workouts here." }),
+          el("div", { style:"height:10px" }),
+
+          el("div", { class:"btnrow" }, [
+            el("button", {
+              class:"btn primary",
+              style:"width:100%;",
+              onClick: () => openAddFriendModal()
+            }, ["Add Friend"])
+          ]),
+
+          myCode ? el("div", { style:"height:10px" }) : null,
+          myCode ? el("div", {
+            style:[
+              "display:flex",
+              "align-items:center",
+              "justify-content:space-between",
+              "gap:10px",
+              "padding:10px",
+              "border-radius:12px",
+              "border:1px solid rgba(255,255,255,.10)",
+              "background:rgba(0,0,0,.12)"
+            ].join(";")
+          }, [
+            el("div", {}, [
+              el("div", { style:"font-weight:900; font-size:12px; opacity:.9;", text:"Your friend code" }),
+              el("div", { style:"font-weight:1000; letter-spacing:.2px;", text: myCode })
+            ]),
+            el("button", {
+              class:"btn sm",
+              onClick: async () => {
+                try{
+                  await copyTextSafe(myCode);
+                  showToast("Copied");
+                }catch(_){
+                  showToast("Couldn't copy");
+                }
+              }
+            }, ["Copy"])
+          ]) : null
+        ].filter(Boolean));
+      }
+
+      // Feed empty but they do follow someone (or feed just has no events yet)
+      return el("div", {
+        style:[
+          "margin-top:6px",
+          "padding:12px",
+          "border-radius:14px",
+          "border:1px solid rgba(255,255,255,.10)",
+          "background:rgba(255,255,255,.05)"
+        ].join(";")
+      }, [
+        el("div", { style:"font-weight:950; font-size:14px;", text:"No events yet" }),
+        el("div", { style:"height:6px" }),
+        el("div", { class:"note", style:"margin:0; opacity:.86;", text:"Your activity (and friends you follow) will show here." })
+      ]);
+    }
+
+    return null;
+  })();
+     
+    root.appendChild(el("div", { class:"card" }, [
     el("div", { class:"note", text: bodyTitle }),
     el("div", { style:"height:10px" }),
 
-    !user ? el("div", { class:"note", text:"Sign in to see your feed." }) : null,
-    user && !feedList.length ? el("div", { class:"note", text: emptyMsg }) : null,
+    emptyStateNode,
 
     user && feedList.length ? (() => {
       const timeline = el("div", {
