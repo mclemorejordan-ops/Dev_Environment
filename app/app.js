@@ -996,13 +996,19 @@ function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, de
     writeOutbox(keep);
   }
 
-  async function publishLogEvent(entry){
+    async function publishLogEvent(entry){
     // Only publish if configured + signed in
     if(!isConfigured()) return;
     await ensureClient();
     if(!_user) return;
 
     const ev = formatLogEvent(entry);
+
+    // ✅ Same Calendar Day only (prevents post-dated feed events)
+    const todayISO = Dates.todayISO();
+    const evDateISO = String(ev?.payload?.dateISO || "");
+    if(evDateISO !== String(todayISO)) return;
+
     const row = {
       actor_id: _user.id,
       type: ev.eventType,
@@ -1030,6 +1036,10 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
   if(!isConfigured()) return;
   await ensureClient();
   if(!_user) return;
+
+  // ✅ Same Calendar Day only (prevents post-dated feed events)
+  const todayISO = Dates.todayISO();
+  if(String(dateISO || "") !== String(todayISO)) return;
 
   const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
   const row = {
