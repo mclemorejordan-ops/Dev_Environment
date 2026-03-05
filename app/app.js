@@ -6833,25 +6833,24 @@ onClick: () => openExerciseHistoryFromFeed(
       return timeline;
     })() : null
   ].filter(Boolean)));
-    // Auto-start polling when entering the view
+  
+  // Auto-start polling when entering the view
   try{
     if(configured && user) Social.startFeed();
   }catch(_){}
 
   return root;
 }
-,
 
-   
-         Settings(){
-        // Persist across renders (not saved to Storage)
-const ui = UIState.settings || (UIState.settings = {});
+Settings(){
+  // Persist across renders (not saved to Storage)
+  const ui = UIState.settings || (UIState.settings = {});
 
-// ✅ ensure accordion state exists so taps don’t crash
-if(!ui.open || typeof ui.open !== "object") ui.open = {};
+  // ensure accordion state exists
+  if(!ui.open || typeof ui.open !== "object") ui.open = {};
 
-// ✅ default: open Profile the first time Settings is visited
-if(Object.keys(ui.open).length === 0) ui.open.profile = true;
+  // default: open Profile first time
+  if(Object.keys(ui.open).length === 0) ui.open.profile = true;
 
         const normalize = (s) => (s||"").toString().trim().toLowerCase();
 
