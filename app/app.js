@@ -1887,7 +1887,7 @@ el("div", { style:"display:flex; flex-direction:column; gap:4px;" }, [
       : ["M","T","W","T","F","S","S"];
 
     const todayIdx = Math.max(0, trainedThisWeek.findIndex(x => x?.dateISO === todayISO));
-    const todayColor = "rgba(255,92,122,.98)"; // accent highlight (UI-only)
+    const todayColor = "rgba(46,204,113,.95)"; // accent highlight (UI-only)
 
     // Labels (use SAME 7-col grid as dots)
     return el("div", {
