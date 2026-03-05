@@ -4810,10 +4810,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   ui.friendId = ui.friendId || "";
   ui.email = ui.email || "";
 
-  // Friends page sub-tabs
-  // "feed" (default) | "profile"
-  ui.friendsTab = ui.friendsTab || "feed";
-
   const root = el("div", { class:"grid" });
 
   const user = Social.getUser && Social.getUser();
@@ -5535,92 +5531,32 @@ function openFollowerNotifsModal(){
      
      
 root.appendChild(el("div", { class:"card" }, [
-  // Header: Avatar + name (left) + Signed-in pill + bell (right)
-  (() => {
-    const myId = user ? String(user.id || "") : "";
-    const dn =
-      (myId && Social.nameFor ? Social.nameFor(myId) : null) ||
-      String(state?.profile?.name || "").trim() ||
-      (user?.email ? String(user.email).split("@")[0] : "") ||
-      "My Profile";
+  // Header title + auth pill (top-right) + bell badge (bottom-right)
+  el("div", { style:"position:relative; min-height:52px;" }, [
+    el("h2", { text:"Friends", style:"margin:0; padding-right:120px;" }),
 
-    const av = avatarTextForName(dn);
+    (typeof Social.isSignedIn === "function")
+      ? el("div", {
+          class:"pill",
+          style:"position:absolute; top:0; right:0;",
+          text: Social.isSignedIn() ? "Signed in" : "Signed out"
+        })
+      : null,
 
-    return el("div", {
-      style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
-    }, [
-      // Left: avatar + name
-      el("div", { style:"display:flex; align-items:center; gap:12px; min-width:0;" }, [
-        el("div", {
-          style:[
-            "width:52px",
-            "height:52px",
-            "border-radius:999px",
-            "display:flex",
-            "align-items:center",
-            "justify-content:center",
-            "font-weight:950",
-            "letter-spacing:.6px",
-            "background: rgba(255,255,255,.08)",
-            "border: 1px solid rgba(255,255,255,.14)",
-            "flex:0 0 auto"
-          ].join(";"),
-          text: av
-        }),
-        el("div", { style:"min-width:0;" }, [
-          el("div", {
-            style:[
-              "font-weight:950",
-              "font-size:18px",
-              "line-height:1.1",
-              "white-space:nowrap",
-              "overflow:hidden",
-              "text-overflow:ellipsis"
-            ].join(";"),
-            text: dn
-          })
-        ])
-  
-
-      // Right: signed-in pill + bell
-      el("div", { style:"display:flex; align-items:center; gap:8px; flex:0 0 auto;" }, [
-        (typeof Social.isSignedIn === "function")
-          ? el("div", {
-              class:"pill",
-              style:"padding:6px 10px; font-size:12px;",
-              text: Social.isSignedIn() ? "Signed in" : "Signed out"
-            })
-          : null,
-
-        (user)
-          ? el("button", {
-              class:"pill",
-              style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
-              onClick: async () => { try{
-                if(Social.fetchNotifications) await Social.fetchNotifications();
-                openNotificationsModal();
-              }catch(_){} }
-            }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
-          : null
-      ].filter(Boolean))
-    ]);
-  })(),
+  ].filter(Boolean)),
 
   el("div", { style:"height:10px" }),
 
-  // Not configured warning
   !configured
-    ? el("div", {
-        class:"note",
-        style:"color: rgba(255,92,122,.95);",
-        text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)."
-      })
+    ? el("div", { class:"note", style:"color: rgba(255,92,122,.95);", text:"Social is not configured yet. Set Supabase URL + anon key in Settings → Friends (Beta)." })
     : null,
 
-  // Following | Followers
   configured ? el("div", {
-    style:"display:flex; align-items:center; gap:10px; flex-wrap:wrap;"
-  }, [
+  style:"display:flex; align-items:center; justify-content:space-between; gap:12px;"
+}, [
+
+  // Left: Following / Followers pills (LEFT-ALIGNED)
+  el("div", { class:"pillRow", style:"justify-content:flex-start;" }, [
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
@@ -5634,8 +5570,6 @@ root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"x", text: String((Social.getFollows ? Social.getFollows() : followsNow).length) })
     ]),
 
-    el("div", { class:"note", style:"opacity:.65; font-weight:950;", text:"|" }),
-
     el("button", {
       class:"pill",
       style:"cursor:pointer;",
@@ -5648,39 +5582,23 @@ root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"t", text:"Followers" }),
       el("div", { class:"x", text: String((Social.getFollowers ? Social.getFollowers() : followersNow).length) })
     ])
-  ]) : null,
+  ]),
 
-  configured ? el("div", { style:"height:10px" }) : null,
+    // Right: bell badge
+    (user)
+    ? el("button", {
+        class:"pill",
+        style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
+        onClick: async () => { try{
+          if(Social.fetchNotifications) await Social.fetchNotifications();
+          openNotificationsModal();
+        }catch(_){} }
+      }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
+    : null
 
-  // Weekly stats: This week workouts / PRs / Volume / Since Day
-  configured ? (() => {
-    const myId = user ? String(user.id || "") : "";
-    const stats = (myId && typeof profileFromFeed === "function") ? profileFromFeed(myId) : null;
+].filter(Boolean)) : null,
 
-    const weekWorkouts = Number(stats?.weekWorkouts || 0) || 0;
-    const weekPRs = Number(stats?.weekPRs || 0) || 0;
-    const weekVolume = Number(stats?.weekVolume || 0) || 0;
-    const sinceDay = String(stats?.weekStartISO || Dates.todayISO());
-
-    const statPill = (label, value) => el("div", {
-      class:"pill",
-      style:"display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:10px 12px;"
-    }, [
-      el("div", { class:"t", text: label }),
-      el("div", { class:"x", text: value })
-    ]);
-
-    return el("div", {
-      style:"display:grid; grid-template-columns:1fr 1fr; gap:8px;"
-    }, [
-      statPill("This week workouts", String(weekWorkouts)),
-      statPill("This Week PRs", String(weekPRs)),
-      statPill("This Week Volume", String(Math.round(weekVolume).toLocaleString())),
-      statPill("Since Day", sinceDay)
-    ]);
-  })() : null,
-
-  el("div", { style:"height:10px" }),
+el("div", { style:"height:10px" }),
 
   // Auth row (still only shows CTA when signed out)
   configured ? el("div", { class:"btnrow" }, [
@@ -5694,483 +5612,11 @@ root.appendChild(el("div", { class:"card" }, [
         }
       }
     }, ["Continue with Google"]) : null
-  ].filter(Boolean)) : null,
-
-  // Tabs: Feed | My Profile
-el("div", { style:"height:10px" }),
-el("div", { class:"chips", style:"justify-content:center;" }, [
-  el("div", {
-    class:"chip" + (ui.friendsTab === "feed" ? " on" : ""),
-    style:"flex:1; text-align:center;",
-    onClick: () => { ui.friendsTab = "feed"; renderView(); }
-  }, ["Feed"]),
-  el("div", {
-    class:"chip" + (ui.friendsTab === "profile" ? " on" : ""),
-    style:"flex:1; text-align:center;",
-    onClick: () => { ui.friendsTab = "profile"; renderView(); }
-  }, ["My Profile"])
-])
+  ].filter(Boolean)) : null
 ].filter(Boolean)));
 
 
-// ─────────────────────────────────────────────
-// Profiles (My Profile + Friend Profiles)
-// ─────────────────────────────────────────────
-ui.profileUserId = ui.profileUserId || null;
-
-function avatarTextForName(dn){
-  const s = String(dn || "").trim();
-  if(!s) return "•";
-  const parts = s.split(/\s+/).filter(Boolean);
-  const a = (parts[0]||"")[0] || "";
-  const b = (parts.length>1 ? (parts[parts.length-1]||"")[0] : "") || "";
-  return (a + b).toUpperCase().slice(0,2) || "•";
-}
-
-function profileFromFeed(userId){
-  const id = String(userId || "");
-  const feedAll = Social.getFeed ? (Social.getFeed() || []) : [];
-  const mine = feedAll.filter(ev => String(ev?.actorId||"") === id);
-
-  const weekStartISO = (() => {
-    try{
-      const now = new Date();
-      const day = now.getDay(); // 0 Sun - 6 Sat
-      const mondayOffset = (day === 0) ? 6 : (day - 1);
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
-      return start.toISOString().slice(0,10);
-    }catch(_){ return Dates.todayISO(); }
-  })();
-
-  const weekEvents = mine.filter(ev => {
-    try{
-      const dISO = String(ev?.payload?.dateISO || "");
-      return dISO && dISO >= weekStartISO;
-    }catch(_){ return false; }
-  });
-
-  const weekWorkouts = weekEvents.filter(ev => ev.type === "workout_completed");
-  const weekExerciseLogs = weekEvents.filter(ev => ev.type === "exercise_logged");
-
-  const weekPRs = weekEvents.reduce((sum, ev) => {
-    try{
-      const p = ev.payload || {};
-      const n = Number(p.prCount || p.highlights?.prCount || 0);
-      return sum + (Number.isFinite(n) ? n : 0);
-    }catch(_){ return sum; }
-  }, 0);
-
-  const weekVolume = weekEvents.reduce((sum, ev) => {
-    try{
-      const h = ev?.payload?.highlights || {};
-      const v = Number(h.totalVolume || 0);
-      return sum + (Number.isFinite(v) ? v : 0);
-    }catch(_){ return sum; }
-  }, 0);
-
-  const recentWorkouts = mine
-    .filter(ev => ev.type === "workout_completed")
-    .slice(0, 8)
-    .map(ev => {
-      const d = ev?.payload?.details || {};
-      return {
-        id: ev?.id,
-        createdAt: ev?.createdAt,
-        dateISO: ev?.payload?.dateISO || d?.dateISO || "",
-        dayLabel: d?.dayLabel || "Workout",
-        exerciseCount: ev?.payload?.highlights?.exerciseCount || null,
-        prCount: ev?.payload?.highlights?.prCount || ev?.payload?.prCount || 0
-      };
-    });
-
-  const prEvents = weekEvents
-    .filter(ev => Number(ev?.payload?.prCount || ev?.payload?.highlights?.prCount || 0) > 0)
-    .slice(0, 10)
-    .map(ev => {
-      const p = ev.payload || {};
-      const d = p.details || {};
-      return {
-        type: ev.type,
-        dateISO: p.dateISO || d.dateISO || "",
-        label:
-          (ev.type === "workout_completed")
-            ? (d.dayLabel || "Workout")
-            : (p.exerciseName || "Exercise"),
-        prCount: Number(p.prCount || p.highlights?.prCount || 0) || 0
-      };
-    });
-
-  return {
-    weekStartISO,
-    weekWorkouts: weekWorkouts.length,
-    weekExercises: weekExerciseLogs.length,
-    weekPRs,
-    weekVolume,
-    recentWorkouts,
-    prEvents
-  };
-}
-
-function renderProfileNode({ userId, displayName, counts, stats, isMe }){
-  const dn = String(displayName || "User");
-  const av = avatarTextForName(dn);
-
-  const header = el("div", { style:"display:flex; gap:12px; align-items:center;" }, [
-    el("div", {
-      style:[
-        "width:56px","height:56px","border-radius:999px",
-        "display:flex","align-items:center","justify-content:center",
-        "font-weight:900","letter-spacing:.5px",
-        "background: rgba(255,255,255,.10)",
-        "border:1px solid rgba(255,255,255,.14)"
-      ].join(";")
-    }, [av]),
-    el("div", { style:"flex:1; min-width:0;" }, [
-      el("div", { style:"font-weight:900; font-size:16px; line-height:1.1;", text: dn }),
-      // (UI) avoid duplicate "My Profile" labeling (Friends header card already shows it)
-      (!isMe ? el("div", { class:"meta", text:"Profile" }) : null)
-    ])
-  ]);
-
-  const pills = el("div", { class:"pillRow", style:"justify-content:flex-start; gap:10px; flex-wrap:wrap;" }, [
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer;",
-      onClick: () => { if(isMe) openConnectionsModal("following"); }
-    }, [
-      el("div", { class:"t", text:"Following" }),
-      el("div", { class:"x", text:String(counts?.following || 0) })
-    ]),
-    el("button", {
-      class:"pill",
-      style:"cursor:pointer;",
-      onClick: () => { if(isMe) openConnectionsModal("followers"); }
-    }, [
-      el("div", { class:"t", text:"Followers" }),
-      el("div", { class:"x", text:String(counts?.followers || 0) })
-    ])
-  ]);
-
-  const kpis = el("div", {
-    style:[
-      "display:grid",
-      "grid-template-columns: repeat(2, minmax(0, 1fr))",
-      "gap:10px",
-      "margin-top:10px"
-    ].join(";")
-  }, [
-    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
-      el("div", { class:"t", text:"This week workouts" }),
-      el("div", { class:"x", text:String(stats?.weekWorkouts || 0) })
-    ]),
-    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
-      el("div", { class:"t", text:"This week PRs" }),
-      el("div", { class:"x", text:String(stats?.weekPRs || 0) })
-    ]),
-    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
-      el("div", { class:"t", text:"This week volume" }),
-      el("div", { class:"x", text:(Number(stats?.weekVolume || 0) || 0).toLocaleString() })
-    ]),
-    el("div", { class:"pill", style:"display:flex; justify-content:space-between; gap:10px;" }, [
-      el("div", { class:"t", text:"Since Monday" }),
-      el("div", { class:"x", text:String(stats?.weekStartISO || "") })
-    ])
-  ]);
-
-  const prList = el("div", { class:"list", style:"margin-top:10px;" });
-  if(!stats?.prEvents?.length){
-    prList.appendChild(el("div", { class:"note", text:"No PRs this week yet." }));
-  }else{
-    stats.prEvents.forEach(r => {
-      prList.appendChild(el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: r.label }),
-          el("div", { class:"meta", text: r.dateISO ? r.dateISO : "" })
-        ]),
-        el("div", { class:"actions" }, [
-          el("div", { class:"meta", text: `🏅 ${r.prCount}` })
-        ])
-      ]));
-    });
-  }
-
-  const recent = el("div", { class:"list", style:"margin-top:10px;" });
-  if(!stats?.recentWorkouts?.length){
-    recent.appendChild(el("div", { class:"note", text:"No recent workouts in feed yet." }));
-  }else{
-    stats.recentWorkouts.forEach(w => {
-      const metaBits = [];
-      if(w.exerciseCount) metaBits.push(`${w.exerciseCount} exercises`);
-      if(w.prCount) metaBits.push(`PRs: ${w.prCount}`);
-      recent.appendChild(el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: w.dayLabel }),
-          el("div", { class:"meta", text: [w.dateISO, metaBits.join(" • ")].filter(Boolean).join(" • ") })
-        ])
-      ]));
-    });
-  }
-
-  // Activity (events) — like Feed, but filtered to this profile
-  const activity = el("div", { class:"list", style:"margin-top:10px;" });
-  (function buildActivity(){
-    const all = (Social.getFeed ? Social.getFeed() : []) || [];
-    const mine = all
-      .filter(ev => String(ev?.actorId || "") === String(userId || ""))
-      .slice();
-
-    mine.sort((a,b) => {
-      const ta = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const tb = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return tb - ta;
-    });
-
-    const rows = mine.slice(0, 40);
-    if(!rows.length){
-      activity.appendChild(el("div", { class:"note", text: isMe ? "No activity yet. Finish a workout to see it here." : "No activity yet." }));
-      return;
-    }
-
-    function formatWhen(createdAt){
-      try{
-        if(!createdAt) return "";
-        const dt = new Date(createdAt);
-        if(Number.isNaN(dt.getTime())) return "";
-        return dt.toLocaleString();
-      }catch(_){ return ""; }
-    }
-
-    function comma(n){
-      try{
-        const x = Number(n);
-        if(!Number.isFinite(x)) return "";
-        return x.toLocaleString();
-      }catch(_){ return String(n || ""); }
-    }
-
-    function buildSummary(ev){
-      try{
-        const p = ev?.payload || {};
-        const bits = [];
-
-        if(ev?.type === "workout_completed"){
-          const d = p.details || null;
-          const h = p.highlights || {};
-          if(d?.dayLabel) bits.push(String(d.dayLabel));
-          if(h.exerciseCount) bits.push(`${h.exerciseCount} exercises`);
-          if(h.prCount) bits.push(`PRs: ${h.prCount}`);
-          if(h.totalVolume) bits.push(`Vol ${comma(h.totalVolume)}`);
-          return bits.filter(Boolean).join(" • ") || "Workout";
-        }
-
-        if(ev?.type === "exercise_logged"){
-          const d = p.details || null;
-          if(d?.exerciseName) bits.push(String(d.exerciseName));
-          if(d?.setCount) bits.push(`${d.setCount} sets`);
-          if(d?.totalReps) bits.push(`${d.totalReps} reps`);
-          if(d?.bestWeight) bits.push(`${d.bestWeight}`);
-          return bits.filter(Boolean).join(" • ") || "Exercise logged";
-        }
-
-        if(ev?.type === "pr"){
-          if(p?.label) bits.push(String(p.label));
-          if(p?.prCount) bits.push(`🏅 ${p.prCount}`);
-          return bits.filter(Boolean).join(" • ") || "PR";
-        }
-
-        return String(ev?.type || "Event");
-      }catch(_){
-        return "Event";
-      }
-    }
-
-    function openEvent(ev){
-      try{
-        const p = ev?.payload || {};
-        const title = (p?.details?.dayLabel)
-          || (ev?.type === "workout_completed" ? "Workout" : "Event");
-        const when = formatWhen(ev?.createdAt);
-        const summary = buildSummary(ev);
-
-        const body = el("div", { class:"grid" }, [
-          el("div", { class:"card" }, [
-            el("div", { style:"font-weight:950; font-size:16px;", text: title }),
-            when ? el("div", { class:"meta", text: when }) : null,
-            el("div", { style:"height:10px" }),
-            el("div", { class:"note", text: summary })
-          ].filter(Boolean))
-        ]);
-
-        Modal.open({ title, bodyNode: body });
-      }catch(_){
-        showToast("Couldn't open event");
-      }
-    }
-
-    rows.forEach(ev => {
-      const p = ev?.payload || {};
-      const title = (p?.details?.dayLabel)
-        || (ev?.type === "workout_completed" ? "Workout" : "Event");
-      const meta = [
-        p?.dateISO || "",
-        buildSummary(ev)
-      ].filter(Boolean).join(" • ");
-
-      activity.appendChild(el("div", {
-        class:"item",
-        style:"cursor:pointer;",
-        onClick: () => openEvent(ev)
-      }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: title }),
-          el("div", { class:"meta", text: meta })
-        ]),
-        el("div", { class:"actions" }, [
-          el("div", { class:"meta", text: "›" })
-        ])
-      ]));
-    });
-  })();
-
-  return el("div", { class:"grid" }, [
-    header,
-    el("div", { style:"height:10px" }),
-    pills,
-    kpis,
-    el("div", { style:"height:12px" }),
-    el("div", { class:"note", text:"PR list (this week)" }),
-    prList,
-    el("div", { style:"height:12px" }),
-    el("div", { class:"note", text:"Recent workouts" }),
-    recent,
-    el("div", { style:"height:12px" }),
-    el("div", { class:"note", text: isMe ? "My Activity" : "Activity" }),
-    activity
-  ]);
-}
-     function renderMyProfileSectionsNode(stats){
-
-  const prList = el("div", { class:"list", style:"margin-top:10px;" });
-
-  if(!stats?.prEvents?.length){
-    prList.appendChild(el("div", { class:"note", text:"No PRs this week yet." }));
-  }else{
-    stats.prEvents.forEach(r => {
-      prList.appendChild(el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: r.label }),
-          el("div", { class:"meta", text: r.dateISO || "" })
-        ]),
-        el("div", { class:"actions" }, [
-          el("div", { class:"meta", text: `🏅 ${r.prCount}` })
-        ])
-      ]));
-    });
-  }
-
-  const recent = el("div", { class:"list", style:"margin-top:10px;" });
-
-  if(!stats?.recentWorkouts?.length){
-    recent.appendChild(el("div", { class:"note", text:"No recent workouts in feed yet." }));
-  }else{
-    stats.recentWorkouts.forEach(w => {
-
-      const metaBits = [];
-
-      if(w.exerciseCount) metaBits.push(`${w.exerciseCount} exercises`);
-      if(w.prCount) metaBits.push(`PRs: ${w.prCount}`);
-
-      recent.appendChild(el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: w.dayLabel }),
-          el("div", { class:"meta", text: [w.dateISO, metaBits.join(" • ")].filter(Boolean).join(" • ") })
-        ])
-      ]));
-    });
-  }
-
-  return el("div", { class:"card" }, [
-
-    el("div", { class:"note", text:"PR list (this week)" }),
-
-    prList,
-
-    el("div", { style:"height:12px" }),
-
-    el("div", { class:"note", text:"Recent workouts" }),
-
-    recent
-
-  ]);
-}
-
-async function openProfileModal(userId){
-  try{
-    const id = String(userId || "").trim();
-    if(!id) return;
-
-    const dn = (Social.nameFor && Social.nameFor(id)) || "User";
-    try{ if(Social.fetchNames) await Social.fetchNames([id]); }catch(_){}
-
-    let counts = { following: 0, followers: 0 };
-    try{
-      if(Social.fetchFollowCounts) counts = await Social.fetchFollowCounts(id);
-    }catch(_){}
-
-    const stats = profileFromFeed(id);
-
-    Modal.open({
-      title: dn,
-      bodyNode: renderProfileNode({
-        userId: id,
-        displayName: (Social.nameFor && Social.nameFor(id)) || dn,
-        counts,
-        stats,
-        isMe: (user && String(user.id) === id)
-      })
-    });
-  }catch(_){}
-}
-
-// Friends sub-tabs: "feed" | "profile"
-if(ui.friendsTab === "profile"){
-
-  // Profile tab
-  if(!configured){
-    root.appendChild(el("div", { class:"card" }, [
-      el("div", { class:"note", text:"My Profile" }),
-      el("div", { style:"height:10px" }),
-      el("div", {
-        class:"note",
-        style:"color: rgba(255,92,122,.95);",
-        text:"Connect Social in Settings → Friends (Beta) to enable profiles."
-      })
-    ]));
-  }
-  else if(!user){
-    root.appendChild(el("div", { class:"card" }, [
-      el("div", { class:"note", text:"My Profile" }),
-      el("div", { style:"height:10px" }),
-      el("div", { class:"note", text:"Sign in to view your profile." })
-    ]));
-  }
-  else{
-  try{
-
-    const myId = String(user.id || "");
-
-    const stats = profileFromFeed(myId);
-
-    root.appendChild(
-      renderMyProfileSectionsNode(stats)
-    );
-
-  }catch(_){}
-}
-
-} else {
-
-  // Feed
+   // Feed
   const feed = Social.getFeed ? Social.getFeed() : [];
   root.appendChild(el("div", { class:"card" }, [
     el("div", { class:"note", text:"Feed" }),
@@ -7028,18 +6474,16 @@ onClick: () => openExerciseHistoryFromFeed(
       return timeline;
     })() : null
   ].filter(Boolean)));
-  }
-
-     // Auto-start polling when entering the view
+  // Auto-start polling when entering the view
   try{
     if(configured && user) Social.startFeed();
   }catch(_){}
 
-  // ✅ MUST return a DOM Node for router.js renderView()
   return root;
 },
 
-Settings(){
+   
+         Settings(){
         // Persist across renders (not saved to Storage)
 const ui = UIState.settings || (UIState.settings = {});
 
