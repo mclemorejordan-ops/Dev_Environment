@@ -5917,6 +5917,67 @@ root.appendChild(el("div", { class:"card" }, [
     ? "No posts yet. Log a workout and it will appear here."
     : "No events yet. Your activity (and friends you follow) will show here.";
 
+  
+     // ─────────────────────────────
+  // My Profile — top stats card (UI-only)
+  // ─────────────────────────────
+  if(viewBody === "profile" && user){
+    // PR count (from my feed events; safe sum)
+    const prTotal = (feedList || []).reduce((sum, ev) => {
+      try{
+        const h = ev?.payload?.highlights || {};
+        const n = Number(h.prCount || 0);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }catch(_){ return sum; }
+    }, 0);
+
+    // Active routine name (safe)
+    let routineName = "—";
+    try{
+      const r = (typeof Routines !== "undefined" && Routines.getActive) ? Routines.getActive() : null;
+      routineName = (r && r.name) ? String(r.name) : "—";
+    }catch(_){ routineName = "—"; }
+
+    // Workouts count (safe)
+    const workoutCount = (() => {
+      try{
+        const arr = (state?.logs?.workouts || []);
+        return Array.isArray(arr) ? arr.length : 0;
+      }catch(_){ return 0; }
+    })();
+
+    const statTile = (label, value, onClick) => el("div", {
+      style:[
+        "flex:1",
+        "min-width:0",
+        "padding:12px 10px",
+        "border-radius:14px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background: rgba(255,255,255,.04)",
+        "cursor:pointer",
+        "user-select:none"
+      ].join(";"),
+      onClick: () => { try{ onClick && onClick(); }catch(_){} }
+    }, [
+      el("div", { class:"meta", style:"font-weight:900; letter-spacing:.2px;", text: label }),
+      el("div", { style:"height:6px" }),
+      el("div", { style:"font-size:20px; font-weight:1000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;", text: String(value) })
+    ]);
+
+    const profileStatsCard = el("div", { class:"card" }, [
+      el("div", {
+        style:"display:flex; gap:10px; align-items:stretch;"
+      }, [
+        statTile("PRs", String(prTotal), () => navigate("progress")),
+        statTile("Routine", routineName, () => navigate("routine")),
+        statTile("Workouts", String(workoutCount), () => navigate("workouts"))
+      ])
+    ]);
+
+    root.appendChild(profileStatsCard);
+  }  
+     
+     
   root.appendChild(el("div", { class:"card" }, [
     el("div", { class:"note", text: bodyTitle }),
     el("div", { style:"height:10px" }),
