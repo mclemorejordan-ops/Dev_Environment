@@ -6648,17 +6648,7 @@ onClick: () => openExerciseHistoryFromFeed(
             class:"setLink",
             style:"width:100%;",
             onClick: () => openFeedEventModal(ev, title, who, when)
-          }, [
-            el("div", { class:"l" }, [
-              el("div", { class:"a", text: title }),
-              whenLine ? el("div", { class:"b", text: whenLine }) : null,
-              summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
-              (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
-  badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-) : null),
-
-// ✅ Interaction Row (DB-backed Like + count + Comments)
-(() => {
+          }, [const interactionsNode = (() => {
   const eventId = ev.id;
   const liked = (Social.didILike ? Social.didILike(eventId) : false);
   const likeCount = (Social.getLikeCount ? Social.getLikeCount(eventId) : 0);
@@ -6676,16 +6666,16 @@ onClick: () => openExerciseHistoryFromFeed(
   ].join(";");
 
   const likeBtn = el("button", {
-  style: iconBtnStyle + (liked ? " filter:saturate(1.1);" : " opacity:.92;"),
-  onClick: async (e) => {
-    try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-    try{
-      await Social.toggleFeedLike(eventId);
-    }catch(err){
-      showToast(err?.message || "Could not like");
+    style: iconBtnStyle + (liked ? " filter:saturate(1.1);" : " opacity:.92;"),
+    onClick: async (e) => {
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+      try{
+        await Social.toggleFeedLike(eventId);
+      }catch(err){
+        showToast(err?.message || "Could not like");
+      }
     }
-  }
-}, [ liked ? "❤️" : "♡" ]);
+  }, [ liked ? "❤️" : "♡" ]);
 
   const commentBtn = el("button", {
     style: iconBtnStyle + " opacity:.92;",
@@ -6732,41 +6722,62 @@ onClick: () => openExerciseHistoryFromFeed(
   ]);
 
   const countsRow = el("div", {
-  style:"margin-top:6px; display:flex; gap:14px; font-size:12px; font-weight:850; opacity:.78;"
-}, [
-  el("button", {
-    style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
-    onClick: async (e) => {
-      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-      try{
-        // Ensure counts are fresh before opening
-        if(Social.fetchFeedLikes) await Social.fetchFeedLikes([eventId]);
-      }catch(_){}
-      openLikesModal({ eventId, title, who });
-    }
-  }, [`${likeCount} like${likeCount === 1 ? "" : "s"}`]),
+    style:"margin-top:6px; display:flex; gap:14px; font-size:12px; font-weight:850; opacity:.78;"
+  }, [
+    el("button", {
+      style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+      onClick: async (e) => {
+        try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+        try{
+          // Ensure counts are fresh before opening
+          if(Social.fetchFeedLikes) await Social.fetchFeedLikes([eventId]);
+        }catch(_){}
+        openLikesModal({ eventId, title, who });
+      }
+    }, [`${likeCount} like${likeCount === 1 ? "" : "s"}`]),
 
-  el("button", {
-    style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
-    onClick: async (e) => {
-      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-      try{
-        if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
-      }catch(_){}
-      openCommentsModal({ eventId, title, who });
-    }
-  }, [`${commentCount} comment${commentCount === 1 ? "" : "s"}`])
-]);
+    el("button", {
+      style:"background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer;",
+      onClick: async (e) => {
+        try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+        try{
+          if(Social.fetchFeedCommentCounts) await Social.fetchFeedCommentCounts([eventId]);
+        }catch(_){}
+        openCommentsModal({ eventId, title, who });
+      }
+    }, [`${commentCount} comment${commentCount === 1 ? "" : "s"}`])
+  ]);
 
   return el("div", {
     style:"margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.10);"
   }, [iconsRow, countsRow]);
-})(),
-            ].filter(Boolean)),
-            el("div", { class:"r", style:"opacity:.85;" }, ["→"])
-          ])
-        ]);
+})();
 
+const feedLinkRow = el("div", {
+  class:"setLink",
+  style:"width:100%;",
+  onClick: () => openFeedEventModal(ev, title, who, when)
+}, [
+  el("div", { class:"l" }, [
+    el("div", { class:"a", text: title }),
+    whenLine ? el("div", { class:"b", text: whenLine }) : null,
+    summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
+    (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
+      badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+    ) : null),
+  ].filter(Boolean)),
+  el("div", { class:"r", style:"opacity:.85;" }, ["→"])
+]);
+
+const row = el("div", {
+  style:"display:flex; gap:10px; align-items:flex-start;"
+}, [
+  avatar,
+  el("div", { style:"width:100%; display:flex; flex-direction:column;" }, [
+    feedLinkRow,
+    interactionsNode
+  ])
+]);
         timeline.appendChild(row);
       });
 
