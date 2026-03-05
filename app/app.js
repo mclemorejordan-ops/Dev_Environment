@@ -5609,6 +5609,7 @@ root.appendChild(el("div", { class:"card" }, [
       (Social.getNotifications ? Social.getNotifications().length : 0)
     ])
   : null,
+      ])
       ].filter(Boolean))
     ]);
   })(),
