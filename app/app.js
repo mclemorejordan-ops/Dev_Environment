@@ -6048,6 +6048,61 @@ function renderProfileNode({ userId, displayName, counts, stats, isMe }){
     activity
   ]);
 }
+     function renderMyProfileSectionsNode(stats){
+
+  const prList = el("div", { class:"list", style:"margin-top:10px;" });
+
+  if(!stats?.prEvents?.length){
+    prList.appendChild(el("div", { class:"note", text:"No PRs this week yet." }));
+  }else{
+    stats.prEvents.forEach(r => {
+      prList.appendChild(el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: r.label }),
+          el("div", { class:"meta", text: r.dateISO || "" })
+        ]),
+        el("div", { class:"actions" }, [
+          el("div", { class:"meta", text: `🏅 ${r.prCount}` })
+        ])
+      ]));
+    });
+  }
+
+  const recent = el("div", { class:"list", style:"margin-top:10px;" });
+
+  if(!stats?.recentWorkouts?.length){
+    recent.appendChild(el("div", { class:"note", text:"No recent workouts in feed yet." }));
+  }else{
+    stats.recentWorkouts.forEach(w => {
+
+      const metaBits = [];
+
+      if(w.exerciseCount) metaBits.push(`${w.exerciseCount} exercises`);
+      if(w.prCount) metaBits.push(`PRs: ${w.prCount}`);
+
+      recent.appendChild(el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: w.dayLabel }),
+          el("div", { class:"meta", text: [w.dateISO, metaBits.join(" • ")].filter(Boolean).join(" • ") })
+        ])
+      ]));
+    });
+  }
+
+  return el("div", { class:"card" }, [
+
+    el("div", { class:"note", text:"PR list (this week)" }),
+
+    prList,
+
+    el("div", { style:"height:12px" }),
+
+    el("div", { class:"note", text:"Recent workouts" }),
+
+    recent
+
+  ]);
+}
 
 async function openProfileModal(userId){
   try{
@@ -6100,16 +6155,18 @@ if(ui.friendsTab === "profile"){
     ]));
   }
   else{
-    try{
-      const myId = String(user.id || "");
-      const dn = (Social.nameFor && Social.nameFor(myId)) || state?.profile?.name || "Me";
-      const counts = {
-        following: (Social.getFollows ? Social.getFollows() : []).length,
-        followers: (Social.getFollowers ? Social.getFollowers() : []).length
-      };
-      const stats = profileFromFeed(myId);
-    }catch(_){}
-  }
+  try{
+
+    const myId = String(user.id || "");
+
+    const stats = profileFromFeed(myId);
+
+    root.appendChild(
+      renderMyProfileSectionsNode(stats)
+    );
+
+  }catch(_){}
+}
 
 } else {
 
