@@ -4980,69 +4980,42 @@ function openFollowerNotifsModal(){
 
     const avatar = el("div", { class:"igNotifAvatar" }, [ avatarLetter(name) ]);
 
-    const line = (() => {
-      if(type === "follow") return `${name} followed you`;
-      if(type === "like") return `${name} liked your workout`;
-      if(type === "comment") return `${name} commented on your workout`;
-      return `${name} activity`;
+    const mainText = (() => {
+      if(type === "follow") return `${name} started following you.`;
+      if(type === "like") return `${name} liked your workout.`;
+      if(type === "comment") return `${name} commented: ${String(n?.body || "").slice(0, 80)}`;
+      return `${name} — activity`;
     })();
 
     const textBlock = el("div", { class:"igNotifText" }, [
-      el("div", { class:"t", text: line }),
+      el("div", { class:"t", text: mainText }),
       el("div", { class:"m", text: when })
     ]);
 
-    const isFollowingBack = (follows || []).some(fid => String(fid||"") === actorId);
+    const actions = el("div", { class:"igNotifActions" }, []);
 
-    const actions = el("div", { class:"igNotifActions" }, [
-      (type === "follow")
-        ? (isFollowingBack
-            ? el("button", {
-                class:"btn outline sm",
-                onClick: async (e) => {
-                  e?.stopPropagation?.();
-                  try{
-                    await Social.unfollow(actorId);
-                    showToast("Unfollowed");
-                    renderView();
-                    repaint();
-                  }catch(err){
-                    showToast(err?.message || "Couldn't unfollow");
-                  }
+    // Basic action example (kept minimal)
+    if(type === "follow"){
+      const isFollowingBack = (follows || []).some(x => String(x||"") === actorId);
+      actions.appendChild(
+        isFollowingBack
+          ? el("button", { class:"btn sm", disabled:true, style:"opacity:.65; cursor:default;" }, ["Following"])
+          : el("button", {
+              class:"btn primary sm",
+              onClick: async (e) => {
+                e?.stopPropagation?.();
+                try{
+                  await Social.follow(actorId);
+                  showToast("Following");
+                  renderView();
+                  repaint();
+                }catch(err){
+                  showToast(err?.message || "Follow failed");
                 }
-              }, ["Unfollow"])
-            : el("button", {
-                class:"btn primary sm",
-                onClick: async (e) => {
-                  e?.stopPropagation?.();
-                  try{
-                    await Social.follow(actorId);
-                    showToast("Following");
-                    renderView();
-                    repaint();
-                  }catch(err){
-                    showToast(err?.message || "Follow failed");
-                  }
-                }
-              }, ["Follow back"]))
-        : el("button", { class:"btn sm", disabled:true, style:"opacity:.65; cursor:default;" }, ["View"]),
-
-      // Dismiss (UI-only)
-      el("button", {
-        class:"igNotifX",
-        title:"Dismiss",
-        onClick: (e) => {
-          e?.stopPropagation?.();
-          try{
-            const all = Social.getNotifications ? Social.getNotifications() : [];
-            const next = (all || []).filter(x => x !== n);
-            if(Social.__setNotifications) Social.__setNotifications(next);
-          }catch(_){}
-          showToast("Dismissed");
-          repaint();
-        }
-      }, ["✕"])
-    ]);
+              }
+            }, ["Follow back"])
+      );
+    }
 
     return el("div", {
       class:"igNotifRow",
@@ -5101,8 +5074,8 @@ function openFollowerNotifsModal(){
     title: "Notifications",
     bodyNode: body,
 
-    // ✅ Header button becomes "Clear all" for this modal
-    closeText: "Clear all",
+    // ✅ Header button becomes "Clear All" for this modal
+    closeText: "Clear All",
     onClose: () => {
       try{ Social.__clearNotifications && Social.__clearNotifications(); }catch(_){}
       showToast("Cleared");
