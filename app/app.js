@@ -6045,8 +6045,21 @@ root.appendChild(el("div", { class:"card" }, [
   })();
      
     root.appendChild(el("div", { class:"card" }, [
-    el("div", { class:"note", text: bodyTitle }),
-    el("div", { style:"height:10px" }),
+el("div", {
+  style:"display:flex; align-items:center; gap:8px;"
+}, [
+  el("div", { class:"note", text: bodyTitle }),
+
+  el("div", { style:"opacity:.5;" }, ["|"]),
+
+  el("div", {
+    class:"note",
+    style:"opacity:.75;"
+  }, [
+    "Last Updated ",
+    new Date().toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
+  ])
+]),    el("div", { style:"height:10px" }),
 
     emptyStateNode,
 
