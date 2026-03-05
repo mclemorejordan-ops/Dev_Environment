@@ -5785,7 +5785,37 @@ root.appendChild(el("div", { class:"card" }, [
       ]))("Mutual", mutualCount, () => openConn("mutual"))
     ]) : null;
 
-        // Actions row (tabs + status in one line)
+           // View toggle (UI-only): Feed vs My Profile (own activity)
+    const view = ui.view || "feed";
+    const tabBtn = (key, label) => el("button", {
+      class:"pill",
+      style:[
+        "flex:0 0 auto",
+        "min-width:0",
+        "text-align:center",
+        "white-space:nowrap",
+        "padding:10px 12px",
+        "border-radius:999px",
+        (view === key) ? "background: rgba(255,255,255,.12)" : "background: rgba(255,255,255,.06)",
+        "border: 1px solid rgba(255,255,255,.10)",
+        "font-weight:900",
+        "letter-spacing:.2px",
+        (view === key) ? "color: rgba(255,255,255,.95)" : "color: rgba(255,255,255,.78)",
+        "cursor:pointer"
+      ].join(";"),
+      onClick: () => {
+        if(ui.view === key) return;
+        ui.view = key;
+        try{ renderView(); }catch(_){}
+      }
+    }, [label]);
+
+    const viewToggle = el("div", { class:"pillRow", style:"gap:8px;" }, [
+      tabBtn("feed", "Feed"),
+      tabBtn("profile", "My Profile")
+    ]);
+
+    // Actions row (tabs + status in one line)
     const actionsRow = configured
       ? el("div", {
           style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
@@ -5823,39 +5853,6 @@ root.appendChild(el("div", { class:"card" }, [
           ])
         ])
       : null;
-
-
-        // View toggle (UI-only): Feed vs My Profile (own activity)
-    const view = ui.view || "feed";
-    const tabBtn = (key, label) => el("button", {
-      class:"pill",
-      style:[
-        "flex:0 0 auto",
-        "min-width:0",
-        "text-align:center",
-        "white-space:nowrap",
-        "padding:10px 12px",
-        "border-radius:999px",
-        (view === key) ? "background: rgba(255,255,255,.12)" : "background: rgba(255,255,255,.06)",
-        "border: 1px solid rgba(255,255,255,.10)",
-        "font-weight:900",
-        "letter-spacing:.2px",
-        (view === key) ? "color: rgba(255,255,255,.95)" : "color: rgba(255,255,255,.78)",
-        "cursor:pointer"
-      ].join(";"),
-      onClick: () => {
-        if(ui.view === key) return;
-        ui.view = key;
-        try{ renderView(); }catch(_){}
-      }
-    }, [label]);
-
-    const viewToggle = el("div", { class:"pillRow", style:"gap:8px;" }, [
-      tabBtn("feed", "Feed"),
-      tabBtn("profile", "My Profile")
-    ]);
-
-    
     // Auth CTA row (unchanged behavior)
     const authRow = configured ? el("div", { class:"btnrow" }, [
       !user ? el("button", {
