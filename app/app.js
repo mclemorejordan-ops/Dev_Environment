@@ -1856,10 +1856,10 @@ const openProteinModal = (dateISO = todayISO) => {
   style:"display:flex; align-items:baseline; justify-content:space-between; gap:10px;"
 }, [
   el("div", {
-    style:"display:flex; align-items:baseline; gap:10px; min-width:0;"
+    style:"display:flex; align-items:center; gap:10px;"
   }, [
     el("h2", { text:"This Week" }),
-    el("div", { class:"note", text:`| ${weekRangeLabel}` })
+    el("h2", { class:"note", text:`| ${weekRangeLabel}` })
   ])
 ]),
 
