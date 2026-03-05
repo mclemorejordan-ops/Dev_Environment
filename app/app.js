@@ -5897,9 +5897,6 @@ root.appendChild(el("div", { class:"card" }, [
 
       configured ? el("div", { style:"height:12px" }) : null,
       actionsRow,
-
-      authRow ? el("div", { style:"height:10px" }) : null,
-      authRow
     ].filter(Boolean));
   })()
 ].filter(Boolean)));
