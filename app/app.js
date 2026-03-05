@@ -882,11 +882,13 @@ if(_user){
   }
 
   function startFeed(){
-    stopFeed();
-    if(!_user) return;
-    fetchFeed();
-    _pollTimer = setInterval(fetchFeed, 12000); // 12s: feels live, low cost
-  }
+  stopFeed();
+  if(!_user) return;
+  fetchFeed();
+
+  // ✅ Poll every 90 seconds (lighter + still fresh)
+  _pollTimer = setInterval(fetchFeed, 90000);
+}
 
   function stopFeed(){
     if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
@@ -4827,6 +4829,15 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
+
+  // ✅ Enter Friends → refresh feed (debounced so it doesn't spam on re-renders)
+if(user && configured && Social.fetchFeed){
+  const now = Date.now();
+  if(!ui._lastFriendsEnterFetchAt || (now - ui._lastFriendsEnterFetchAt) > 10000){
+    ui._lastFriendsEnterFetchAt = now;
+    try{ Social.fetchFeed(); }catch(_){}
+  }
+}
 
   // ✅ Live Online/Offline pill updates (only re-render on Friends route)
 if(!ui.__netSub){
