@@ -1844,31 +1844,28 @@ const openProteinModal = (dateISO = todayISO) => {
 
         el("div", { style:"height:10px" }),
 
-    // Weekday labels above dots (perfect alignment)
-    el("div", {
-      style:[
-        "display:flex",
-        "gap:6px",
-        "margin-bottom:4px",
-        "opacity:.72",
-        "font-size:11px",
-        "font-weight:900",
-        "user-select:none"
-      ].join(";")
-    }, ((weekStartsOn === "sun")
-        ? ["S","M","T","W","T","F","S"]
-        : ["M","T","W","T","F","S","S"]
-      ).map(ch => el("div", {
-          text: ch,
-          style:"flex:1; text-align:center;"
-      }))
-    ),
-
-    // Dots preview (clickable)
-    el("div", {
-      onClick: () => navigate("attendance"),
-      style:"cursor:pointer;"
-    }, [ dots ]),
+    // Week labels + dots aligned perfectly
+    el("div", { style:"display:flex; flex-direction:column; gap:4px;" }, [
+    
+      // Labels
+      el("div", {
+        style:"display:flex; gap:6px; opacity:.72; font-size:11px; font-weight:900; user-select:none;"
+      }, ((weekStartsOn === "sun")
+          ? ["S","M","T","W","T","F","S"]
+          : ["M","T","W","T","F","S","S"]
+        ).map(ch => el("div", {
+            text: ch,
+            style:"flex:1; text-align:center;"
+        }))
+      ),
+    
+      // Dots row
+      el("div", {
+        onClick: () => navigate("attendance"),
+        style:"cursor:pointer;"
+      }, [ dots ])
+    
+    ]),
 
     el("div", { style:"height:10px" }),
 
