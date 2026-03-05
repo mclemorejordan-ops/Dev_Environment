@@ -6778,11 +6778,13 @@ onClick: () => openExerciseHistoryFromFeed(
   ].filter(Boolean)));
   }
 
-  // Auto-start polling when entering the view
+    // Auto-start polling when entering the view
   try{
     if(configured && user) Social.startFeed();
   }catch(_){}
-   
+
+  },
+
          Settings(){
         // Persist across renders (not saved to Storage)
 const ui = UIState.settings || (UIState.settings = {});
