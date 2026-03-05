@@ -5923,101 +5923,126 @@ root.appendChild(el("div", { class:"card" }, [
 // ─────────────────────────────
 if(viewBody === "profile" && user){
 
-  // Keep this safe + UI-only (no new storage/state keys)
-  // Count PR badges from your own saved logs (matches how PR flags are stored on log entries).
-  const prTotal = (() => {
+    // Keep this safe + UI-only (no new storage/state keys)
+  // ✅ PRs are computed from lifetime bests, NOT stored pr flags (older logs may not have pr flags).
+  const prItems = (() => {
     try{
+      LogEngine.ensure();
+
       const rows = (state.logs?.workouts || []);
-      let n = 0;
-      rows.forEach(e => {
-        const pr = e?.pr || {};
-        if(pr.isPRWeight) n++;
-        if(pr.isPR1RM) n++;
-        if(pr.isPRVolume) n++;
-        if(pr.isPRPace) n++;
-      });
-      return n;
+      const seen = new Set();
+      const items = [];
+
+      const fmtTimeSafe = (sec) => {
+        try{
+          if(typeof formatTime === "function") return formatTime(sec);
+        }catch(_){}
+        const s = Math.max(0, Math.floor(Number(sec) || 0));
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return `${m}:${String(r).padStart(2,"0")}`;
+      };
+
+      const fmtPaceSafe = (paceSecPerUnit) => {
+        if(paceSecPerUnit == null || !Number.isFinite(Number(paceSecPerUnit))) return "—";
+        return `${fmtTimeSafe(Number(paceSecPerUnit))} / unit`;
+      };
+
+      const exNameOf = (type, exerciseId) => {
+        try{
+          if(typeof resolveExerciseName === "function"){
+            return resolveExerciseName(String(type), String(exerciseId), "Exercise");
+          }
+        }catch(_){}
+        // fallback: try newest entry nameSnap
+        try{
+          const e = rows.find(x => x && x.type === type && x.exerciseId === exerciseId && x.nameSnap);
+          if(e?.nameSnap) return String(e.nameSnap);
+        }catch(_){}
+        return "Exercise";
+      };
+
+      for(const e of rows){
+        const type = String(e?.type || "");
+        const exerciseId = String(e?.exerciseId || "");
+        if(!type || !exerciseId) continue;
+
+        const key = `${type}:${exerciseId}`;
+        if(seen.has(key)) continue;
+        seen.add(key);
+
+        const bests = LogEngine.lifetimeBests(type, exerciseId);
+
+        // Determine if this exercise has any meaningful lifetime PR metric
+        let hasPR = false;
+        let meta = "";
+
+        if(type === "weightlifting"){
+          const bw = bests?.bestWeight;
+          const b1 = bests?.best1RM;
+          const bv = bests?.bestVolume;
+          hasPR = (Number.isFinite(bw) && bw > 0) || (Number.isFinite(b1) && b1 > 0) || (Number.isFinite(bv) && bv > 0);
+          meta = [
+            (Number.isFinite(bw) && bw > 0) ? `Top: ${bw}` : "",
+            (Number.isFinite(b1) && b1 > 0) ? `1RM: ${Math.round(b1)}` : "",
+            (Number.isFinite(bv) && bv > 0) ? `Vol: ${bv}` : ""
+          ].filter(Boolean).join(" • ");
+        }else if(type === "cardio"){
+          const bp = bests?.bestPace;
+          hasPR = (bp != null && Number.isFinite(bp) && bp > 0);
+          meta = hasPR ? `Best pace: ${fmtPaceSafe(bp)}` : "";
+        }else{ // core
+          const bv = bests?.bestVolume;
+          hasPR = (Number.isFinite(bv) && bv > 0);
+          meta = hasPR ? `Best: ${bv}` : "";
+        }
+
+        if(!hasPR) continue;
+
+        items.push({
+          type,
+          exerciseId,
+          name: exNameOf(type, exerciseId),
+          meta
+        });
+      }
+
+      // Stable sort A→Z
+      items.sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+      return items;
     }catch(_){
-      return 0;
+      return [];
     }
   })();
+
+  const prTotal = prItems.length;
 
   function openMyPRsModal(){
     try{
       LogEngine.ensure();
 
-      const rows = (state.logs?.workouts || []).filter(e => {
-        const pr = e?.pr || {};
-        return !!(pr.isPRWeight || pr.isPR1RM || pr.isPRVolume || pr.isPRPace);
-      });
-
-      // Newest first
-      rows.sort((a,b) => String(b?.dateISO || "").localeCompare(String(a?.dateISO || "")));
-
       const list = el("div", { class:"list" });
 
-      if(!rows.length){
-        list.appendChild(el("div", { class:"note", text:"No PRs yet. Keep logging — they’ll show up here automatically." }));
+      if(!prItems.length){
+        list.appendChild(el("div", {
+          class:"note",
+          text:"No PRs yet. Keep logging — they’ll show up here automatically."
+        }));
       }else{
-        const badgeLine = (pr) => {
-          const b = [];
-          if(pr?.isPRWeight) b.push("PR W");
-          if(pr?.isPR1RM) b.push("PR 1RM");
-          if(pr?.isPRVolume) b.push("PR Vol");
-          if(pr?.isPRPace) b.push("PR Pace");
-          return b.join(" • ");
-        };
-
-        const exNameOf = (e) => {
-          try{
-            if(e?.nameSnap) return String(e.nameSnap);
-            if(typeof resolveExerciseName === "function" && e?.type && e?.exerciseId){
-              return resolveExerciseName(String(e.type), String(e.exerciseId), "Exercise");
-            }
-          }catch(_){}
-          return "Exercise";
-        };
-
         function openHistory(type, exerciseId, exName){
           try{
             if(!exerciseId) return;
-            const entries = LogEngine.entriesForExercise(type, exerciseId); // desc (most recent first)
+            const entries = LogEngine.entriesForExercise(type, exerciseId);
 
             const hist = el("div", { class:"list" });
             if(!entries.length){
               hist.appendChild(el("div", { class:"note", text:"No history yet for this exercise." }));
             }else{
-              const formatEntryDetail = (type, entry) => {
-                try{
-                  if(type === "weightlifting"){
-                    const sets = (entry.sets || []).map(s => `${s.weight || 0}×${s.reps || 0}`).join(" • ");
-                    const top = entry.summary?.bestWeight ?? "—";
-                    const vol = entry.summary?.totalVolume ?? "—";
-                    return `Sets: ${sets || "—"} | Top: ${top} | Vol: ${vol}`;
-                  }
-                  if(type === "cardio"){
-                    const d = entry.summary?.distance ?? "—";
-                    const t = formatTime(entry.summary?.timeSec ?? 0);
-                    const p = formatPace(entry.summary?.paceSecPerUnit);
-                    return `Dist: ${d} | Time: ${t} | Pace: ${p}`;
-                  }
-                  // core
-                  const sets = entry.summary?.sets ?? "—";
-                  const reps = entry.summary?.reps ?? "—";
-                  const t = entry.summary?.timeSec ? formatTime(entry.summary.timeSec) : "";
-                  return `Sets: ${sets} | Reps: ${reps}${t ? ` | Time: ${t}` : ""}`;
-                }catch(_){}
-                return "";
-              };
-
               entries.slice(0, 12).forEach(en => {
                 hist.appendChild(el("div", { class:"item" }, [
                   el("div", { class:"left" }, [
                     el("div", { class:"name", text: en.dateISO }),
-                    el("div", { class:"meta", text: formatEntryDetail(type, en) })
-                  ]),
-                  el("div", { class:"actions" }, [
-                    el("div", { class:"meta", text: badgeLine(en.pr || {}) })
+                    el("div", { class:"meta", text: (en?.summary ? "Logged" : "—") })
                   ])
                 ]));
               });
@@ -6035,6 +6060,36 @@ if(viewBody === "profile" && user){
             });
           }catch(_){}
         }
+
+        prItems.forEach(it => {
+          list.appendChild(el("button", {
+            class:"item",
+            style:"cursor:pointer;",
+            onClick: () => openHistory(it.type, it.exerciseId, it.name)
+          }, [
+            el("div", { class:"left" }, [
+              el("div", { class:"name", text: it.name }),
+              el("div", { class:"meta", text: it.meta || "—" })
+            ]),
+            el("div", { class:"actions" }, [
+              el("div", { class:"meta", text:"Tap" })
+            ])
+          ]));
+        });
+      }
+
+      Modal.open({
+        title: "PRs",
+        center: true,
+        bodyNode: el("div", { class:"grid" }, [
+          el("div", { class:"note", text:"Your lifetime PRs by exercise (tap one to open history)." }),
+          list,
+          el("div", { style:"height:10px" }),
+          el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+        ])
+      });
+    }catch(_){}
+  }
 
         rows.slice(0, 60).forEach(e => {
           const type = String(e?.type || "");
