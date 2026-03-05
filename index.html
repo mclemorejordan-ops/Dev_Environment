@@ -61,6 +61,129 @@
 
 <link rel="stylesheet" href="./assets/styles.css" />
 
+  <style>
+  /* ─────────────────────────────
+     Instagram-style Notifications Modal
+     (UI-only, safe additive CSS)
+     ───────────────────────────── */
+  .igNotif{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .igNotifTop{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding-bottom:6px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+
+  .igNotifTitle{
+    font-weight: 900;
+    letter-spacing: .2px;
+  }
+
+  .igNotifLinkBtn{
+    appearance:none;
+    border:0;
+    background:transparent;
+    color: rgba(255,255,255,.88);
+    font-weight: 850;
+    font-size: 12px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    cursor:pointer;
+  }
+  .igNotifLinkBtn:hover{ background: rgba(255,255,255,.06); }
+
+  .igNotifSection{
+    font-size: 11px;
+    font-weight: 900;
+    opacity: .8;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+  }
+
+  .igNotifList{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .igNotifRow{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 10px 10px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+
+  .igNotifAvatar{
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight: 950;
+    background: rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.10);
+    flex: 0 0 auto;
+  }
+
+  .igNotifText{
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .igNotifLine{
+    display:flex;
+    flex-wrap:wrap;
+    gap: 0;
+    line-height: 1.15;
+  }
+
+  .igNotifName{
+    font-weight: 950;
+    margin-right: 4px;
+  }
+
+  .igNotifMsg{
+    opacity: .9;
+    margin-right: 4px;
+  }
+
+  .igNotifTime{
+    opacity: .65;
+    font-size: 12px;
+  }
+
+  .igNotifActions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex: 0 0 auto;
+  }
+
+  .igNotifX{
+    appearance:none;
+    border: 0;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.10);
+    color: rgba(255,255,255,.85);
+    border-radius: 12px;
+    padding: 7px 9px;
+    cursor:pointer;
+    font-weight: 950;
+    line-height: 1;
+  }
+</style>
+
 <!-- Instagram-style Comments Modal (UI only, additive) -->
 <style>
   .igCmtShell{ display:flex; flex-direction:column; gap:10px; height:min(72vh, 620px); }
