@@ -5567,7 +5567,7 @@ root.appendChild(el("div", { class:"card" }, [
           ].join(";"),
           text: av
         }),
-        el("div", { style:"min-width:0;" }, [
+          el("div", { style:"min-width:0;" }, [
           el("div", {
             style:[
               "font-weight:950",
@@ -5579,8 +5579,8 @@ root.appendChild(el("div", { class:"card" }, [
             ].join(";"),
             text: dn
           })
-        ]),
-  
+        ]),   // ✅ COMMA REQUIRED HERE
+
 
       // Right: signed-in pill + bell
       el("div", { style:"display:flex; align-items:center; gap:8px; flex:0 0 auto;" }, [
