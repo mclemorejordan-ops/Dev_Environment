@@ -5593,15 +5593,22 @@ root.appendChild(el("div", { class:"card" }, [
           : null,
 
         (user)
-          ? el("button", {
-              class:"pill",
-              style:"cursor:pointer; padding:6px 10px; font-size:12px; min-width:52px; justify-content:center;",
-              onClick: async () => { try{
-                if(Social.fetchNotifications) await Social.fetchNotifications();
-                openNotificationsModal();
-              }catch(_){} }
-            }, [`🔔 ${(Social.getNotifications ? Social.getNotifications().length : 0)}`])
-          : null
+  ? el("button", {
+      class:"pill",
+      style:"cursor:pointer; padding:6px 10px; font-size:12px;",
+      onClick: async () => {
+        try{
+          if(Social.fetchNotifications){
+            await Social.fetchNotifications();
+          }
+          openNotificationsModal();
+        }catch(_){}
+      }
+    }, [
+      "🔔",
+      (Social.getNotifications ? Social.getNotifications().length : 0)
+    ])
+  : null,
       ].filter(Boolean))
     ]);
   })(),
