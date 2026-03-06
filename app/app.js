@@ -836,7 +836,7 @@ async function signInWithOAuth(provider){
     }
   }
   
-  async function fetchFollowers(){
+    async function fetchFollowers(){
   const sb = await ensureClient();
   if(!sb || !_user) { _followers = []; return []; }
   try{
@@ -852,6 +852,56 @@ async function signInWithOAuth(provider){
     return [];
   }
 }
+
+  async function fetchProfileFollowCounts(userId){
+    const sb = await ensureClient();
+    const id = String(userId || "").trim();
+    if(!sb || !_user || !id) return { following:0, followers:0 };
+
+    try{
+      const [{ count: followingCount }, { count: followerCount }] = await Promise.all([
+        sb.from("follows").select("followee_id", { count:"exact", head:true }).eq("follower_id", id),
+        sb.from("follows").select("follower_id", { count:"exact", head:true }).eq("followee_id", id)
+      ]);
+
+      return {
+        following: Number(followingCount || 0) || 0,
+        followers: Number(followerCount || 0) || 0
+      };
+    }catch(_){
+      return { following:0, followers:0 };
+    }
+  }
+
+  async function fetchProfileWorkoutHighlights(userId){
+    const sb = await ensureClient();
+    const id = String(userId || "").trim();
+    if(!sb || !_user || !id) return [];
+
+    try{
+      const { data, error } = await sb
+        .from("activity_events")
+        .select("id, actor_id, type, payload, created_at")
+        .eq("actor_id", id)
+        .eq("type", "workout_completed")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if(error) throw error;
+
+      try{ await fetchNames([id]); }catch(_){}
+
+      return (data || []).map(r => ({
+        id: r.id,
+        actorId: r.actor_id,
+        type: r.type,
+        payload: r.payload || {},
+        createdAt: r.created_at
+      }));
+    }catch(_){
+      return [];
+    }
+  }
 
   async function fetchFeed(){
   const sb = await ensureClient();
@@ -1284,6 +1334,8 @@ async function flushOutbox(){
     nameFor,
     fetchFollows,
     fetchFollowers,
+    fetchProfileFollowCounts,
+    fetchProfileWorkoutHighlights,
     getFeed,
     startFeed,
     stopFeed,
@@ -5041,6 +5093,9 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   ui.friendId = ui.friendId || "";
   ui.email = ui.email || "";
   ui.view = ui.view || "feed"; // "feed" | "profile" (UI-only)
+  ui.profileCountsById = ui.profileCountsById || {};
+  ui.profileSharedById = ui.profileSharedById || {};
+  ui.profileLoadById = ui.profileLoadById || {};
 
   const root = el("div", { class:"grid" });
 
@@ -5832,8 +5887,14 @@ root.appendChild(el("div", { class:"card" }, [
       }
     })();
 
-    const follows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
-    const followers = (Social.getFollowers ? Social.getFollowers() : followersNow) || [];
+    const myFollows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
+    const myFollowers = (Social.getFollowers ? Social.getFollowers() : followersNow) || [];
+    const cachedOtherCounts = (!isOwnHeaderProfile && ui.profileCountsById)
+      ? (ui.profileCountsById[String(profileTargetId || "")] || null)
+      : null;
+    const followingCount = isOwnHeaderProfile ? myFollows.length : Number(cachedOtherCounts?.following || 0);
+    const followerCount = isOwnHeaderProfile ? myFollowers.length : Number(cachedOtherCounts?.followers || 0);
+    const isFollowingTarget = !isOwnHeaderProfile && myFollows.includes(String(profileTargetId || ""));
 
     // Posts count (UI-only; no new storage keys)
     const postCount = (Social.getFeed ? Social.getFeed() : []).filter(ev =>
@@ -6002,7 +6063,7 @@ root.appendChild(el("div", { class:"card" }, [
       }, [
         el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
         el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
-      ]))("Following", follows.length, () => openConn("following")),
+      ]))("Following", followingCount, isOwnHeaderProfile ? (() => openConn("following")) : null),
 
       // divider
       el("div", { style:"width:1px; background: rgba(255,255,255,.10);" }),
@@ -6027,7 +6088,7 @@ root.appendChild(el("div", { class:"card" }, [
       }, [
         el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
         el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
-      ]))("Followers", followers.length, () => openConn("followers")),
+      ]))("Followers", followerCount, isOwnHeaderProfile ? (() => openConn("followers")) : null),
 
       // divider
       el("div", { style:"width:1px; background: rgba(255,255,255,.10);" }),
@@ -6055,7 +6116,7 @@ root.appendChild(el("div", { class:"card" }, [
             ]))("Posts", postCount, null)
     ]) : null;
 
-           // View toggle (UI-only): Feed vs My Profile (own activity)
+                    // View toggle (UI-only): Feed vs My Profile (own activity)
     const view = ui.view || "feed";
     const tabBtn = (key, label) => el("button", {
       class:"pill",
@@ -6075,6 +6136,7 @@ root.appendChild(el("div", { class:"card" }, [
       ].join(";"),
       onClick: () => {
         if(ui.view === key) return;
+        if(key === "profile") ui.friendId = "";
         ui.view = key;
         try{ renderView(); }catch(_){}
       }
@@ -6082,47 +6144,96 @@ root.appendChild(el("div", { class:"card" }, [
 
     const viewToggle = el("div", { class:"pillRow", style:"gap:8px;" }, [
       tabBtn("feed", "Feed"),
-      tabBtn("profile", "My Profile")
+      tabBtn("profile", isOwnHeaderProfile ? "My Profile" : "Profile")
     ]);
 
-    // Actions row (tabs + status in one line)
-    const actionsRow = configured
+    const otherProfileActions = (!isOwnHeaderProfile && configured && user)
       ? el("div", {
           style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
         }, [
-          // Left: Feed | My Profile
-          viewToggle,
-
-          // Right: Signed in/out pill
-          el("div", {
-            style:[
-              "display:inline-flex",
-              "align-items:center",
-              "gap:10px",
-              "padding:8px 10px",
-              "border-radius:999px",
-              "border:1px solid rgba(255,255,255,.14)",
-              "background:rgba(255,255,255,.06)",
-              "color:rgba(255,255,255,.92)",
-              "font-weight:1000",
-              "font-size:12px",
-              "white-space:nowrap",
-              "flex:0 0 auto"
-            ].join(";")
-          }, [
-            el("span", {
-              style:[
-                "width:10px",
-                "height:10px",
-                "border-radius:999px",
-                "background:rgba(56,210,111,95)",
-                "box-shadow:0 0 0 3px rgba(56,210,111,14)"
-              ].join(";")
-            }),
-            el("span", { text: isSignedIn ? "Signed in" : "Signed out" })
-          ])
+          el("button", {
+            class:"btn",
+            type:"button",
+            onClick: () => {
+              ui.friendId = "";
+              ui.view = "profile";
+              try{ renderView(); }catch(_){}
+            }
+          }, ["← Back to My Profile"]),
+          el("button", {
+            class:isFollowingTarget ? "btn danger" : "btn primary",
+            type:"button",
+            onClick: async () => {
+              try{
+                if(isFollowingTarget){
+                  await Social.unfollow(profileTargetId);
+                  if(ui.profileCountsById[String(profileTargetId || "")]){
+                    const prev = ui.profileCountsById[String(profileTargetId || "")];
+                    ui.profileCountsById[String(profileTargetId || "")] = {
+                      following: Number(prev?.following || 0) || 0,
+                      followers: Math.max(0, (Number(prev?.followers || 0) || 0) - 1)
+                    };
+                  }
+                  showToast("Unfollowed");
+                }else{
+                  await Social.follow(profileTargetId);
+                  if(ui.profileCountsById[String(profileTargetId || "")]){
+                    const prev = ui.profileCountsById[String(profileTargetId || "")];
+                    ui.profileCountsById[String(profileTargetId || "")] = {
+                      following: Number(prev?.following || 0) || 0,
+                      followers: (Number(prev?.followers || 0) || 0) + 1
+                    };
+                  }
+                  showToast("Following");
+                }
+                try{ if(Social.fetchFollows) await Social.fetchFollows(); }catch(_){}
+                try{ if(Social.fetchFollowers) await Social.fetchFollowers(); }catch(_){}
+                try{ renderView(); }catch(_){}
+              }catch(e){
+                showToast(e?.message || (isFollowingTarget ? "Couldn't unfollow" : "Follow failed"));
+              }
+            }
+          }, [isFollowingTarget ? "Unfollow" : "Follow"])
         ])
       : null;
+
+    const actionsRow = configured
+      ? (isOwnHeaderProfile
+          ? el("div", {
+              style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
+            }, [
+              viewToggle,
+              el("div", {
+                style:[
+                  "display:inline-flex",
+                  "align-items:center",
+                  "gap:10px",
+                  "padding:8px 10px",
+                  "border-radius:999px",
+                  "border:1px solid rgba(255,255,255,.14)",
+                  "background:rgba(255,255,255,.06)",
+                  "color:rgba(255,255,255,.92)",
+                  "font-weight:1000",
+                  "font-size:12px",
+                  "white-space:nowrap",
+                  "flex:0 0 auto"
+                ].join(";")
+              }, [
+                el("span", {
+                  style:[
+                    "width:10px",
+                    "height:10px",
+                    "border-radius:999px",
+                    "background:rgba(56,210,111,.95)",
+                    "box-shadow:0 0 0 3px rgba(56,210,111,.14)"
+                  ].join(";")
+                }),
+                el("span", { text: isSignedIn ? "Signed in" : "Signed out" })
+              ])
+            ])
+          : otherProfileActions)
+      : null;
+    
     // Auth CTA row (unchanged behavior)
     const authRow = configured ? el("div", { class:"btnrow" }, [
       !user ? el("button", {
@@ -6169,10 +6280,35 @@ root.appendChild(el("div", { class:"card" }, [
     : myId;
   const isOwnProfile = !!myId && String(profileUserId || "") === String(myId || "");
 
-  const feedList = (viewBody === "profile" && profileUserId)
+    const feedList = (viewBody === "profile" && profileUserId)
     ? (feedAll || []).filter(ev => String(ev?.actorId || "") === String(profileUserId || ""))
     : (feedAll || []);
 
+  if(viewBody === "profile" && profileUserId && !isOwnProfile && configured && user){
+    const cacheId = String(profileUserId || "");
+    const hasCounts = !!ui.profileCountsById?.[cacheId];
+    const hasShared = Array.isArray(ui.profileSharedById?.[cacheId]);
+
+    if(!ui.profileLoadById?.[cacheId] && (!hasCounts || !hasShared)){
+      ui.profileLoadById[cacheId] = true;
+      Promise.all([
+        Social.fetchProfileFollowCounts ? Social.fetchProfileFollowCounts(cacheId) : Promise.resolve({ following:0, followers:0 }),
+        Social.fetchProfileWorkoutHighlights ? Social.fetchProfileWorkoutHighlights(cacheId) : Promise.resolve([]),
+        Social.fetchNames ? Social.fetchNames([cacheId]) : Promise.resolve(null)
+      ]).then(([counts, shared]) => {
+        ui.profileCountsById[cacheId] = counts || { following:0, followers:0 };
+        ui.profileSharedById[cacheId] = Array.isArray(shared) ? shared : [];
+      }).catch(() => {
+        ui.profileCountsById[cacheId] = ui.profileCountsById[cacheId] || { following:0, followers:0 };
+        ui.profileSharedById[cacheId] = ui.profileSharedById[cacheId] || [];
+      }).finally(() => {
+        ui.profileLoadById[cacheId] = false;
+        try{
+          if(String(ui.friendId || "") === cacheId && String(ui.view || "") === "profile") renderView();
+        }catch(_){}
+      });
+    }
+  }
   const profileDisplayName = (() => {
     if(viewBody !== "profile") return "";
     if(!profileUserId) return "User";
@@ -6331,14 +6467,6 @@ root.appendChild(el("div", { class:"card" }, [
   })();
 
             const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
-        const workoutLogs = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
-
-    const toTsFromLog = (entry) => {
-      const raw = entry?.createdAt || entry?.updatedAt || entry?.dateISO || null;
-      const t = raw ? new Date(raw).getTime() : 0;
-      return Number.isFinite(t) ? t : 0;
-    };
-
     const fmtNum = (n) => {
       const x = Number(n);
       if(!Number.isFinite(x)) return "—";
@@ -6379,43 +6507,43 @@ root.appendChild(el("div", { class:"card" }, [
       return String(entry?.nameSnap || fallback || "Exercise");
     };
 
-    const strengthBest = (() => {
+    const sharedEvents = !isOwnProfile
+      ? (Array.isArray(ui.profileSharedById?.[String(profileUserId || "")])
+          ? ui.profileSharedById[String(profileUserId || "")]
+          : [])
+      : [];
+    const sharedLoading = !isOwnProfile && !!ui.profileLoadById?.[String(profileUserId || "")];
+
+    const ownWorkoutLogs = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+
+    const ownStrengthBest = (() => {
       let best = null;
-
-      workoutLogs.forEach(entry => {
+      ownWorkoutLogs.forEach(entry => {
         if(String(entry?.type || "") !== "weightlifting") return;
-
         const summary = entry?.summary || {};
         const pr = entry?.pr || {};
         const bestWeight = Number(summary?.bestWeight);
         if(!Number.isFinite(bestWeight) || bestWeight <= 0) return;
-
         const sets = Array.isArray(entry?.sets) ? entry.sets : [];
         let bestSet = null;
-
         sets.forEach(s => {
           const w = Number(s?.weight);
           const r = Number(s?.reps);
           if(!Number.isFinite(w) || w <= 0) return;
           if(!Number.isFinite(r) || r < 0) return;
-
           if(!bestSet || w > bestSet.weight || (w === bestSet.weight && r > bestSet.reps)){
             bestSet = { weight: w, reps: r };
           }
         });
-
-        const ts = toTsFromLog(entry);
+        const tsRaw = entry?.createdAt || entry?.updatedAt || entry?.dateISO || null;
+        const ts = tsRaw ? (new Date(tsRaw).getTime() || 0) : 0;
         const candidate = {
           weight: bestSet?.weight ?? bestWeight,
           reps: bestSet?.reps ?? 0,
           name: getExerciseNameFromLog(entry, "Strength"),
           ts,
-          prRank:
-            (pr?.isPRWeight ? 4 : 0) +
-            (pr?.isPR1RM ? 2 : 0) +
-            (pr?.isPRVolume ? 1 : 0)
+          prRank: (pr?.isPRWeight ? 4 : 0) + (pr?.isPR1RM ? 2 : 0) + (pr?.isPRVolume ? 1 : 0)
         };
-
         if(
           !best ||
           candidate.weight > best.weight ||
@@ -6426,37 +6554,33 @@ root.appendChild(el("div", { class:"card" }, [
           best = candidate;
         }
       });
-
       return best;
     })();
 
-    const cardioBest = (() => {
+    const ownCardioBest = (() => {
       let bestPace = null;
       let bestDistance = null;
       let bestTime = null;
-
-      workoutLogs.forEach(entry => {
+      ownWorkoutLogs.forEach(entry => {
         if(String(entry?.type || "") !== "cardio") return;
-
         const summary = entry?.summary || {};
         const pace = Number(summary?.paceSecPerUnit);
         const distance = Number(summary?.distance);
         const timeSec = Number(summary?.timeSec);
         const name = getExerciseNameFromLog(entry, "Cardio");
-        const ts = toTsFromLog(entry);
+        const tsRaw = entry?.createdAt || entry?.updatedAt || entry?.dateISO || null;
+        const ts = tsRaw ? (new Date(tsRaw).getTime() || 0) : 0;
 
         if(Number.isFinite(pace) && pace > 0){
           if(!bestPace || pace < bestPace.pace || (pace === bestPace.pace && ts > bestPace.ts)){
             bestPace = { pace, name, ts };
           }
         }
-
         if(Number.isFinite(distance) && distance > 0){
           if(!bestDistance || distance > bestDistance.distance || (distance === bestDistance.distance && ts > bestDistance.ts)){
             bestDistance = { distance, name, ts };
           }
         }
-
         if(Number.isFinite(timeSec) && timeSec > 0){
           if(!bestTime || timeSec > bestTime.timeSec || (timeSec === bestTime.timeSec && ts > bestTime.ts)){
             bestTime = { timeSec, name, ts };
@@ -6464,29 +6588,368 @@ root.appendChild(el("div", { class:"card" }, [
         }
       });
 
-      if(bestPace){
-        return {
-          value: fmtPaceSafe(bestPace.pace),
-          meta: bestPace.name
-        };
-      }
-
-      if(bestDistance){
-        return {
-          value: `${fmtNum(bestDistance.distance)} units`,
-          meta: bestDistance.name
-        };
-      }
-
-      if(bestTime){
-        return {
-          value: fmtTimeSafe(bestTime.timeSec),
-          meta: bestTime.name
-        };
-      }
-
+      if(bestPace) return { value: fmtPaceSafe(bestPace.pace), meta: bestPace.name };
+      if(bestDistance) return { value: `${fmtNum(bestDistance.distance)} units`, meta: bestDistance.name };
+      if(bestTime) return { value: fmtTimeSafe(bestTime.timeSec), meta: bestTime.name };
       return null;
     })();
+
+    const ownTotalPRs = ownWorkoutLogs.reduce((sum, entry) => {
+      const pr = entry?.pr || {};
+      return sum
+        + (pr?.isPRWeight ? 1 : 0)
+        + (pr?.isPR1RM ? 1 : 0)
+        + (pr?.isPRVolume ? 1 : 0)
+        + (pr?.isPRPace ? 1 : 0);
+    }, 0);
+
+    const parseWeightSet = (text) => {
+      const s = String(text || "");
+      const m = s.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i);
+      if(m) return { weight: Number(m[1]) || 0, reps: Number(m[2]) || 0 };
+      const single = s.match(/(\d+(?:\.\d+)?)/);
+      return single ? { weight: Number(single[1]) || 0, reps: 0 } : null;
+    };
+
+    const parsePace = (text) => {
+      const s = String(text || "");
+      const m = s.match(/Pace\s+(\d+):(\d{2})/i);
+      return m ? ((Number(m[1]) || 0) * 60 + (Number(m[2]) || 0)) : null;
+    };
+
+    const parseDistance = (text) => {
+      const s = String(text || "");
+      const m = s.match(/Dist\s+(\d+(?:\.\d+)?)/i);
+      return m ? (Number(m[1]) || 0) : null;
+    };
+
+    const parseTimeSec = (text) => {
+      const s = String(text || "");
+      const m = s.match(/Time\s+(\d+):(\d{2})(?::(\d{2}))?/i);
+      if(!m) return null;
+      const a = Number(m[1]) || 0;
+      const b = Number(m[2]) || 0;
+      const c = Number(m[3] || 0) || 0;
+      return m[3] != null ? (a * 3600 + b * 60 + c) : (a * 60 + b);
+    };
+
+    const sharedStrengthBest = (() => {
+      let best = null;
+      sharedEvents.forEach(ev => {
+        const p = ev?.payload || {};
+        const items = Array.isArray(p?.details?.items) ? p.details.items : [];
+        const ts = ev?.createdAt ? (new Date(ev.createdAt).getTime() || 0) : 0;
+
+        items.forEach(item => {
+          if(String(item?.type || "") !== "weightlifting") return;
+          const parsed = parseWeightSet(item?.topText || "");
+          if(!parsed || !Number.isFinite(parsed.weight) || parsed.weight <= 0) return;
+
+          const prBadges = Array.isArray(item?.prBadges) ? item.prBadges : [];
+          const candidate = {
+            weight: parsed.weight,
+            reps: parsed.reps,
+            name: String(item?.name || "Strength"),
+            ts,
+            prRank: prBadges.length
+          };
+
+          if(
+            !best ||
+            candidate.weight > best.weight ||
+            (candidate.weight === best.weight && candidate.reps > best.reps) ||
+            (candidate.weight === best.weight && candidate.reps === best.reps && candidate.prRank > best.prRank) ||
+            (candidate.weight === best.weight && candidate.reps === best.reps && candidate.prRank === best.prRank && candidate.ts > best.ts)
+          ){
+            best = candidate;
+          }
+        });
+      });
+      return best;
+    })();
+
+    const sharedCardioBest = (() => {
+      let bestPace = null;
+      let bestDistance = null;
+      let bestTime = null;
+
+      sharedEvents.forEach(ev => {
+        const p = ev?.payload || {};
+        const items = Array.isArray(p?.details?.items) ? p.details.items : [];
+        const ts = ev?.createdAt ? (new Date(ev.createdAt).getTime() || 0) : 0;
+
+        items.forEach(item => {
+          if(String(item?.type || "") !== "cardio") return;
+
+          const topText = String(item?.topText || "");
+          const pace = parsePace(topText);
+          const distance = parseDistance(topText);
+          const timeSec = parseTimeSec(topText);
+          const name = String(item?.name || "Cardio");
+
+          if(Number.isFinite(pace) && pace > 0){
+            if(!bestPace || pace < bestPace.pace || (pace === bestPace.pace && ts > bestPace.ts)){
+              bestPace = { pace, name, ts };
+            }
+          }
+          if(Number.isFinite(distance) && distance > 0){
+            if(!bestDistance || distance > bestDistance.distance || (distance === bestDistance.distance && ts > bestDistance.ts)){
+              bestDistance = { distance, name, ts };
+            }
+          }
+          if(Number.isFinite(timeSec) && timeSec > 0){
+            if(!bestTime || timeSec > bestTime.timeSec || (timeSec === bestTime.timeSec && ts > bestTime.ts)){
+              bestTime = { timeSec, name, ts };
+            }
+          }
+        });
+      });
+
+      if(bestPace) return { value: fmtPaceSafe(bestPace.pace), meta: bestPace.name };
+      if(bestDistance) return { value: `${fmtNum(bestDistance.distance)} units`, meta: bestDistance.name };
+      if(bestTime) return { value: fmtTimeSafe(bestTime.timeSec), meta: bestTime.name };
+      return null;
+    })();
+
+    const sharedTotalPRs = sharedEvents.reduce((sum, ev) => {
+      const p = ev?.payload || {};
+      return sum + (Number(p?.highlights?.prCount || 0) || 0);
+    }, 0);
+
+    const strengthBest = isOwnProfile ? ownStrengthBest : sharedStrengthBest;
+    const cardioBest = isOwnProfile ? ownCardioBest : sharedCardioBest;
+    const totalPRs = isOwnProfile ? ownTotalPRs : sharedTotalPRs;
+
+    const activeRoutine = isOwnProfile && Routines && typeof Routines.getActive === "function"
+      ? Routines.getActive()
+      : null;
+
+    function openProfileRoutineModal(){
+      const routine = (Routines && typeof Routines.getActive === "function")
+        ? Routines.getActive()
+        : null;
+
+      if(!routine){
+        showToast("No active routine");
+        return;
+      }
+
+      const bodyNode = el("div", {}, [
+        el("div", { class:"note", text:"Read-only view of your current active routine." }),
+        el("div", { style:"height:10px" }),
+
+        ...(routine.days || []).length
+          ? (routine.days || [])
+              .slice()
+              .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+              .map((day, idx) => {
+                const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
+
+                return el("div", {
+                  style:[
+                    "padding:12px",
+                    "border-radius:14px",
+                    "border:1px solid rgba(255,255,255,.10)",
+                    "background:rgba(255,255,255,.05)",
+                    "margin-bottom:8px"
+                  ].join(";")
+                }, [
+                  el("div", {
+                    style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
+                  }, [
+                    el("div", {
+                      style:"font-weight:1000; font-size:14px;"
+                    }, [day?.label || `Day ${idx + 1}`]),
+
+                    day?.isRest
+                      ? el("div", {
+                          style:[
+                            "padding:6px 10px",
+                            "border-radius:999px",
+                            "border:1px solid rgba(255,255,255,.10)",
+                            "background:rgba(255,255,255,.06)",
+                            "font-size:11px",
+                            "font-weight:900",
+                            "opacity:.86"
+                          ].join(";")
+                        }, ["Rest"])
+                      : el("div", {
+                          class:"note",
+                          style:"margin:0;"
+                        }, [exercises.length === 1 ? "1 exercise" : `${exercises.length} exercises`])
+                  ]),
+
+                  el("div", { style:"height:8px" }),
+
+                  day?.isRest
+                    ? el("div", {
+                        class:"note",
+                        style:"margin:0; opacity:.86;"
+                      }, ["Rest day"])
+                    : (
+                        exercises.length
+                          ? el("div", {
+                              style:"display:flex; flex-direction:column; gap:6px;"
+                            }, exercises.map((rx, exIdx) => {
+                              const exName = resolveExerciseName(rx?.type, rx?.exerciseId, rx?.nameSnap || "Exercise");
+                              return el("div", {
+                                style:[
+                                  "display:flex",
+                                  "align-items:center",
+                                  "justify-content:space-between",
+                                  "gap:10px",
+                                  "padding:8px 10px",
+                                  "border-radius:12px",
+                                  "background:rgba(255,255,255,.04)",
+                                  "border:1px solid rgba(255,255,255,.06)"
+                                ].join(";")
+                              }, [
+                                el("div", {
+                                  style:"min-width:0; display:flex; flex-direction:column; gap:2px;"
+                                }, [
+                                  el("div", {
+                                    style:[
+                                      "font-weight:900",
+                                      "font-size:13px",
+                                      "overflow:hidden",
+                                      "text-overflow:ellipsis",
+                                      "white-space:nowrap"
+                                    ].join(";")
+                                  }, [exName]),
+                                  el("div", {
+                                    class:"note",
+                                    style:"margin:0; text-transform:capitalize;"
+                                  }, [String(rx?.type || "exercise")])
+                                ]),
+                                el("div", {
+                                  style:"font-size:11px; font-weight:900; opacity:.7; flex:0 0 auto;"
+                                }, [`#${exIdx + 1}`])
+                              ]);
+                            }))
+                          : el("div", {
+                              class:"note",
+                              style:"margin:0; opacity:.86;"
+                            }, ["No exercises added"])
+                      )
+                ]);
+              })
+          : [
+              el("div", {
+                class:"note",
+                style:"margin:0;"
+              }, ["No days found in the active routine."])
+            ]
+      ]);
+
+      Modal.open({
+        title: routine?.name || "Workout Routine",
+        bodyNode
+      });
+    }
+
+    const metricCard = (label, value, meta, opts={}) => {
+      const clickable = typeof opts?.onClick === "function";
+      const tag = clickable ? "button" : "div";
+
+      return el(tag, {
+        ...(clickable ? { onClick: opts.onClick, type:"button" } : {}),
+        style:[
+          "display:flex",
+          "flex-direction:column",
+          "gap:4px",
+          "padding:12px",
+          "border-radius:14px",
+          "border:1px solid rgba(255,255,255,.10)",
+          "background:rgba(255,255,255,.05)",
+          "min-width:0",
+          clickable ? "cursor:pointer" : "",
+          clickable ? "text-align:left" : "",
+          clickable ? "appearance:none" : "",
+          clickable ? "-webkit-appearance:none" : "",
+          clickable ? "width:100%" : "",
+          clickable ? "color:inherit" : "",
+          clickable ? "font:inherit" : "",
+          clickable ? "outline:none" : ""
+        ].filter(Boolean).join(";")
+      }, [
+        el("div", {
+          style:"font-size:11px; font-weight:900; letter-spacing:.2px; opacity:.72; text-transform:uppercase;"
+        }, [label]),
+        el("div", {
+          style:[
+            "font-size:18px",
+            "font-weight:1000",
+            "line-height:1.1",
+            "overflow:hidden",
+            "text-overflow:ellipsis",
+            "white-space:nowrap"
+          ].join(";")
+        }, [value]),
+        el("div", {
+          class:"note",
+          style:[
+            "margin:0",
+            "opacity:.82",
+            "overflow:hidden",
+            "text-overflow:ellipsis",
+            "white-space:nowrap"
+          ].join(";")
+        }, [meta])
+      ]);
+    };
+
+    const cards = [
+      metricCard(
+        "Best Strength PR",
+        strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : (sharedLoading ? "Loading…" : "—"),
+        strengthBest ? strengthBest.name : (isOwnProfile ? "No weightlifting logs yet" : "No shared strength PR yet")
+      ),
+      metricCard(
+        "Best Cardio PR",
+        cardioBest ? cardioBest.value : (sharedLoading ? "Loading…" : "—"),
+        cardioBest ? cardioBest.meta : (isOwnProfile ? "No cardio logs yet" : "No shared cardio PR yet")
+      )
+    ];
+
+    if(isOwnProfile){
+      cards.push(metricCard(
+        "Workout Routine",
+        activeRoutine?.name || "No active routine",
+        activeRoutine ? "Tap to view routine" : "Create or set a routine",
+        activeRoutine ? { onClick: openProfileRoutineModal } : {}
+      ));
+    }
+
+    cards.push(metricCard(
+      "Total PRs",
+      String(totalPRs),
+      isOwnProfile
+        ? (totalPRs === 1 ? "PR across all logs" : "PRs across all logs")
+        : (totalPRs === 1 ? "PR from shared activity" : "PRs from shared activity")
+    ));
+
+    return el("div", { class:"card" }, [
+      el("div", {
+        style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
+      }, [
+        el("div", {}, [
+          el("div", { style:"font-size:18px; font-weight:1000; line-height:1.15;" }, ["Highlights"]),
+          el("div", {
+            class:"note",
+            style:"margin:4px 0 0 0; opacity:.82;"
+          }, [
+            isOwnProfile
+              ? "Pulled from all logged workouts and your active routine."
+              : "Pulled from shared workout activity on this profile."
+          ])
+        ])
+      ]),
+      el("div", { style:"height:12px" }),
+      el("div", {
+        style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
+      }, cards)
+    ]);
+  })() : null;
 
     const totalPRs = (() => {
       return workoutLogs.reduce((sum, entry) => {
