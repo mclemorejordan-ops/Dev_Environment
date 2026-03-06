@@ -5391,6 +5391,17 @@ function openFollowerNotifsModal(){
     return (s && s[0]) ? s[0].toUpperCase() : "•";
   }
 
+  function openFriendProfile(friendId){
+    const id = String(friendId || "").trim();
+    if(!id) return;
+
+    ui.friendId = id;
+    ui.view = "profile";
+
+    try{ Modal.close(); }catch(_){}
+    renderView();
+  }
+
   function statPill({ tab, label, value }){
     return el("button", {
       type:"button",
@@ -5409,7 +5420,7 @@ function openFollowerNotifsModal(){
     return el("span", { class:"connBadge" + (kind ? (" " + kind) : ""), text: label });
   }
 
-  function connectionRow({ id, mode, followsSet, followersSet }){
+    function connectionRow({ id, mode, followsSet, followersSet }){
     const dn = (Social.nameFor && Social.nameFor(id)) || "User";
     const mutual = followsSet.has(id) && followersSet.has(id);
 
@@ -5428,15 +5439,16 @@ function openFollowerNotifsModal(){
     if(mode === "following"){
       actions.push(el("button", {
         class:"btn danger sm",
-        onClick: async () => {
+        onClick: async (e) => {
+          try{ e?.stopPropagation?.(); }catch(_){}
           try{
             await Social.unfollow(id);
             showToast("Unfollowed");
             await refreshLists();
             repaintModal();
             renderView();
-          }catch(e){
-            showToast(e?.message || "Couldn't unfollow");
+          }catch(e2){
+            showToast(e2?.message || "Couldn't unfollow");
           }
         }
       }, ["Unfollow"]));
@@ -5444,30 +5456,32 @@ function openFollowerNotifsModal(){
       if(followsSet.has(id)){
         actions.push(el("button", {
           class:"btn danger sm",
-          onClick: async () => {
+          onClick: async (e) => {
+            try{ e?.stopPropagation?.(); }catch(_){}
             try{
               await Social.unfollow(id);
               showToast("Unfollowed");
               await refreshLists();
               repaintModal();
               renderView();
-            }catch(e){
-              showToast(e?.message || "Couldn't unfollow");
+            }catch(e2){
+              showToast(e2?.message || "Couldn't unfollow");
             }
           }
         }, ["Unfollow"]));
       }else{
         actions.push(el("button", {
           class:"btn primary sm",
-          onClick: async () => {
+          onClick: async (e) => {
+            try{ e?.stopPropagation?.(); }catch(_){}
             try{
               await Social.follow(id);
               showToast("Following");
               await refreshLists();
               repaintModal();
               renderView();
-            }catch(e){
-              showToast(e?.message || "Follow failed");
+            }catch(e2){
+              showToast(e2?.message || "Follow failed");
             }
           }
         }, ["Follow back"]));
@@ -5475,15 +5489,32 @@ function openFollowerNotifsModal(){
     }
 
     return el("div", { class:"connRow" }, [
-      el("div", { class:"av" }, [ el("div", { class:"ltr", text: avatarLetter(dn) }) ]),
-      el("div", { class:"main" }, [
+      el("div", {
+        class:"av",
+        style:"cursor:pointer;",
+        onClick: () => openFriendProfile(id)
+      }, [
+        el("div", { class:"ltr", text: avatarLetter(dn) })
+      ]),
+
+      el("div", {
+        class:"main",
+        style:"cursor:pointer;",
+        onClick: () => openFriendProfile(id)
+      }, [
         el("div", { class:"top" }, [
           el("div", { class:"dn", text: dn }),
           el("div", { class:"badges" }, badges)
         ]),
         el("div", { class:"meta", text: metaText })
       ]),
-      el("div", { class:"acts" }, actions)
+
+      el("div", {
+        class:"acts",
+        onClick: (e) => {
+          try{ e?.stopPropagation?.(); }catch(_){}
+        }
+      }, actions)
     ]);
   }
 
@@ -5767,14 +5798,25 @@ root.appendChild(el("div", { class:"card" }, [
   (() => {
     const isSignedIn = (typeof Social.isSignedIn === "function") ? !!Social.isSignedIn() : !!user;
 
+        const profileTargetId = String(
+      (ui.view === "profile")
+        ? (ui.friendId || (user?.id || ""))
+        : (user?.id || "")
+    );
+
+    const isOwnHeaderProfile = !!user && String(profileTargetId || "") === String(user?.id || "");
+
     // Best-effort display name (UI only)
     const dn = (() => {
       try{
-        const u = user || null;
-        const meta = u?.user_metadata || {};
-        return String(meta.full_name || meta.name || u?.email || "You");
+        if(isOwnHeaderProfile){
+          const u = user || null;
+          const meta = u?.user_metadata || {};
+          return String(meta.full_name || meta.name || u?.email || "You");
+        }
+        return String((Social.nameFor && Social.nameFor(profileTargetId)) || "User");
       }catch(_){
-        return "You";
+        return "User";
       }
     })();
 
@@ -5793,9 +5835,9 @@ root.appendChild(el("div", { class:"card" }, [
     const follows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
     const followers = (Social.getFollowers ? Social.getFollowers() : followersNow) || [];
 
-        // Posts count (UI-only; no new storage keys)
+    // Posts count (UI-only; no new storage keys)
     const postCount = (Social.getFeed ? Social.getFeed() : []).filter(ev =>
-      String(ev?.actorId || "") === String(user?.id || "") &&
+      String(ev?.actorId || "") === String(profileTargetId || "") &&
       String(ev?.type || "") === "workout_completed"
     ).length;
 
@@ -6118,16 +6160,43 @@ root.appendChild(el("div", { class:"card" }, [
   })()
 ].filter(Boolean)));
    
-     // Feed / My Profile (same cards; body list switches)
+       // Feed / My Profile (same cards; body list switches)
   const feedAll = Social.getFeed ? Social.getFeed() : [];
   const viewBody = ui.view || "feed";
   const myId = user ? String(user.id || "") : "";
-  const feedList = (viewBody === "profile" && user)
-    ? (feedAll || []).filter(ev => String(ev?.actorId || "") === myId)
+  const profileUserId = (viewBody === "profile")
+    ? String(ui.friendId || myId || "")
+    : myId;
+  const isOwnProfile = !!myId && String(profileUserId || "") === String(myId || "");
+
+  const feedList = (viewBody === "profile" && profileUserId)
+    ? (feedAll || []).filter(ev => String(ev?.actorId || "") === String(profileUserId || ""))
     : (feedAll || []);
-  const bodyTitle = (viewBody === "profile") ? "My Activity" : "Feed";
+
+  const profileDisplayName = (() => {
+    if(viewBody !== "profile") return "";
+    if(!profileUserId) return "User";
+
+    if(isOwnProfile){
+      try{
+        const meta = user?.user_metadata || {};
+        return String(meta.full_name || meta.name || user?.email || Social.nameFor?.(profileUserId) || "You");
+      }catch(_){
+        return "You";
+      }
+    }
+
+    return (Social.nameFor && Social.nameFor(profileUserId)) || "User";
+  })();
+
+  const bodyTitle = (viewBody === "profile")
+    ? (isOwnProfile ? "My Activity" : `${profileDisplayName}'s Activity`)
+    : "Feed";
+
   const emptyMsg = (viewBody === "profile")
-    ? "No posts yet. Log a workout and it will appear here."
+    ? (isOwnProfile
+        ? "No posts yet. Log a workout and it will appear here."
+        : "No posts yet.")
     : "No events yet. Your activity (and friends you follow) will show here.";
 
     // Better empty states (UI-only)
