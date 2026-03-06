@@ -128,10 +128,6 @@ function writeOutbox(items){
   try{ localStorage.setItem(SOCIAL_OUTBOX_KEY, JSON.stringify(items || [])); }catch(_){}
 }
 
-function writeOutbox(items){
-  try{ localStorage.setItem(SOCIAL_OUTBOX_KEY, JSON.stringify(items || [])); }catch(_){}
-}
-
 function normalizeUsername(v){
   return String(v || "")
     .trim()
@@ -795,38 +791,6 @@ async function upsertMyProfile(){
   }
 }
 
-async function fetchNames(ids){
-  const sb = await ensureClient();
-  if(!sb || !_user) return _names;
-
-  const uniq = Array.from(new Set((ids || [])
-  .map(x => String(x || ""))
-  .filter(Boolean)
-));
-
-// ✅ Only fetch missing names (cache-friendly for 12s polling)
-const missing = uniq.filter(id => !_names[String(id)]);
-
-if(!missing.length) return _names;
-
-  try{
-    const { data, error } = await sb
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", missing);
-
-    if(error) throw error;
-
-    (data || []).forEach(r => {
-      const id = String(r.id || "");
-      const dn = String(r.display_name || "").trim();
-      if(id && dn) _names[id] = dn;
-    });
-  }catch(_){}
-
-  return _names;
-}
-
   async function configure({ url, anonKey }){
     const clean = {
       url: (url || "").trim(),
@@ -1381,21 +1345,6 @@ async function signInWithOAuth(provider){
       }
     };
   }
-
-function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
-  const state = stateRef();
-  return {
-    eventType: "workout_completed",
-    payload: {
-      displayName: state?.profile?.name || null,
-      dateISO: dateISO || null,
-      routineId: routineId || null,
-      dayId: dayId || null,
-      highlights: highlights || {},
-      details: details || null
-    }
-  };
-}
   
 
   async function flushOutbox(){
@@ -1673,7 +1622,6 @@ async function flushOutbox(){
     nameFor,
     usernameFor,
     identityFor,
-    fetchFollows,
     fetchFollows,
     fetchFollowers,
     fetchMyProfileRoutineSetting,
@@ -6012,142 +5960,120 @@ function openFollowerNotifsModal(){
   }
 
   function openAddFriendModal(){
-    const returnTab = ui.connTab;
-    const returnSearch = ui.connSearch;
+  const returnTab = ui.connTab;
+  const returnSearch = ui.connSearch;
 
-    const myCodeInput = el("input", {
-  class:"connCodeInput",
-  type:"text",
-  readOnly:true,
-  value: usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "")
-});
+  const myCodeInput = el("input", {
+    class:"connCodeInput",
+    type:"text",
+    readOnly:true,
+    value: usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "")
+  });
 
-const friendCodeInput = el("input", {
-  class:"connCodeInput",
-  type:"text",
-  placeholder:"@jordand",
-  value: ui.connAddCode,
-  autocapitalize:"off",
-  autocorrect:"off",
-  spellcheck:"false"
-});
+  const friendCodeInput = el("input", {
+    class:"connCodeInput",
+    type:"text",
+    placeholder:"@jordand",
+    value: ui.connAddCode,
+    autocapitalize:"off",
+    autocorrect:"off",
+    spellcheck:"false"
+  });
 
-friendCodeInput.addEventListener("input", () => {
-  ui.connAddCode = friendCodeInput.value || "";
-});
+  friendCodeInput.addEventListener("input", () => {
+    ui.connAddCode = friendCodeInput.value || "";
+  });
 
-async function doAdd(){
-  if(!user){
-    showToast("Sign in to add friends");
-    return;
+  async function doAdd(){
+    if(!user){
+      showToast("Sign in to add friends");
+      return;
+    }
+
+    const raw = String(ui.connAddCode || "").trim();
+    const uname = normalizeUsername(raw);
+    if(!uname){
+      showToast("Enter a username");
+      return;
+    }
+
+    const myUsername = normalizeUsername(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
+    if(myUsername && uname === myUsername){
+      showToast("You can’t add yourself");
+      return;
+    }
+
+    try{
+      await Social.follow(uname);
+      showToast("Friend added");
+      ui.connAddCode = "";
+      friendCodeInput.value = "";
+
+      Modal.close();
+      await refreshLists();
+      ui.connTab = returnTab;
+      ui.connSearch = returnSearch;
+      renderView();
+    }catch(e){
+      showToast(e?.message || "Couldn't add friend");
+    }
   }
 
-  const raw = String(ui.connAddCode || "").trim();
-  const uname = normalizeUsername(raw);
-  if(!uname){
-    showToast("Enter a username");
-    return;
-  }
+  friendCodeInput.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      doAdd();
+    }
+  });
 
-  const myUsername = normalizeUsername(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
-  if(myUsername && uname === myUsername){
-    showToast("You can’t add yourself");
-    return;
-  }
+  Modal.open({
+    title: "Add Friend",
+    bodyNode: el("div", { class:"connAddFriendModal" }, [
+      el("div", { class:"note", text:"Share your username, or enter someone else’s username to add them." }),
+      el("div", { style:"height:10px" }),
 
-  try{
-    await Social.follow(uname);
-    showToast("Friend added");
-    ui.connAddCode = "";
-    friendCodeInput.value = "";
-
-    ui.connTab = returnTab;
-    ui.connSearch = returnSearch;
-    openConnectionsModal(returnTab);
-    renderView();
-  }catch(e){
-    showToast(e?.message || "Couldn't add friend");
-  }
-}
-
-friendCodeInput.addEventListener("keydown", (e) => {
-  if(e.key === "Enter"){
-    e.preventDefault();
-    doAdd();
-  }
-});
-
-Modal.open({
-  title: "Add Friend",
-  bodyNode: el("div", { class:"connAddFriendModal" }, [
-    el("div", { class:"note", text:"Share your username, or enter someone else’s username to add them." }),
-    el("div", { style:"height:10px" }),
-
-    el("div", { class:"setRow" }, [
-      el("div", {}, [
-        el("div", { style:"font-weight:820;", text:"Your username" }),
-        el("div", { class:"meta", text:"Tap Copy to share" })
-      ]),
-      el("div", { class:"connCodeRight" }, [
-        myCodeInput,
-        el("button", {
-          class:"btn sm",
-          onClick: async () => {
-            const myHandle = usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
-            if(!myHandle){
-              showToast("Set a username in Settings first");
-              return;
-            }
-            try{
-              await copyTextSafe(myHandle);
-              showToast("Copied");
-            }catch(_){
-              showToast("Couldn't copy");
-            }
-          }
-        }, ["Copy"])
-      ])
-    ]),
-
-    el("div", { class:"setRow" }, [
-      el("div", {}, [
-        el("div", { style:"font-weight:820;", text:"Friend username" }),
-        el("div", { class:"meta", text:"Enter @username to add" })
-      ]),
-      el("div", { class:"connCodeRight" }, [
-        friendCodeInput,
-        el("button", {
-          class:"btn primary sm",
-          onClick: doAdd
-        }, ["Add"])
-      ])
-    ])
-  ])
-});
-
-        el("div", { style:"height:10px" }),
-        el("div", { class:"btnrow connFooterRow" }, [
+      el("div", { class:"setRow" }, [
+        el("div", {}, [
+          el("div", { style:"font-weight:820;", text:"Your username" }),
+          el("div", { class:"meta", text:"Tap Copy to share" })
+        ]),
+        el("div", { class:"connCodeRight" }, [
+          myCodeInput,
           el("button", {
-            class:"btn",
-            onClick: () => {
-              ui.connTab = returnTab;
-              ui.connSearch = returnSearch;
-              openConnectionsModal(returnTab);
+            class:"btn sm",
+            onClick: async () => {
+              const myHandle = usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
+              if(!myHandle){
+                showToast("Set a username in Settings first");
+                return;
+              }
+              try{
+                await copyTextSafe(myHandle);
+                showToast("Copied");
+              }catch(_){
+                showToast("Couldn't copy");
+              }
             }
-          }, ["Back"]),
+          }, ["Copy"])
+        ])
+      ]),
+
+      el("div", { class:"setRow" }, [
+        el("div", {}, [
+          el("div", { style:"font-weight:820;", text:"Friend username" }),
+          el("div", { class:"meta", text:"Enter @username to add" })
+        ]),
+        el("div", { class:"connCodeRight" }, [
+          friendCodeInput,
           el("button", {
-            class:"btn",
-            style:"margin-left:auto;",
-            onClick: () => {
-              ui.connTab = returnTab;
-              ui.connSearch = returnSearch;
-              openConnectionsModal(returnTab);
-            }
-          }, ["Done"])
+            class:"btn primary sm",
+            onClick: doAdd
+          }, ["Add"])
         ])
       ])
-    });
-  }
+    ])
+  });
+}
 
   const addFriendBtn = el("button", {
     class:"btn primary",
@@ -8277,13 +8203,23 @@ const feedLinkRow = el("div", {
   style:"width:100%;",
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
-  el("div", { class:"l" }, [
-    el("div", { class:"a", text: title }),
-    whenLine ? el("div", { class:"b", text: whenLine }) : null,
+  el("div", { class:"l", style:"min-width:0;" }, [
+    el("div", { style:"min-width:0; flex:1;" }, [
+      el("div", {
+        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [who]),
+      whoHandle ? el("div", {
+        class:"note",
+        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [whoHandle]) : null,
+      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
+    ].filter(Boolean)),
+
+    el("div", { class:"a", style:"margin-top:8px;", text: title }),
     summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
     (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
       badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-    ) : null),
+    ) : null)
   ].filter(Boolean)),
   el("div", { class:"r", style:"opacity:.85;" }, ["→"])
 ]);
