@@ -145,6 +145,26 @@ function isValidUsername(v){
   return /^[a-z0-9_]{3,20}$/.test(normalizeUsername(v));
 }
 
+async function usernameAvailable(username){
+  const sb = await ensureClient();
+  if(!sb) return true;
+
+  const u = normalizeUsername(username);
+  if(!u) return true;
+
+  try{
+    const { data } = await sb
+      .from("profiles")
+      .select("id")
+      .eq("username", u)
+      .limit(1);
+
+    return !(data && data.length);
+  }catch(_){
+    return true;
+  }
+}
+
 function looksLikeUuid(v){
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || "").trim());
 }
@@ -2056,6 +2076,11 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
     autocorrect:"off",
     spellcheck:"false"
   });
+
+      // ✅ auto-clean username while typing
+usernameInput.addEventListener("input", () => {
+  usernameInput.value = normalizeUsername(usernameInput.value);
+});
       
   const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
          
@@ -8338,8 +8363,15 @@ function saveProfile(){
   const nextName = String(nameInput.value || "").trim();
   const nextUsername = normalizeUsername(usernameInput.value);
 
-  if(!nextName) throw new Error("Enter your name.");
-  if(!isValidUsername(nextUsername)) throw new Error("Username must be 3–20 letters, numbers, or underscores.");
+if(!nextName) throw new Error("Enter your name.");
+if(!isValidUsername(nextUsername))
+  throw new Error("Username must be 3–20 letters, numbers, or underscores.");
+
+// ✅ check availability before saving
+if(!(await usernameAvailable(nextUsername))){
+  showToast("Username already taken");
+  return;
+}
 
   state.profile = state.profile || {};
   state.profile.name = nextName;
