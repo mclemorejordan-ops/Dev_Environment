@@ -4828,182 +4828,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
 
-    // ✅ Soft Pull-to-Refresh (Friends only; UI-only)
-  // - Touch gesture at top of scroll
-  // - Calls Social.fetchFeed() on release past threshold
-  ui.__ptr = ui.__ptr || { pulling:false, ready:false, busy:false, y0:0, dy:0, showDone:false };
-  const PTR = ui.__ptr;
-
-  const PTR_MAX = 80;   // max indicator height (px)
-  const PTR_ARM = 62;   // threshold to trigger refresh (px)
-
-  const getRoute = () => (String(location.hash || "").replace(/^#/, "") || "home");
-  const getScrollTop = () => {
-    const se = document.scrollingElement || document.documentElement || document.body;
-    return se ? (se.scrollTop || 0) : 0;
-  };
-
-  function ptrRender(dy, ready, busy, done){
-    const wrap = PTR._wrap;
-    if(!wrap) return;
-
-    const h = Math.max(0, Math.min(PTR_MAX, dy || 0));
-    wrap.style.height = h ? `${h}px` : "0px";
-    wrap.style.opacity = h ? "1" : "0";
-    wrap.style.transform = h ? `translateY(${Math.min(8, h / 10)}px)` : "translateY(0px)";
-
-    if(PTR._label){
-      PTR._label.textContent = busy ? "Refreshing…" : (ready ? "Release to refresh" : "Pull to refresh");
-    }
-    if(PTR._sub){
-      PTR._sub.textContent = done ? "Updated" : "";
-    }
-  }
-
-  function buildPtrNode(){
-    const label = el("div", { style:"font-size:12px; font-weight:950; opacity:.92;", text:"Pull to refresh" });
-    const sub = el("div", { style:"font-size:11px; opacity:.68;", text:"" });
-
-    const bar = el("div", {
-      style:[
-        "height:44px",
-        "display:flex",
-        "flex-direction:column",
-        "justify-content:center",
-        "gap:2px",
-        "padding: 0 12px",
-        "border-radius:12px",
-        "border:1px solid rgba(255,255,255,.10)",
-        "background: rgba(255,255,255,.05)"
-      ].join(";")
-    }, [label, sub]);
-
-    const wrap = el("div", {
-      style:[
-        "height:0px",
-        "opacity:0",
-        "overflow:hidden",
-        "transition: height 140ms ease, opacity 140ms ease, transform 140ms ease",
-        "margin-top:6px"
-      ].join(";")
-    }, [bar]);
-
-    PTR._wrap = wrap;
-    PTR._label = label;
-    PTR._sub = sub;
-
-    // reset visuals on each render so the latest node is controlled
-    ptrRender(0, false, !!PTR.busy, false);
-    return wrap;
-  }
-
-  async function ptrDoRefresh(){
-    if(PTR.busy) return;
-    PTR.busy = true;
-    PTR.showDone = false;
-
-    // Show "Refreshing…" with a pinned max height
-    ptrRender(PTR_MAX, true, true, false);
-
-    try{
-      if(Social.fetchFeed){
-        await Social.fetchFeed();
-      }
-      // Re-render view so the updated feed + hydration shows
-      try{ renderView(); }catch(_){}
-      PTR.showDone = true;
-      ptrRender(PTR_MAX, false, false, true);
-
-      // Briefly show "Updated", then collapse
-      setTimeout(() => {
-        PTR.showDone = false;
-        ptrRender(0, false, false, false);
-      }, 650);
-    }catch(e){
-      try{ showToast(e?.message || "Refresh failed"); }catch(_){}
-      ptrRender(0, false, false, false);
-    }finally{
-      PTR.busy = false;
-      PTR.pulling = false;
-      PTR.ready = false;
-      PTR.dy = 0;
-    }
-  }
-
-  // Install listeners once (global), but gate them to Friends route only
-  if(!ui.__ptrSub){
-    ui.__ptrSub = true;
-
-    ui.__ptrTouchStart = (ev) => {
-      try{
-        if(getRoute() !== "friends") return;
-        if(PTR.busy) return;
-        if(getScrollTop() > 0) return;
-
-        const t = ev?.touches?.[0];
-        if(!t) return;
-
-        PTR.pulling = true;
-        PTR.ready = false;
-        PTR.dy = 0;
-        PTR.y0 = t.clientY || 0;
-
-        ptrRender(0, false, false, false);
-      }catch(_){}
-    };
-
-    ui.__ptrTouchMove = (ev) => {
-  try{
-    if(getRoute() !== "friends") return;
-    if(!PTR.pulling) return;
-    if(PTR.busy) return;
-    if(getScrollTop() > 0) return;
-
-    const t = ev?.touches?.[0];
-    if(!t) return;
-
-    const y = t.clientY || 0;
-    const dy = Math.max(0, y - (PTR.y0 || 0));
-    PTR.dy = dy;
-
-    // ✅ iOS PWA: prevent whole-screen rubber-band ONLY while pulling down at top
-    if(dy > 0){
-      try{ ev.preventDefault(); }catch(_){}
-    }
-
-    const ready = dy >= PTR_ARM;
-    PTR.ready = ready;
-
-    ptrRender(dy, ready, false, false);
-  }catch(_){}
-};
-
-    ui.__ptrTouchEnd = () => {
-      try{
-        if(getRoute() !== "friends") return;
-        if(!PTR.pulling) return;
-
-        const should = !!PTR.ready && (PTR.dy >= PTR_ARM);
-        PTR.pulling = false;
-
-        if(should){
-          ptrDoRefresh();
-        }else{
-          PTR.ready = false;
-          PTR.dy = 0;
-          ptrRender(0, false, false, false);
-        }
-      }catch(_){}
-    };
-
-    try{
-      window.addEventListener("touchstart", ui.__ptrTouchStart, { passive:true });
-      window.addEventListener("touchmove", ui.__ptrTouchMove, { passive:false });
-      window.addEventListener("touchend", ui.__ptrTouchEnd, { passive:true });
-      window.addEventListener("touchcancel", ui.__ptrTouchEnd, { passive:true });
-    }catch(_){}
-  }
-
   // ✅ Live Online/Offline pill updates (only re-render on Friends route)
 if(!ui.__netSub){
   ui.__netSub = true;
@@ -6219,8 +6043,6 @@ root.appendChild(el("div", { class:"card" }, [
 
     return null;
   })();
-
-       const ptrNode = buildPtrNode();
      
     root.appendChild(el("div", { class:"card" }, [
 el("div", {
@@ -6238,9 +6060,6 @@ el("div", {
     new Date().toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
   ])
 ]),    el("div", { style:"height:10px" }),
-
-      // ✅ Pull-to-refresh indicator (Friends only)
-    ptrNode,
 
     emptyStateNode,
 
