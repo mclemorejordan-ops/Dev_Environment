@@ -6265,10 +6265,10 @@ root.appendChild(el("div", { class:"card" }, [
   })();
 
             const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
-    const entries = Array.isArray(feedList) ? feedList : [];
+        const workoutLogs = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
 
-    const toTs = (ev) => {
-      const raw = ev?.createdAt || ev?.payload?.dateISO || null;
+    const toTsFromLog = (entry) => {
+      const raw = entry?.createdAt || entry?.updatedAt || entry?.dateISO || null;
       const t = raw ? new Date(raw).getTime() : 0;
       return Number.isFinite(t) ? t : 0;
     };
@@ -6289,28 +6289,75 @@ root.appendChild(el("div", { class:"card" }, [
       return `${m}:${String(r).padStart(2, "0")} / unit`;
     };
 
+    const fmtTimeSafe = (sec) => {
+      const s = Number(sec);
+      if(!Number.isFinite(s) || s <= 0) return "—";
+      const whole = Math.floor(s);
+      const h = Math.floor(whole / 3600);
+      const m = Math.floor((whole % 3600) / 60);
+      const r = whole % 60;
+      if(h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+      return `${m}:${String(r).padStart(2, "0")}`;
+    };
+
+    const getExerciseNameFromLog = (entry, fallback) => {
+      try{
+        const type = String(entry?.type || "");
+        const exId = entry?.exerciseId || null;
+        const lib = state?.exerciseLibrary?.[type];
+        if(Array.isArray(lib) && exId != null){
+          const found = lib.find(x => String(x?.id || "") === String(exId || ""));
+          if(found?.name) return String(found.name);
+        }
+      }catch(_){}
+      return String(entry?.nameSnap || fallback || "Exercise");
+    };
+
     const strengthBest = (() => {
       let best = null;
 
-      entries.forEach(ev => {
-        if(ev?.type !== "exercise_logged") return;
+      workoutLogs.forEach(entry => {
+        if(String(entry?.type || "") !== "weightlifting") return;
 
-        const p = ev?.payload || {};
-        if(String(p?.workoutType || "") !== "weightlifting") return;
+        const summary = entry?.summary || {};
+        const pr = entry?.pr || {};
+        const bestWeight = Number(summary?.bestWeight);
+        if(!Number.isFinite(bestWeight) || bestWeight <= 0) return;
 
-        const prCount = Number(p?.prCount || 0);
-        if(!(Number.isFinite(prCount) && prCount > 0)) return;
+        const sets = Array.isArray(entry?.sets) ? entry.sets : [];
+        let bestSet = null;
 
-        const weight = Number(p?.summary?.bestWeight);
-        if(!Number.isFinite(weight) || weight <= 0) return;
+        sets.forEach(s => {
+          const w = Number(s?.weight);
+          const r = Number(s?.reps);
+          if(!Number.isFinite(w) || w <= 0) return;
+          if(!Number.isFinite(r) || r < 0) return;
 
-        const ts = toTs(ev);
-        if(!best || weight > best.weight || (weight === best.weight && ts > best.ts)){
-          best = {
-            weight,
-            name: String(p?.exerciseName || "Strength"),
-            ts
-          };
+          if(!bestSet || w > bestSet.weight || (w === bestSet.weight && r > bestSet.reps)){
+            bestSet = { weight: w, reps: r };
+          }
+        });
+
+        const ts = toTsFromLog(entry);
+        const candidate = {
+          weight: bestSet?.weight ?? bestWeight,
+          reps: bestSet?.reps ?? 0,
+          name: getExerciseNameFromLog(entry, "Strength"),
+          ts,
+          prRank:
+            (pr?.isPRWeight ? 4 : 0) +
+            (pr?.isPR1RM ? 2 : 0) +
+            (pr?.isPRVolume ? 1 : 0)
+        };
+
+        if(
+          !best ||
+          candidate.weight > best.weight ||
+          (candidate.weight === best.weight && candidate.reps > best.reps) ||
+          (candidate.weight === best.weight && candidate.reps === best.reps && candidate.prRank > best.prRank) ||
+          (candidate.weight === best.weight && candidate.reps === best.reps && candidate.prRank === best.prRank && candidate.ts > best.ts)
+        ){
+          best = candidate;
         }
       });
 
@@ -6322,20 +6369,15 @@ root.appendChild(el("div", { class:"card" }, [
       let bestDistance = null;
       let bestTime = null;
 
-      entries.forEach(ev => {
-        if(ev?.type !== "exercise_logged") return;
+      workoutLogs.forEach(entry => {
+        if(String(entry?.type || "") !== "cardio") return;
 
-        const p = ev?.payload || {};
-        if(String(p?.workoutType || "") !== "cardio") return;
-
-        const prCount = Number(p?.prCount || 0);
-        if(!(Number.isFinite(prCount) && prCount > 0)) return;
-
-        const pace = Number(p?.summary?.paceSecPerUnit);
-        const distance = Number(p?.summary?.distance);
-        const timeSec = Number(p?.summary?.timeSec);
-        const name = String(p?.exerciseName || "Cardio");
-        const ts = toTs(ev);
+        const summary = entry?.summary || {};
+        const pace = Number(summary?.paceSecPerUnit);
+        const distance = Number(summary?.distance);
+        const timeSec = Number(summary?.timeSec);
+        const name = getExerciseNameFromLog(entry, "Cardio");
+        const ts = toTsFromLog(entry);
 
         if(Number.isFinite(pace) && pace > 0){
           if(!bestPace || pace < bestPace.pace || (pace === bestPace.pace && ts > bestPace.ts)){
@@ -6371,11 +6413,8 @@ root.appendChild(el("div", { class:"card" }, [
       }
 
       if(bestTime){
-        const whole = Math.floor(bestTime.timeSec);
-        const m = Math.floor(whole / 60);
-        const s = whole % 60;
         return {
-          value: `${m}:${String(s).padStart(2, "0")}`,
+          value: fmtTimeSafe(bestTime.timeSec),
           meta: bestTime.name
         };
       }
@@ -6384,10 +6423,13 @@ root.appendChild(el("div", { class:"card" }, [
     })();
 
     const totalPRs = (() => {
-      return entries.reduce((sum, ev) => {
-        if(ev?.type !== "exercise_logged") return sum;
-        const n = Number(ev?.payload?.prCount || 0);
-        return sum + (Number.isFinite(n) ? n : 0);
+      return workoutLogs.reduce((sum, entry) => {
+        const pr = entry?.pr || {};
+        return sum
+          + (pr?.isPRWeight ? 1 : 0)
+          + (pr?.isPR1RM ? 1 : 0)
+          + (pr?.isPRVolume ? 1 : 0)
+          + (pr?.isPRPace ? 1 : 0);
       }, 0);
     })();
 
@@ -6580,7 +6622,7 @@ root.appendChild(el("div", { class:"card" }, [
           el("div", {
             class:"note",
             style:"margin:4px 0 0 0; opacity:.82;"
-          }, ["Pulled from your shared profile activity and active routine."])
+          }, ["Pulled from all logged workouts and your active routine."])
         ])
       ]),
 
@@ -6591,14 +6633,14 @@ root.appendChild(el("div", { class:"card" }, [
       }, [
         metricCard(
           "Best Strength PR",
-          strengthBest ? fmtNum(strengthBest.weight) : "—",
-          strengthBest ? strengthBest.name : "No strength PR shared"
+          strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : "—",
+          strengthBest ? strengthBest.name : "No weightlifting logs yet"
         ),
 
         metricCard(
           "Best Cardio PR",
           cardioBest ? cardioBest.value : "—",
-          cardioBest ? cardioBest.meta : "No cardio PR shared"
+          cardioBest ? cardioBest.meta : "No cardio logs yet"
         ),
 
         metricCard(
@@ -6611,7 +6653,7 @@ root.appendChild(el("div", { class:"card" }, [
         metricCard(
           "Total PRs",
           String(totalPRs),
-          totalPRs === 1 ? "PR shared" : "PRs shared"
+          totalPRs === 1 ? "PR across all logs" : "PRs across all logs"
         )
       ])
     ]);
