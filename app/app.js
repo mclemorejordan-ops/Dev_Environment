@@ -5794,8 +5794,9 @@ root.appendChild(el("div", { class:"card" }, [
     const follows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
     const followers = (Social.getFollowers ? Social.getFollowers() : followersNow) || [];
 
-    // Posts count (UI-only; no new storage keys)
-    const postCount = (Array.isArray(feedList) ? feedList : []).filter(ev =>
+        // Posts count (UI-only; no new storage keys)
+    const postCount = (Social.getFeed ? Social.getFeed() : []).filter(ev =>
+      String(ev?.actorId || "") === String(user?.id || "") &&
       String(ev?.type || "") === "workout_completed"
     ).length;
 
