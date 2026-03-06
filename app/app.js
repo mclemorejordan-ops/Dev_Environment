@@ -6066,7 +6066,7 @@ root.appendChild(el("div", { class:"card" }, [
     return null;
   })();
 
-           const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
+            const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
     const entries = Array.isArray(feedList) ? feedList : [];
 
     const toTs = (ev) => {
@@ -6079,7 +6079,7 @@ root.appendChild(el("div", { class:"card" }, [
       const x = Number(n);
       if(!Number.isFinite(x)) return "—";
       const rounded = Math.round(x * 10) / 10;
-      return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+      return String(rounded);
     };
 
     const fmtPaceSafe = (sec) => {
@@ -6090,15 +6090,6 @@ root.appendChild(el("div", { class:"card" }, [
       const r = whole % 60;
       return `${m}:${String(r).padStart(2, "0")} / unit`;
     };
-
-    const uniquePostedDays = (() => {
-      const set = new Set();
-      entries.forEach(ev => {
-        const d = String(ev?.payload?.dateISO || "").slice(0, 10);
-        if(d) set.add(d);
-      });
-      return set.size;
-    })();
 
     const strengthBest = (() => {
       let best = null;
@@ -6202,42 +6193,183 @@ root.appendChild(el("div", { class:"card" }, [
       }, 0);
     })();
 
-    const metricCard = (label, value, meta) => el("div", {
-      style:[
-        "display:flex",
-        "flex-direction:column",
-        "gap:4px",
-        "padding:12px",
-        "border-radius:14px",
-        "border:1px solid rgba(255,255,255,.10)",
-        "background:rgba(255,255,255,.05)",
-        "min-width:0"
-      ].join(";")
-    }, [
-      el("div", {
-        style:"font-size:11px; font-weight:900; letter-spacing:.2px; opacity:.72; text-transform:uppercase;"
-      }, [label]),
-      el("div", {
+    const activeRoutine = (Routines && typeof Routines.getActive === "function")
+      ? Routines.getActive()
+      : null;
+
+    function openProfileRoutineModal(){
+      const routine = (Routines && typeof Routines.getActive === "function")
+        ? Routines.getActive()
+        : null;
+
+      if(!routine){
+        showToast("No active routine");
+        return;
+      }
+
+      const bodyNode = el("div", {}, [
+        el("div", { class:"note", text:"Read-only view of your current active routine." }),
+        el("div", { style:"height:10px" }),
+
+        ...(routine.days || []).length
+          ? (routine.days || [])
+              .slice()
+              .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+              .map((day, idx) => {
+                const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
+
+                return el("div", {
+                  style:[
+                    "padding:12px",
+                    "border-radius:14px",
+                    "border:1px solid rgba(255,255,255,.10)",
+                    "background:rgba(255,255,255,.05)",
+                    "margin-bottom:8px"
+                  ].join(";")
+                }, [
+                  el("div", {
+                    style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
+                  }, [
+                    el("div", {
+                      style:"font-weight:1000; font-size:14px;"
+                    }, [day?.label || `Day ${idx + 1}`]),
+
+                    day?.isRest
+                      ? el("div", {
+                          style:[
+                            "padding:6px 10px",
+                            "border-radius:999px",
+                            "border:1px solid rgba(255,255,255,.10)",
+                            "background:rgba(255,255,255,.06)",
+                            "font-size:11px",
+                            "font-weight:900",
+                            "opacity:.86"
+                          ].join(";")
+                        }, ["Rest"])
+                      : el("div", {
+                          class:"note",
+                          style:"margin:0;"
+                        }, [exercises.length === 1 ? "1 exercise" : `${exercises.length} exercises`])
+                  ]),
+
+                  el("div", { style:"height:8px" }),
+
+                  day?.isRest
+                    ? el("div", {
+                        class:"note",
+                        style:"margin:0; opacity:.86;"
+                      }, ["Rest day"])
+                    : (
+                        exercises.length
+                          ? el("div", {
+                              style:"display:flex; flex-direction:column; gap:6px;"
+                            }, exercises.map((rx, exIdx) => {
+                              const exName = resolveExerciseName(rx?.type, rx?.exerciseId, rx?.nameSnap || "Exercise");
+                              return el("div", {
+                                style:[
+                                  "display:flex",
+                                  "align-items:center",
+                                  "justify-content:space-between",
+                                  "gap:10px",
+                                  "padding:8px 10px",
+                                  "border-radius:12px",
+                                  "background:rgba(255,255,255,.04)",
+                                  "border:1px solid rgba(255,255,255,.06)"
+                                ].join(";")
+                              }, [
+                                el("div", {
+                                  style:"min-width:0; display:flex; flex-direction:column; gap:2px;"
+                                }, [
+                                  el("div", {
+                                    style:[
+                                      "font-weight:900",
+                                      "font-size:13px",
+                                      "overflow:hidden",
+                                      "text-overflow:ellipsis",
+                                      "white-space:nowrap"
+                                    ].join(";")
+                                  }, [exName]),
+                                  el("div", {
+                                    class:"note",
+                                    style:"margin:0; text-transform:capitalize;"
+                                  }, [String(rx?.type || "exercise")])
+                                ]),
+                                el("div", {
+                                  style:"font-size:11px; font-weight:900; opacity:.7; flex:0 0 auto;"
+                                }, [`#${exIdx + 1}`])
+                              ]);
+                            }))
+                          : el("div", {
+                              class:"note",
+                              style:"margin:0; opacity:.86;"
+                            }, ["No exercises added"])
+                      )
+                ]);
+              })
+          : [
+              el("div", {
+                class:"note",
+                style:"margin:0;"
+              }, ["No days found in the active routine."])
+            ]
+      ]);
+
+      Modal.open({
+        title: routine?.name || "Workout Routine",
+        bodyNode
+      });
+    }
+
+    const metricCard = (label, value, meta, opts={}) => {
+      const clickable = typeof opts?.onClick === "function";
+      const tag = clickable ? "button" : "div";
+
+      return el(tag, {
+        ...(clickable ? { onClick: opts.onClick, type:"button" } : {}),
         style:[
-          "font-size:18px",
-          "font-weight:1000",
-          "line-height:1.1",
-          "overflow:hidden",
-          "text-overflow:ellipsis",
-          "white-space:nowrap"
-        ].join(";")
-      }, [value]),
-      el("div", {
-        class:"note",
-        style:[
-          "margin:0",
-          "opacity:.82",
-          "overflow:hidden",
-          "text-overflow:ellipsis",
-          "white-space:nowrap"
-        ].join(";")
-      }, [meta])
-    ]);
+          "display:flex",
+          "flex-direction:column",
+          "gap:4px",
+          "padding:12px",
+          "border-radius:14px",
+          "border:1px solid rgba(255,255,255,.10)",
+          "background:rgba(255,255,255,.05)",
+          "min-width:0",
+          clickable ? "cursor:pointer" : "",
+          clickable ? "text-align:left" : "",
+          clickable ? "appearance:none" : "",
+          clickable ? "-webkit-appearance:none" : "",
+          clickable ? "width:100%" : "",
+          clickable ? "color:inherit" : "",
+          clickable ? "font:inherit" : "",
+          clickable ? "outline:none" : ""
+        ].filter(Boolean).join(";")
+      }, [
+        el("div", {
+          style:"font-size:11px; font-weight:900; letter-spacing:.2px; opacity:.72; text-transform:uppercase;"
+        }, [label]),
+        el("div", {
+          style:[
+            "font-size:18px",
+            "font-weight:1000",
+            "line-height:1.1",
+            "overflow:hidden",
+            "text-overflow:ellipsis",
+            "white-space:nowrap"
+          ].join(";")
+        }, [value]),
+        el("div", {
+          class:"note",
+          style:[
+            "margin:0",
+            "opacity:.82",
+            "overflow:hidden",
+            "text-overflow:ellipsis",
+            "white-space:nowrap"
+          ].join(";")
+        }, [meta])
+      ]);
+    };
 
     return el("div", { class:"card" }, [
       el("div", {
@@ -6250,7 +6382,7 @@ root.appendChild(el("div", { class:"card" }, [
           el("div", {
             class:"note",
             style:"margin:4px 0 0 0; opacity:.82;"
-          }, ["Pulled directly from your shared My Profile activity."])
+          }, ["Pulled from your shared profile activity and active routine."])
         ])
       ]),
 
@@ -6272,9 +6404,10 @@ root.appendChild(el("div", { class:"card" }, [
         ),
 
         metricCard(
-          "Consistency",
-          String(uniquePostedDays),
-          uniquePostedDays === 1 ? "Posted day" : "Posted days"
+          "Workout Routine",
+          activeRoutine?.name || "No active routine",
+          activeRoutine ? "Tap to view routine" : "Create or set a routine",
+          activeRoutine ? { onClick: openProfileRoutineModal } : {}
         ),
 
         metricCard(
