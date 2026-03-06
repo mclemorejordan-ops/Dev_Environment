@@ -6677,7 +6677,22 @@ root.appendChild(el("div", { class:"card" }, [
       ]);
     };
 
-    return el("div", { class:"card" }, [
+      return el("div", {}, [
+
+  // Back navigation (Strava / Instagram style)
+  (!isOwnHeaderProfile) ? el("div", {
+    style:"display:flex; align-items:center; gap:6px; margin-bottom:10px; font-weight:700; cursor:pointer;",
+    onClick: () => {
+      ui.friendId = "";
+      ui.view = "profile";
+      renderView();
+    }
+  }, [
+    el("span", { text:"←" }),
+    el("span", { text: dn })
+  ]) : null,
+
+  el("div", { class:"card" }, [
       el("div", {
         style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
       }, [
