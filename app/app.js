@@ -6065,9 +6065,98 @@ root.appendChild(el("div", { class:"card" }, [
 
     return null;
   })();
+
+       const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
+    const followsCount = ((Social.getFollows ? Social.getFollows() : followsNow) || []).length;
+    const followersCount = ((Social.getFollowers ? Social.getFollowers() : followersNow) || []).length;
+    const postsCount = (feedList || []).length;
+    const displayName = String(
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      user?.email ||
+      "You"
+    );
+
+    const statPill = (label, value) => el("div", {
+      style:[
+        "display:flex",
+        "flex-direction:column",
+        "align-items:flex-start",
+        "gap:2px",
+        "padding:10px 12px",
+        "border-radius:14px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background:rgba(255,255,255,.05)",
+        "min-width:88px",
+        "flex:1 1 0"
+      ].join(";")
+    }, [
+      el("div", {
+        style:"font-size:11px; font-weight:900; letter-spacing:.2px; opacity:.72; text-transform:uppercase;"
+      }, [label]),
+      el("div", {
+        style:"font-size:18px; font-weight:1000; line-height:1.1;"
+      }, [String(value)])
+    ]);
+
+    return el("div", { class:"card" }, [
+      el("div", {
+        style:"display:flex; align-items:center; gap:12px;"
+      }, [
+        el("div", {
+          style:[
+            "width:54px",
+            "height:54px",
+            "border-radius:999px",
+            "display:grid",
+            "place-items:center",
+            "font-weight:1000",
+            "font-size:20px",
+            "border:1px solid rgba(255,255,255,.12)",
+            "background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05))",
+            "flex:0 0 auto"
+          ].join(";")
+        }, [displayName.trim().charAt(0).toUpperCase() || "Y"]),
+
+        el("div", {
+          style:"min-width:0; display:flex; flex-direction:column; gap:4px;"
+        }, [
+          el("div", {
+            style:[
+              "font-size:18px",
+              "font-weight:1000",
+              "line-height:1.15",
+              "overflow:hidden",
+              "text-overflow:ellipsis",
+              "white-space:nowrap"
+            ].join(";")
+          }, [displayName]),
+
+          el("div", {
+            class:"note",
+            style:"margin:0; opacity:.82;"
+          }, ["Your shared activity and workout posts."])
+        ])
+      ]),
+
+      el("div", { style:"height:12px" }),
+
+      el("div", {
+        style:"display:flex; gap:8px; flex-wrap:wrap;"
+      }, [
+        statPill("Posts", postsCount),
+        statPill("Followers", followersCount),
+        statPill("Following", followsCount)
+      ])
+    ]);
+  })() : null;
      
+    if(profileHeaderCard){
+      root.appendChild(profileHeaderCard);
+    }
+
     root.appendChild(el("div", { class:"card" }, [
-el("div", {
+  el("div", {
   style:"display:flex; align-items:center; gap:8px;"
 }, [
   el("div", { class:"note", text: bodyTitle }),
