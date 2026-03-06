@@ -6677,69 +6677,52 @@ root.appendChild(el("div", { class:"card" }, [
       ]);
     };
 
-     return el("div", {}, [
+    return el("div", { class:"card" }, [
+      el("div", {
+        style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
+      }, [
+        el("div", {}, [
+          el("div", {
+            style:"font-size:18px; font-weight:1000; line-height:1.15;"
+          }, ["Highlights"]),
+          el("div", {
+            class:"note",
+            style:"margin:4px 0 0 0; opacity:.82;"
+          }, ["Pulled from all logged workouts and your active routine."])
+        ])
+      ]),
 
-  // Back navigation (Strava / Instagram style)
-  !isOwnHeaderProfile && el("div", {
-    style:"display:flex; align-items:center; gap:6px; margin-bottom:10px; font-weight:700; cursor:pointer;",
-    onClick: () => {
-      ui.friendId = "";
-      ui.view = "profile";
-      renderView();
-    }
-  }, [
-    el("span", { text:"←" }),
-    el("span", { text: dn })
-  ]),
+      el("div", { style:"height:12px" }),
 
-  el("div", { class:"card" }, [
-    el("div", {
-      style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
-    }, [
-      el("div", {}, [
-        el("div", {
-          style:"font-size:18px; font-weight:1000; line-height:1.15;"
-        }, ["Highlights"]),
-        el("div", {
-          class:"note",
-          style:"margin:4px 0 0 0; opacity:.82;"
-        }, ["Pulled from all logged workouts and your active routine."])
+      el("div", {
+        style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
+      }, [
+        metricCard(
+          "Best Strength PR",
+          strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : "—",
+          strengthBest ? strengthBest.name : "No weightlifting logs yet"
+        ),
+
+        metricCard(
+          "Best Cardio PR",
+          cardioBest ? cardioBest.value : "—",
+          cardioBest ? cardioBest.meta : "No cardio logs yet"
+        ),
+
+        metricCard(
+          "Workout Routine",
+          activeRoutine?.name || "No active routine",
+          activeRoutine ? "Tap to view routine" : "Create or set a routine",
+          activeRoutine ? { onClick: openProfileRoutineModal } : {}
+        ),
+
+        metricCard(
+          "Total PRs",
+          String(totalPRs),
+          totalPRs === 1 ? "PR across all logs" : "PRs across all logs"
+        )
       ])
-    ]),
-
-    el("div", { style:"height:12px" }),
-
-    el("div", {
-      style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
-    }, [
-      metricCard(
-        "Best Strength PR",
-        strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : "—",
-        strengthBest ? strengthBest.name : "No weightlifting logs yet"
-      ),
-
-      metricCard(
-        "Best Cardio PR",
-        cardioBest ? cardioBest.value : "—",
-        cardioBest ? cardioBest.meta : "No cardio logs yet"
-      ),
-
-      metricCard(
-        "Workout Routine",
-        activeRoutine?.name || "No active routine",
-        activeRoutine ? "Tap to view routine" : "Create or set a routine",
-        activeRoutine ? { onClick: openProfileRoutineModal } : {}
-      ),
-
-      metricCard(
-        "Total PRs",
-        String(totalPRs),
-        totalPRs === 1 ? "PR across all logs" : "PRs across all logs"
-      )
-    ])
-  ])
-
-]);
+    ]);
   })() : null;
      
     if(profileHeaderCard){
