@@ -6084,16 +6084,8 @@ function openFollowerNotifsModal(){
   .map(x => String(x))
   .filter(id => {
     if(!q) return true;
-
     const dn = ((Social.nameFor && Social.nameFor(id)) || "User").toLowerCase();
-    const un = normalizeUsername((Social.usernameFor && Social.usernameFor(id)) || "");
-    const handle = un ? `@${un}` : "";
-
-    return (
-      dn.includes(q) ||
-      un.includes(q.replace(/^@+/, "")) ||
-      handle.includes(q)
-    );
+    return dn.includes(q);
   })
   .sort((a,b) => {
     const da = ((Social.nameFor && Social.nameFor(a)) || "User").toLowerCase();
