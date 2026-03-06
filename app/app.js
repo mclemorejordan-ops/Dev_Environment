@@ -145,10 +145,6 @@ function isValidUsername(v){
   return /^[a-z0-9_]{3,20}$/.test(normalizeUsername(v));
 }
 
-function isValidUsername(v){
-  return /^[a-z0-9_]{3,20}$/.test(normalizeUsername(v));
-}
-
 async function getUsernameOwnerId(username){
   const u = normalizeUsername(username);
   if(!u) return null;
@@ -1543,71 +1539,6 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
   await upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
 }
 
-async function flushOutbox(){
-  const sb = await ensureClient();
-  if(!sb || !_user) return;
-
-  const items = readOutbox();
-  if(!items.length) return;
-
-  const keep = [];
-  for(const it of items){
-    try{
-      const op = String(it?.op || "insert_event");
-
-      if(op === "upsert_workout_completed"){
-        const payload = it?.payload || {};
-        const existing = await findExistingWorkoutCompletedEvent({
-          dateISO: payload?.dateISO,
-          routineId: payload?.routineId,
-          dayId: payload?.dayId
-        });
-
-        if(existing?.id != null){
-          const { error } = await sb
-            .from("activity_events")
-            .update({ payload })
-            .eq("id", existing.id)
-            .eq("actor_id", _user.id);
-          if(error) throw error;
-        }else if(String(payload?.dateISO || "") === String(Dates.todayISO())){
-          const { error } = await sb.from("activity_events").insert({
-            actor_id: _user.id,
-            type: "workout_completed",
-            payload
-          });
-          if(error) throw error;
-        }
-        continue;
-      }
-
-      if(op === "delete_workout_completed"){
-        const payload = it?.payload || {};
-        const existing = await findExistingWorkoutCompletedEvent({
-          dateISO: payload?.dateISO,
-          routineId: payload?.routineId,
-          dayId: payload?.dayId
-        });
-
-        if(existing?.id != null){
-          const { error } = await sb
-            .from("activity_events")
-            .delete()
-            .eq("id", existing.id)
-            .eq("actor_id", _user.id);
-          if(error) throw error;
-        }
-        continue;
-      }
-
-      const { error } = await sb.from("activity_events").insert(it);
-      if(error) throw error;
-    }catch(_){
-      keep.push(it);
-    }
-  }
-  writeOutbox(keep);
-}
   // flush queued events when online
   window.addEventListener("online", () => { try{ flushOutbox(); }catch(_){} });
 
@@ -8629,19 +8560,20 @@ const profileBody = el("div", {}, [
 
   el("div", { style:"height:12px" }),
   el("div", { class:"btnrow" }, [
-    el("button", { class:"btn primary", onClick: () => {
-      try{ saveProfile(); }
-      catch(e){
-        Modal.open({
-          title:"Save failed",
-          bodyNode: el("div", {}, [
-            el("div", { class:"note", text: e?.message || "Could not save settings." }),
-            el("div", { style:"height:12px" }),
-            el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
-          ])
-        });
-      }
-    }}, ["Save changes"])
+    el("button", { class:"btn primary", onClick: async () => {
+  try{
+    await saveProfile();
+  }catch(e){
+    Modal.open({
+      title:"Save failed",
+      bodyNode: el("div", {}, [
+        el("div", { class:"note", text: e?.message || "Could not save settings." }),
+        el("div", { style:"height:12px" }),
+        el("button", { class:"btn primary", onClick: Modal.close }, ["OK"])
+      ])
+    });
+  }
+}}, ["Save changes"])
   ])
 ]);
 
