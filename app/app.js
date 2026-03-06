@@ -8169,15 +8169,20 @@ const feedLinkRow = el("div", {
 }, [
   el("div", { class:"l", style:"min-width:0;" }, [
     el("div", { style:"min-width:0; flex:1;" }, [
-      el("div", {
-        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [who]),
-      whoHandle ? el("div", {
-        class:"note",
-        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [whoHandle]) : null,
-      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
-    ].filter(Boolean)),
+  el("div", {
+    style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+  }, [who]),
+
+  ((whoHandle || whenLine) ? el("div", {
+    class:"note",
+    style:"margin:3px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+  }, [
+    whoHandle || "",
+    (whoHandle && whenLine) ? " · " : "",
+    whenLine || ""
+  ]) : null)
+
+].filter(Boolean))
 
     el("div", { class:"a", style:"margin-top:8px;", text: title }),
     summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
