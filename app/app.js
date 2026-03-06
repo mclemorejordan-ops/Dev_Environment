@@ -4953,25 +4953,30 @@ statsHost.appendChild(el("div", { class:"pill" }, [
     };
 
     ui.__ptrTouchMove = (ev) => {
-      try{
-        if(getRoute() !== "friends") return;
-        if(!PTR.pulling) return;
-        if(PTR.busy) return;
-        if(getScrollTop() > 0) return;
+  try{
+    if(getRoute() !== "friends") return;
+    if(!PTR.pulling) return;
+    if(PTR.busy) return;
+    if(getScrollTop() > 0) return;
 
-        const t = ev?.touches?.[0];
-        if(!t) return;
+    const t = ev?.touches?.[0];
+    if(!t) return;
 
-        const y = t.clientY || 0;
-        const dy = Math.max(0, y - (PTR.y0 || 0));
-        PTR.dy = dy;
+    const y = t.clientY || 0;
+    const dy = Math.max(0, y - (PTR.y0 || 0));
+    PTR.dy = dy;
 
-        const ready = dy >= PTR_ARM;
-        PTR.ready = ready;
+    // ✅ iOS PWA: prevent whole-screen rubber-band ONLY while pulling down at top
+    if(dy > 0){
+      try{ ev.preventDefault(); }catch(_){}
+    }
 
-        ptrRender(dy, ready, false, false);
-      }catch(_){}
-    };
+    const ready = dy >= PTR_ARM;
+    PTR.ready = ready;
+
+    ptrRender(dy, ready, false, false);
+  }catch(_){}
+};
 
     ui.__ptrTouchEnd = () => {
       try{
@@ -4993,7 +4998,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
     try{
       window.addEventListener("touchstart", ui.__ptrTouchStart, { passive:true });
-      window.addEventListener("touchmove", ui.__ptrTouchMove, { passive:true });
+      window.addEventListener("touchmove", ui.__ptrTouchMove, { passive:false });
       window.addEventListener("touchend", ui.__ptrTouchEnd, { passive:true });
       window.addEventListener("touchcancel", ui.__ptrTouchEnd, { passive:true });
     }catch(_){}
