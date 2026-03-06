@@ -5794,13 +5794,10 @@ root.appendChild(el("div", { class:"card" }, [
     const follows = (Social.getFollows ? Social.getFollows() : followsNow) || [];
     const followers = (Social.getFollowers ? Social.getFollowers() : followersNow) || [];
 
-    // Mutual count (UI-only; no new storage keys)
-    const followsSet = {};
-    follows.forEach(id => { const k = String(id || ""); if(k) followsSet[k] = true; });
-    const mutualCount = (followers || []).reduce((n, id) => {
-      const k = String(id || "");
-      return n + (k && followsSet[k] ? 1 : 0);
-    }, 0);
+    // Posts count (UI-only; no new storage keys)
+    const postCount = (Array.isArray(feedList) ? feedList : []).filter(ev =>
+      String(ev?.type || "") === "workout_completed"
+    ).length;
 
     const notifCount = (Social.getNotifications ? Social.getNotifications().length : 0);
 
@@ -6013,7 +6010,7 @@ root.appendChild(el("div", { class:"card" }, [
       }, [
         el("div", { style:"font-size:18px; font-weight:1100;", text: String(value || 0) }),
         el("div", { style:"font-size:12px; opacity:.68; font-weight:950;", text: label })
-      ]))("Mutual", mutualCount, () => openConn("mutual"))
+            ]))("Posts", postCount, null)
     ]) : null;
 
            // View toggle (UI-only): Feed vs My Profile (own activity)
