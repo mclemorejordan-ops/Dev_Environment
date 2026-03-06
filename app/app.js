@@ -329,19 +329,17 @@ async function toggleFeedLike(eventId){
       // ✅ reconcile from base table (prevents stale view flicker)
       await reconcileLikeForEvent(eventId);
       notify();
-    }catch(e){
-      // keep your existing behavior (don’t refactor other logic)
-      _feed = (data || []).map(r => ({
-        id: r.id,
-        actorId: r.actor_id,
-        type: r.type,
-        payload: r.payload || {},
-        createdAt: r.created_at
-      }));
-
+        }catch(e){
+      // keep your existing behavior intent: get back to a consistent server-truth UI
       try{
-        await fetchFeedLikes((_feed || []).map(x => x.id));
-      }catch(_){}
+        // fetchFeed() already rebuilds _feed and hydrates names/likes/comment counts
+        await fetchFeed();
+      }catch(_){
+        // If feed fetch fails, at least try to re-hydrate likes for whatever feed we have
+        try{
+          await fetchFeedLikes((_feed || []).map(x => x.id));
+        }catch(__){}
+      }
       throw e;
     }
   } finally {
@@ -9179,6 +9177,20 @@ navigate = Router.navigate;
 // Only re-render on Friends or Settings routes to avoid extra work elsewhere.
 try{
   const sUI = UIState.social || (UIState.social = {});
+
+  // Coalesce rapid Social.notify() bursts into a single render per frame.
+  // This prevents tap targets from being torn down/rebuilt mid-tap (iOS “missed likes” / “settle”).
+  if(!sUI.__scheduleRender){
+    sUI.__renderRaf = 0;
+    sUI.__scheduleRender = () => {
+      if(sUI.__renderRaf) return;
+      sUI.__renderRaf = requestAnimationFrame(() => {
+        sUI.__renderRaf = 0;
+        try{ renderView(); }catch(_){}
+      });
+    };
+  }
+
   if(!sUI.__routeSub && Social?.onChange){
     sUI.__routeSub = Social.onChange(() => {
       const r = (typeof getCurrentRoute === "function")
@@ -9186,7 +9198,7 @@ try{
         : (String(location.hash || "").replace(/^#/, "") || "home");
 
       if(r === "friends" || r === "settings"){
-        try{ renderView(); }catch(_){}
+        try{ sUI.__scheduleRender(); }catch(_){}
       }
     });
   }
