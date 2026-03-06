@@ -1064,15 +1064,47 @@ function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, de
   }
 
 
-async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
-  // Only publish if configured + signed in
+function __sameWorkoutPayload(payload, { dateISO, routineId, dayId }){
+  return (
+    String(payload?.dateISO || "") === String(dateISO || "") &&
+    String(payload?.routineId || "") === String(routineId || "") &&
+    String(payload?.dayId || "") === String(dayId || "")
+  );
+}
+
+async function findExistingWorkoutCompletedEvent({ dateISO, routineId, dayId }){
+  const sb = await ensureClient();
+  if(!sb || !_user) return null;
+
+  try{
+    const { data, error } = await sb
+      .from("activity_events")
+      .select("id, payload, created_at")
+      .eq("actor_id", _user.id)
+      .eq("type", "workout_completed")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if(error) throw error;
+
+    return (data || []).find(row =>
+      __sameWorkoutPayload(row?.payload, { dateISO, routineId, dayId })
+    ) || null;
+  }catch(_){
+    return null;
+  }
+}
+
+function queueSocialOp(op){
+  const out = readOutbox();
+  out.unshift(op);
+  writeOutbox(out.slice(0, 100));
+}
+
+async function upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
   if(!isConfigured()) return;
   await ensureClient();
   if(!_user) return;
-
-  // ✅ Same Calendar Day only (prevents post-dated feed events)
-  const todayISO = Dates.todayISO();
-  if(String(dateISO || "") !== String(todayISO)) return;
 
   const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
   const row = {
@@ -1081,21 +1113,144 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     payload: ev.payload
   };
 
-  // Try immediate insert, else queue
+  const todayISO = Dates.todayISO();
+
   try{
     const sb = await ensureClient();
     if(!sb) return;
+
+    const existing = await findExistingWorkoutCompletedEvent({ dateISO, routineId, dayId });
+
+    if(existing?.id != null){
+      const { error } = await sb
+        .from("activity_events")
+        .update({ payload: row.payload })
+        .eq("id", existing.id)
+        .eq("actor_id", _user.id);
+
+      if(error) throw error;
+      fetchFeed();
+      return;
+    }
+
+    // Only create a brand-new workout feed event for the current calendar day.
+    if(String(dateISO || "") !== String(todayISO)) return;
+
     const { error } = await sb.from("activity_events").insert(row);
     if(error) throw error;
     fetchFeed();
   }catch(_){
-    const out = readOutbox();
-    out.unshift(row);
-    writeOutbox(out.slice(0, 100));
+    queueSocialOp({
+      op: "upsert_workout_completed",
+      actor_id: _user.id,
+      type: row.type,
+      payload: row.payload
+    });
   }
 }
-  
 
+async function deleteWorkoutCompletedEvent({ dateISO, routineId, dayId }){
+  if(!isConfigured()) return;
+  await ensureClient();
+  if(!_user) return;
+
+  try{
+    const sb = await ensureClient();
+    if(!sb) return;
+
+    const existing = await findExistingWorkoutCompletedEvent({ dateISO, routineId, dayId });
+    if(!existing?.id) return;
+
+    const { error } = await sb
+      .from("activity_events")
+      .delete()
+      .eq("id", existing.id)
+      .eq("actor_id", _user.id);
+
+    if(error) throw error;
+    fetchFeed();
+  }catch(_){
+    queueSocialOp({
+      op: "delete_workout_completed",
+      actor_id: _user.id,
+      payload: {
+        dateISO: dateISO || null,
+        routineId: routineId || null,
+        dayId: dayId || null
+      }
+    });
+  }
+}
+
+async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+  await upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
+}
+
+async function flushOutbox(){
+  const sb = await ensureClient();
+  if(!sb || !_user) return;
+
+  const items = readOutbox();
+  if(!items.length) return;
+
+  const keep = [];
+  for(const it of items){
+    try{
+      const op = String(it?.op || "insert_event");
+
+      if(op === "upsert_workout_completed"){
+        const payload = it?.payload || {};
+        const existing = await findExistingWorkoutCompletedEvent({
+          dateISO: payload?.dateISO,
+          routineId: payload?.routineId,
+          dayId: payload?.dayId
+        });
+
+        if(existing?.id != null){
+          const { error } = await sb
+            .from("activity_events")
+            .update({ payload })
+            .eq("id", existing.id)
+            .eq("actor_id", _user.id);
+          if(error) throw error;
+        }else if(String(payload?.dateISO || "") === String(Dates.todayISO())){
+          const { error } = await sb.from("activity_events").insert({
+            actor_id: _user.id,
+            type: "workout_completed",
+            payload
+          });
+          if(error) throw error;
+        }
+        continue;
+      }
+
+      if(op === "delete_workout_completed"){
+        const payload = it?.payload || {};
+        const existing = await findExistingWorkoutCompletedEvent({
+          dateISO: payload?.dateISO,
+          routineId: payload?.routineId,
+          dayId: payload?.dayId
+        });
+
+        if(existing?.id != null){
+          const { error } = await sb
+            .from("activity_events")
+            .delete()
+            .eq("id", existing.id)
+            .eq("actor_id", _user.id);
+          if(error) throw error;
+        }
+        continue;
+      }
+
+      const { error } = await sb.from("activity_events").insert(it);
+      if(error) throw error;
+    }catch(_){
+      keep.push(it);
+    }
+  }
+  writeOutbox(keep);
+}
   // flush queued events when online
   window.addEventListener("online", () => { try{ flushOutbox(); }catch(_){} });
 
@@ -1139,6 +1294,8 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     publishLogEvent,
     flushOutbox,
     publishWorkoutCompletedEvent,
+    upsertWorkoutCompletedEvent,
+    deleteWorkoutCompletedEvent,
 
     // likes
     getLikeCount,
@@ -3063,148 +3220,164 @@ if(type === "weightlifting"){
     err.textContent = "";
   }
 
-  function afterSave(savedDateISO, wasComplete=false){
-  Modal.close();
-  repaint();
+    async function afterSave(savedDateISO, wasComplete=false){
+    Modal.close();
+    repaint();
 
-  // If the whole day JUST became complete, auto-complete + attendance + publish (Friends feed)
-  const nowComplete = isDayComplete(savedDateISO, day);
-  if(nowComplete && !wasComplete){
-    attendanceAdd(savedDateISO);
-    showToast("Day completed ✅");
+    const nowComplete = isDayComplete(savedDateISO, day);
 
-    // Friends/Social: publish ONE event for the completed workout (not each exercise/set)
-    try{
-      if(Social && typeof Social.publishWorkoutCompletedEvent === "function"){
-        const entries = (state?.logs?.workouts || []).filter(e =>
-          String(e?.dateISO || "") === String(savedDateISO || "") &&
-          String(e?.routineId || "") === String(routine?.id || "") &&
-          String(e?.dayId || "") === String(day?.id || "")
-        );
+    if(nowComplete){
+      attendanceAdd(savedDateISO);
+      if(!wasComplete) showToast("Day completed ✅");
+      await syncWorkoutCompletedEventForDay(savedDateISO, routine?.id || null, day);
+    }
+  }  
 
-        const exSet = new Set();
-        let totalVolume = 0;
-        let prCount = 0;
+function buildWorkoutEventData(dateISO, routineId, day){
+  const entries = (state?.logs?.workouts || []).filter(e =>
+    String(e?.dateISO || "") === String(dateISO || "") &&
+    String(e?.routineId || "") === String(routineId || "") &&
+    String(e?.dayId || "") === String(day?.id || "")
+  );
 
-        for(const e of entries){
-          if(e?.routineExerciseId) exSet.add(String(e.routineExerciseId));
-          if(Number.isFinite(Number(e?.summary?.totalVolume))) totalVolume += Number(e.summary.totalVolume) || 0;
+  const exSet = new Set();
+  let totalVolume = 0;
+  let prCount = 0;
 
-          const pr = e?.pr || {};
-          prCount += ["isPRWeight","isPR1RM","isPRVolume","isPRPace"].filter(k => pr?.[k]).length;
-        }
-
-        // Build richer "details" so feed items can be tapped for the full breakdown
-let details = null;
-try{
-  // Group by routineExerciseId (one line item per exercise)
-  const byRx = new Map();
   for(const e of entries){
-    const k = String(e?.routineExerciseId || e?.exerciseId || "");
-    if(!k) continue;
-    if(!byRx.has(k)) byRx.set(k, e);
-  }
+    if(e?.routineExerciseId) exSet.add(String(e.routineExerciseId));
+    if(Number.isFinite(Number(e?.summary?.totalVolume))) totalVolume += Number(e.summary.totalVolume) || 0;
 
-  const items = [];
-  for(const e of byRx.values()){
-    const type = String(e?.type || "");
-    const exerciseId = e?.exerciseId || null;
-
-    const exName = (() => {
-      try{
-        // Prefer the library if possible, else fall back
-        const lib = state?.exerciseLibrary?.[type] || [];
-        const found = lib.find(x => String(x.id||"") === String(exerciseId||""));
-        return found?.name || e?.nameSnap || "Exercise";
-      }catch(_){
-        return e?.nameSnap || "Exercise";
-      }
-    })();
-
-    // Top set / rep (or top cardio / core summary)
-    let topText = "";
-    try{
-      if(type === "weightlifting"){
-        const sets = Array.isArray(e?.sets) ? e.sets : [];
-        let best = null;
-        for(const s of sets){
-          const w = Number(s?.weight) || 0;
-          const r = Number(s?.reps) || 0;
-          if(!best || w > best.w) best = { w, r };
-        }
-        if(best) topText = `${best.w}×${best.r}`;
-        else if(Number.isFinite(Number(e?.summary?.bestWeight))) topText = `${Number(e.summary.bestWeight)} (top)`;
-      }else if(type === "cardio"){
-        const d = e?.summary?.distance;
-        const t = e?.summary?.timeSec;
-        const p = e?.summary?.paceSecPerUnit;
-        const dist = (d == null) ? "" : `Dist ${d}`;
-        const time = (t == null) ? "" : `Time ${formatTime(Number(t) || 0)}`;
-        const pace = (p == null) ? "" : `Pace ${formatPace(p)}`;
-        topText = [dist, time, pace].filter(Boolean).join(" • ");
-      }else if(type === "core"){
-        // Core varies; show best available summary
-        const t = e?.summary?.timeSec;
-        const reps = e?.summary?.reps;
-        const sets = e?.summary?.sets;
-        const w = e?.summary?.weight;
-        const parts = [];
-        if(Number.isFinite(Number(sets))) parts.push(`${Number(sets)} sets`);
-        if(Number.isFinite(Number(reps))) parts.push(`${Number(reps)} reps`);
-        if(Number.isFinite(Number(t))) parts.push(`${formatTime(Number(t) || 0)}`);
-        if(Number.isFinite(Number(w)) && Number(w) > 0) parts.push(`${Number(w)} lb`);
-        topText = parts.join(" • ");
-      }
-    }catch(_){}
-
-    // PR badges
     const pr = e?.pr || {};
-    const prBadges = [];
-    if(pr?.isPRWeight) prBadges.push("PR W");
-    if(pr?.isPR1RM) prBadges.push("PR 1RM");
-    if(pr?.isPRVolume) prBadges.push("PR Vol");
-    if(pr?.isPRPace) prBadges.push("PR Pace");
-
-    // Lifetime bests (best-effort: only if engine supports it)
-    let lifetime = null;
-    try{
-      if(LogEngine && typeof LogEngine.lifetimeBests === "function" && exerciseId){
-        lifetime = LogEngine.lifetimeBests(type, exerciseId) || null;
-      }
-    }catch(_){}
-
-    items.push({
-      type,
-      exerciseId,
-      name: exName,
-      topText: topText || "",
-      prBadges,
-      lifetime
-    });
+    prCount += ["isPRWeight","isPR1RM","isPRVolume","isPRPace"].filter(k => pr?.[k]).length;
   }
 
-  details = {
-    dayLabel: day?.label || null,
-    dateISO: savedDateISO || null,
-    items
+  let details = null;
+  try{
+    const byRx = new Map();
+    for(const e of entries){
+      const k = String(e?.routineExerciseId || e?.exerciseId || "");
+      if(!k) continue;
+      if(!byRx.has(k)) byRx.set(k, e);
+    }
+
+    const items = [];
+    for(const e of byRx.values()){
+      const type = String(e?.type || "");
+      const exerciseId = e?.exerciseId || null;
+
+      const exName = (() => {
+        try{
+          const lib = state?.exerciseLibrary?.[type] || [];
+          const found = lib.find(x => String(x.id||"") === String(exerciseId||""));
+          return found?.name || e?.nameSnap || "Exercise";
+        }catch(_){
+          return e?.nameSnap || "Exercise";
+        }
+      })();
+
+      let topText = "";
+      try{
+        if(type === "weightlifting"){
+          const sets = Array.isArray(e?.sets) ? e.sets : [];
+          let best = null;
+          for(const s of sets){
+            const w = Number(s?.weight) || 0;
+            const r = Number(s?.reps) || 0;
+            if(!best || w > best.w) best = { w, r };
+          }
+          if(best) topText = `${best.w}×${best.r}`;
+          else if(Number.isFinite(Number(e?.summary?.bestWeight))) topText = `${Number(e.summary.bestWeight)} (top)`;
+        }else if(type === "cardio"){
+          const d = e?.summary?.distance;
+          const t = e?.summary?.timeSec;
+          const p = e?.summary?.paceSecPerUnit;
+          const dist = (d == null) ? "" : `Dist ${d}`;
+          const time = (t == null) ? "" : `Time ${formatTime(Number(t) || 0)}`;
+          const pace = (p == null) ? "" : `Pace ${formatPace(p)}`;
+          topText = [dist, time, pace].filter(Boolean).join(" • ");
+        }else if(type === "core"){
+          const t = e?.summary?.timeSec;
+          const reps = e?.summary?.reps;
+          const sets = e?.summary?.sets;
+          const w = e?.summary?.weight;
+          const parts = [];
+          if(Number.isFinite(Number(sets))) parts.push(`${Number(sets)} sets`);
+          if(Number.isFinite(Number(reps))) parts.push(`${Number(reps)} reps`);
+          if(Number.isFinite(Number(t))) parts.push(`${formatTime(Number(t) || 0)}`);
+          if(Number.isFinite(Number(w)) && Number(w) > 0) parts.push(`${Number(w)} lb`);
+          topText = parts.join(" • ");
+        }
+      }catch(_){}
+
+      const pr = e?.pr || {};
+      const prBadges = [];
+      if(pr?.isPRWeight) prBadges.push("PR W");
+      if(pr?.isPR1RM) prBadges.push("PR 1RM");
+      if(pr?.isPRVolume) prBadges.push("PR Vol");
+      if(pr?.isPRPace) prBadges.push("PR Pace");
+
+      let lifetime = null;
+      try{
+        if(LogEngine && typeof LogEngine.lifetimeBests === "function" && exerciseId){
+          lifetime = LogEngine.lifetimeBests(type, exerciseId) || null;
+        }
+      }catch(_){}
+
+      items.push({
+        type,
+        exerciseId,
+        name: exName,
+        topText: topText || "",
+        prBadges,
+        lifetime
+      });
+    }
+
+    details = {
+      dayLabel: day?.label || null,
+      dateISO: dateISO || null,
+      items
+    };
+  }catch(_){}
+
+  return {
+    highlights: {
+      exerciseCount: exSet.size,
+      prCount,
+      totalVolume: Math.round(totalVolume * 100) / 100
+    },
+    details
   };
-}catch(_){}
+}
 
-Social.publishWorkoutCompletedEvent({
-  dateISO: savedDateISO,
-  routineId: routine?.id || null,
-  dayId: day?.id || null,
-  highlights: {
-    exerciseCount: exSet.size,
-    prCount,
-    totalVolume: Math.round(totalVolume * 100) / 100
-  },
-  details
-});
+async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
+  try{
+    if(!Social) return;
+
+    const safeDayId = day?.id || null;
+    if(!dateISO || !routineId || !safeDayId) return;
+
+    if(!isDayComplete(dateISO, day)){
+      if(typeof Social.deleteWorkoutCompletedEvent === "function"){
+        await Social.deleteWorkoutCompletedEvent({ dateISO, routineId, dayId: safeDayId });
       }
-    }catch(_){}
-  }
- }   
+      return;
+    }
+
+    if(typeof Social.upsertWorkoutCompletedEvent === "function"){
+      const data = buildWorkoutEventData(dateISO, routineId, day);
+      await Social.upsertWorkoutCompletedEvent({
+        dateISO,
+        routineId,
+        dayId: safeDayId,
+        highlights: data.highlights,
+        details: data.details
+      });
+    }
+  }catch(_){}
+}
+  
 
 function buildWeightliftingForm(){
   const rowsHost = el("div", { class:"logsetWLCard" }, []);
@@ -3844,9 +4017,20 @@ scrollHost.appendChild(el("div", { class:"card" }, [
         el("div", { class:"btnrow" }, [
           el("button", {
             class:"btn danger",
-            onClick: () => {
+                onClick: async () => {
               removeWorkoutEntriesForRoutineDay(selectedDateISO, routine.id, day.id);
               attendanceRemove(selectedDateISO);
+
+              try{
+                if(Social && typeof Social.deleteWorkoutCompletedEvent === "function"){
+                  await Social.deleteWorkoutCompletedEvent({
+                    dateISO: selectedDateISO,
+                    routineId: routine.id,
+                    dayId: day.id
+                  });
+                }
+              }catch(_){}
+
               setNextNudge(null);
               repaint();
               showToast("Marked incomplete");
@@ -4188,8 +4372,22 @@ topCard.appendChild(el("div", {
         el("div", { class:"btnrow" }, [
           el("button", {
             class:"btn danger",
-            onClick: () => {
+                        onClick: async () => {
               removeWorkoutEntryById(entry.id);
+
+              try{
+                const routineId = entry?.routineId || null;
+                const dayId = entry?.dayId || null;
+                const dateISO = entry?.dateISO || null;
+                const day = (routineId && dayId) ? Routines.getDay(routineId, dayId) : null;
+
+                if(day && dateISO){
+                  await syncWorkoutCompletedEventForDay(dateISO, routineId, day);
+                }else if(Social && typeof Social.deleteWorkoutCompletedEvent === "function"){
+                  await Social.deleteWorkoutCompletedEvent({ dateISO, routineId, dayId });
+                }
+              }catch(_){}
+
               Modal.close();
               repaint(true);
               showToast("Deleted");
