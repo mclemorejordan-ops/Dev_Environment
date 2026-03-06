@@ -5719,7 +5719,7 @@ function openFollowerNotifsModal(){
 
   const searchInput = el("input", {
     type:"text",
-    placeholder:"Search connections…",
+    placeholder:"Search name or @username…"
     value: ui.connSearch
   });
   const searchWrap = el("div", { class:"connSearch" }, [
@@ -6081,17 +6081,25 @@ function openFollowerNotifsModal(){
     }
 
     const items = baseList
-      .map(x => String(x))
-      .filter(id => {
-        if(!q) return true;
-        const dn = ((Social.nameFor && Social.nameFor(id)) || "User").toLowerCase();
-        return dn.includes(q);
-      })
-      .sort((a,b) => {
-        const da = ((Social.nameFor && Social.nameFor(a)) || "User").toLowerCase();
-        const db = ((Social.nameFor && Social.nameFor(b)) || "User").toLowerCase();
-        return da.localeCompare(db);
-      });
+  .map(x => String(x))
+  .filter(id => {
+    if(!q) return true;
+
+    const dn = ((Social.nameFor && Social.nameFor(id)) || "User").toLowerCase();
+    const un = normalizeUsername((Social.usernameFor && Social.usernameFor(id)) || "");
+    const handle = un ? `@${un}` : "";
+
+    return (
+      dn.includes(q) ||
+      un.includes(q.replace(/^@+/, "")) ||
+      handle.includes(q)
+    );
+  })
+  .sort((a,b) => {
+    const da = ((Social.nameFor && Social.nameFor(a)) || "User").toLowerCase();
+    const db = ((Social.nameFor && Social.nameFor(b)) || "User").toLowerCase();
+    return da.localeCompare(db);
+  });
 
     if(!items.length){
       bodyHost.appendChild(el("div", { class:"note", text:"No matches." }));
