@@ -6042,26 +6042,243 @@ root.appendChild(el("div", { class:"card" }, [
     return null;
   })();
      
+      // My Profile — Highlights card (separate from Activities)
+  if(highlightsNode){
     root.appendChild(el("div", { class:"card" }, [
-el("div", {
-  style:"display:flex; align-items:center; gap:8px;"
-}, [
-  el("div", { class:"note", text: bodyTitle }),
+      highlightsNode
+    ]));
+  }
 
-  el("div", { style:"opacity:.5;" }, ["|"]),
+  // Activities card
+  root.appendChild(el("div", { class:"card" }, [
+    el("div", {
+      style:"display:flex; align-items:center; gap:8px;"
+    }, [
+      el("div", { class:"note", text: bodyTitle }),
 
-  el("div", {
-    class:"note",
-    style:"opacity:.75;"
-  }, [
-    "Last Updated ",
-    new Date().toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
-  ])
-]),    el("div", { style:"height:10px" }),
+      el("div", { style:"opacity:.5;" }, ["|"]),
+
+      el("div", {
+        class:"note",
+        style:"opacity:.75;"
+      }, [
+        "Last Updated ",
+        new Date().toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
+      ])
+    ]),
+
+    el("div", { style:"height:10px" }),
 
     emptyStateNode,
 
     user && feedList.length ? (() => {
+      const timeline = el("div", {
+        style:"position:relative; display:flex; flex-direction:column; gap:10px;"
+      });
+
+      // Subtle vertical line (timeline feel)
+      timeline.appendChild(el("div", {
+        style:[
+          "position:absolute",
+          "left:18px",
+          "top:42px",
+          "bottom:10px",
+          "width:2px",
+          "background: rgba(255,255,255,.08)",
+          "border-radius: 99px",
+          "pointer-events:none"
+        ].join(";")
+      }));
+
+      // Feed rows
+
+      // Compact timestamp: "Today • 5:14 PM" / "Mon • 6:31 AM"
+      function formatFeedWhen(createdAt){
+        try{
+          if(!createdAt) return { label:"", full:"" };
+          const dt = new Date(createdAt);
+          if(Number.isNaN(dt.getTime())) return { label:"", full:"" };
+
+          const now = new Date();
+          const startOf = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+          const diffDays = Math.round((startOf(now) - startOf(dt)) / 86400000);
+
+          const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
+          const dayLabel = (diffDays === 0) ? "Today"
+            : (diffDays === 1) ? "Yesterday"
+            : dow;
+
+          const timeLabel = dt.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+          return {
+            label: `${dayLabel} • ${timeLabel}`,
+            full: dt.toLocaleString()
+          };
+        }catch(_){
+          return { label:"", full:"" };
+        }
+      }
+
+      function comma(n){
+        try{
+          const x = Number(n);
+          if(!Number.isFinite(x)) return "";
+          return x.toLocaleString();
+        }catch(_){
+          return String(n || "");
+        }
+      }
+
+      // Builds the second line like:
+      // "Pull Day • 5 exercises • PRs: 2 • Vol 12,400"
+      // "Incline walk • 30:00 • 2.1 units • Pace 14:17 / unit"
+      function buildFeedSummary(ev){
+        try{
+          const p = ev.payload || {};
+          const bits = [];
+
+          if(ev.type === "workout_completed"){
+            const d = p.details || null;
+            const h = p.highlights || {};
+
+            if(d?.dayLabel) bits.push(String(d.dayLabel));
+            else bits.push("Workout");
+
+            if(Number(h.exerciseCount) > 0) bits.push(`${Number(h.exerciseCount)} exercises`);
+            if(Number(h.prCount) > 0) bits.push(`PRs: ${Number(h.prCount)}`);
+            if(Number(h.totalVolume) > 0) bits.push(`Vol ${comma(h.totalVolume)}`);
+          }else if(ev.type === "exercise_logged"){
+            const s = p.summary || {};
+            const exName = String(p.exerciseName || "Exercise");
+            bits.push(exName);
+
+            if(Number(s.timeSec) > 0) bits.push(formatTime(Number(s.timeSec)));
+            if(Number(s.distance) > 0) bits.push(`${Number(s.distance)} units`);
+            if(Number(s.paceSecPerUnit) > 0) bits.push(`Pace ${formatPace(Number(s.paceSecPerUnit))}`);
+            if(Number(s.bestWeight) > 0) bits.push(`Top ${comma(s.bestWeight)}`);
+            if(Number(s.totalVolume) > 0) bits.push(`Vol ${comma(s.totalVolume)}`);
+            if(Number(p.prCount) > 0) bits.push(`PRs: ${Number(p.prCount)}`);
+          }else{
+            bits.push("Activity");
+          }
+
+          return bits.join(" • ");
+        }catch(_){
+          return "";
+        }
+      }
+
+      (feedList || []).forEach(ev => {
+        const p = ev.payload || {};
+        const dn = (Social.nameFor && Social.nameFor(ev.actorId)) || p.displayName || "User";
+        const when = formatFeedWhen(ev.createdAt);
+        const title = (ev.type === "workout_completed")
+          ? `${dn} completed a workout`
+          : `${dn} logged ${p.exerciseName || "an exercise"}`;
+
+        timeline.appendChild(el("div", {
+          style:"position:relative; padding-left:36px;"
+        }, [
+          el("div", {
+            style:[
+              "position:absolute",
+              "left:0",
+              "top:2px",
+              "width:28px",
+              "height:28px",
+              "border-radius:999px",
+              "border:1px solid rgba(255,255,255,.14)",
+              "background:rgba(255,255,255,.06)",
+              "display:flex",
+              "align-items:center",
+              "justify-content:center",
+              "font-weight:1000"
+            ].join(";"),
+            text: String((dn || "U")[0] || "U").toUpperCase()
+          }),
+
+          el("div", {
+            style:[
+              "border:1px solid rgba(255,255,255,.10)",
+              "background:rgba(255,255,255,.05)",
+              "border-radius:16px",
+              "padding:12px"
+            ].join(";")
+          }, [
+            el("div", { style:"font-weight:950; line-height:1.25;", text: title }),
+            when.label
+              ? el("div", { class:"note", style:"margin-top:2px;", text: when.label })
+              : null,
+
+            el("div", {
+              class:"note",
+              style:"margin-top:6px; opacity:.9;"
+            }, [
+              buildFeedSummary(ev)
+            ]),
+
+            (() => {
+              const prCount = Number(p?.highlights?.prCount || p?.prCount || 0);
+              if(prCount <= 0) return null;
+
+              return el("div", { style:"margin-top:10px;" }, [
+                el("span", {
+                  style:[
+                    "display:inline-flex",
+                    "align-items:center",
+                    "gap:6px",
+                    "padding:6px 10px",
+                    "border-radius:999px",
+                    "background:rgba(255,255,255,.08)",
+                    "border:1px solid rgba(255,255,255,.10)",
+                    "font-size:12px",
+                    "font-weight:900"
+                  ].join(";"),
+                  text:`🥇 PR x${prCount}`
+                })
+              ]);
+            })(),
+
+            el("div", {
+              style:"height:1px; background:rgba(255,255,255,.08); margin:12px 0 10px;"
+            }),
+
+            el("div", {
+              style:"display:flex; align-items:center; gap:14px; flex-wrap:wrap;"
+            }, [
+              el("button", {
+                class:"btn sm ghost",
+                onClick: async () => {
+                  try{
+                    await Social.toggleFeedLike(ev.id);
+                  }catch(e){
+                    showToast(e?.message || "Couldn't update like");
+                  }
+                }
+              }, [`♡ ${Social.getLikeCount ? Social.getLikeCount(ev.id) : 0}`]),
+
+              el("button", {
+                class:"btn sm ghost",
+                onClick: () => openCommentsModal(ev)
+              }, [`💬 ${Social.getCommentCount ? Social.getCommentCount(ev.id) : 0}`]),
+
+              el("button", {
+                class:"btn sm ghost",
+                onClick: () => openFeedEventModal(ev, title, dn, when.full)
+              }, ["📨"]),
+
+              el("button", {
+                class:"btn sm ghost",
+                style:"margin-left:auto;",
+                onClick: () => openFeedEventModal(ev, title, dn, when.full)
+              }, ["→"])
+            ])
+          ].filter(Boolean))
+        ]));
+      });
+
+      return timeline;
+    })() : null
+  ].filter(Boolean)));
       const timeline = el("div", {
         style:"position:relative; display:flex; flex-direction:column; gap:10px;"
       });
