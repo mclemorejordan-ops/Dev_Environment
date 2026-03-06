@@ -6740,7 +6740,7 @@ root.appendChild(el("div", { class:"card" }, [
           totalPRs === 1 ? "PR across all logs" : "PRs across all logs"
         )
       ])
-    ]);
+    ])
   })() : null;
      
     if(profileHeaderCard){
