@@ -1128,36 +1128,6 @@ async function signInWithOAuth(provider){
     }
   }
 
-  async function fetchProfileWorkoutHighlights(userId){
-    const sb = await ensureClient();
-    const id = String(userId || "").trim();
-    if(!sb || !_user || !id) return [];
-
-    try{
-      const { data, error } = await sb
-        .from("activity_events")
-        .select("id, actor_id, type, payload, created_at")
-        .eq("actor_id", id)
-        .eq("type", "workout_completed")
-        .order("created_at", { ascending: false })
-        .limit(200);
-
-      if(error) throw error;
-
-      try{ await fetchNames([id]); }catch(_){}
-
-      return (data || []).map(r => ({
-        id: r.id,
-        actorId: r.actor_id,
-        type: r.type,
-        payload: r.payload || {},
-        createdAt: r.created_at
-      }));
-    }catch(_){
-      return [];
-    }
-  }
-
   async function fetchFeed(){
   const sb = await ensureClient();
 
@@ -8319,7 +8289,36 @@ weekSelect.value = normalized;
 let hideRestDays = !!state.profile?.hideRestDays;
 let show3DPreview = (state.profile?.show3DPreview !== false);
 
-const hideRestSwitch = el("div", {
+let trackProtein = Number(state.profile?.proteinGoal || 0) > 0;
+
+const proteinRow = el("div", { class:"setRow" }, [
+  el("div", {}, [
+    el("div", { style:"font-weight:820;", text:"Daily Protein" }),
+    el("div", { class:"meta", text:"Used for Home + Protein tracking" })
+  ]),
+  proteinInput
+]);
+
+const proteinSwitchNode = el("div", {
+  class: "switch" + (trackProtein ? " on" : ""),
+  onClick: () => {
+    trackProtein = !trackProtein;
+    proteinSwitchNode.classList.toggle("on", trackProtein);
+    proteinRow.style.display = trackProtein ? "" : "none";
+  }
+});
+
+const trackProteinRow = el("div", { class:"setRow" }, [
+  el("div", {}, [
+    el("div", { style:"font-weight:820;", text:"Track Protein" }),
+    el("div", { class:"meta", text:"Turn off if you don’t want protein goals right now" })
+  ]),
+  proteinSwitchNode
+]);
+
+proteinRow.style.display = trackProtein ? "" : "none";
+           
+  const hideRestSwitch = el("div", {
   class: "switch" + (hideRestDays ? " on" : ""),
   onClick: () => {
     hideRestDays = !hideRestDays;
