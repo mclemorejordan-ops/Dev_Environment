@@ -6705,42 +6705,41 @@ root.appendChild(el("div", { class:"card" }, [
           style:"margin:4px 0 0 0; opacity:.82;"
         }, ["Pulled from all logged workouts and your active routine."])
       ])
+    ]),
+
+    el("div", { style:"height:12px" }),
+
+    el("div", {
+      style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
+    }, [
+      metricCard(
+        "Best Strength PR",
+        strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : "—",
+        strengthBest ? strengthBest.name : "No weightlifting logs yet"
+      ),
+
+      metricCard(
+        "Best Cardio PR",
+        cardioBest ? cardioBest.value : "—",
+        cardioBest ? cardioBest.meta : "No cardio logs yet"
+      ),
+
+      metricCard(
+        "Workout Routine",
+        activeRoutine?.name || "No active routine",
+        activeRoutine ? "Tap to view routine" : "Create or set a routine",
+        activeRoutine ? { onClick: openProfileRoutineModal } : {}
+      ),
+
+      metricCard(
+        "Total PRs",
+        String(totalPRs),
+        totalPRs === 1 ? "PR across all logs" : "PRs across all logs"
+      )
     ])
   ])
 
 ]);
-
-      el("div", { style:"height:12px" }),
-
-      el("div", {
-        style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
-      }, [
-        metricCard(
-          "Best Strength PR",
-          strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : "—",
-          strengthBest ? strengthBest.name : "No weightlifting logs yet"
-        ),
-
-        metricCard(
-          "Best Cardio PR",
-          cardioBest ? cardioBest.value : "—",
-          cardioBest ? cardioBest.meta : "No cardio logs yet"
-        ),
-
-        metricCard(
-          "Workout Routine",
-          activeRoutine?.name || "No active routine",
-          activeRoutine ? "Tap to view routine" : "Create or set a routine",
-          activeRoutine ? { onClick: openProfileRoutineModal } : {}
-        ),
-
-        metricCard(
-          "Total PRs",
-          String(totalPRs),
-          totalPRs === 1 ? "PR across all logs" : "PRs across all logs"
-        )
-      ])
-    ])
   })() : null;
      
     if(profileHeaderCard){
