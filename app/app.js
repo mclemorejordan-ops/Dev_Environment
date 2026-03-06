@@ -459,6 +459,9 @@ async function deleteFeedComment(commentId, eventId){
   let _pollTimer = null;
   let _listeners = new Set();
 
+  // Prevent route re-renders from interrupting OAuth launch
+  let _authInFlight = false;
+
   async function loadSupabaseModule(){
     if(_mod) return _mod;
     // Supabase JS v2 as ESM via jsDelivr (allowed by CSP)
@@ -497,6 +500,9 @@ if(_user){
     try{
       _sb.auth.onAuthStateChange((_event, session) => {
   _user = session?.user || null;
+
+  // OAuth handoff is complete once auth state changes
+  _authInFlight = false;
 
   if(_user){
     try{ upsertMyProfile(); }catch(_){}
@@ -758,11 +764,18 @@ async function signInWithOAuth(provider){
   // OAuth redirect back to this app (hash router friendly)
   const redirectTo = location.origin + location.pathname;
 
-  const { error } = await sb.auth.signInWithOAuth({
-    provider: p,
-    options: { redirectTo }
-  });
-  if(error) throw error;
+  _authInFlight = true;
+
+  try{
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: p,
+      options: { redirectTo }
+    });
+    if(error) throw error;
+  }catch(e){
+    _authInFlight = false;
+    throw e;
+  }
 }
 
   async function signOut(){
@@ -775,27 +788,36 @@ async function signInWithOAuth(provider){
   }
 
   async function refreshUser(){
-    const sb = await ensureClient();
-    if(!sb) { _user = null; stopFeed(); notify(); return; }
-
-    try{
-      const { data } = await sb.auth.getUser();
-      _user = data?.user || null;
-    }catch(_){
-      _user = null;
-    }
-
-if(_user){
-  try{ await upsertMyProfile(); }catch(_){}
-}
-    
-    // ✅ Important: if we are already signed in on cold-open,
-    // start polling so followers/following counts update live.
-    if(_user) startFeed();
-    else stopFeed();
-
+  const sb = await ensureClient();
+  if(!sb) {
+    _user = null;
+    _authInFlight = false;
+    stopFeed();
     notify();
+    return;
   }
+
+  try{
+    const { data } = await sb.auth.getUser();
+    _user = data?.user || null;
+  }catch(_){
+    _user = null;
+  }
+
+  // OAuth handoff is complete once we've refreshed user state
+  _authInFlight = false;
+
+  if(_user){
+    try{ await upsertMyProfile(); }catch(_){}
+  }
+
+  // ✅ Important: if we are already signed in on cold-open,
+  // start polling so followers/following counts update live.
+  if(_user) startFeed();
+  else stopFeed();
+
+  notify();
+}
 
   async function fetchFollows(){
     const sb = await ensureClient();
@@ -1132,7 +1154,8 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     deleteFeedComment,
 
     // UI updates
-    onChange   
+    onChange,
+    __isAuthInFlight: () => !!_authInFlight  
   };
 }
 
@@ -9178,8 +9201,6 @@ navigate = Router.navigate;
 try{
   const sUI = UIState.social || (UIState.social = {});
 
-  // Coalesce rapid Social.notify() bursts into a single render per frame.
-  // This prevents tap targets from being torn down/rebuilt mid-tap (iOS “missed likes” / “settle”).
   if(!sUI.__scheduleRender){
     sUI.__renderRaf = 0;
     sUI.__scheduleRender = () => {
@@ -9196,6 +9217,11 @@ try{
       const r = (typeof getCurrentRoute === "function")
         ? getCurrentRoute()
         : (String(location.hash || "").replace(/^#/, "") || "home");
+
+      // Do not re-render while OAuth launch is being handed off
+      try{
+        if(Social.__isAuthInFlight && Social.__isAuthInFlight()) return;
+      }catch(_){}
 
       if(r === "friends" || r === "settings"){
         try{ sUI.__scheduleRender(); }catch(_){}
