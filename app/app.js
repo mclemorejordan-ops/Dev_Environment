@@ -128,6 +128,31 @@ function writeOutbox(items){
   try{ localStorage.setItem(SOCIAL_OUTBOX_KEY, JSON.stringify(items || [])); }catch(_){}
 }
 
+function writeOutbox(items){
+  try{ localStorage.setItem(SOCIAL_OUTBOX_KEY, JSON.stringify(items || [])); }catch(_){}
+}
+
+function normalizeUsername(v){
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/\s+/g, "");
+}
+
+function usernameToHandle(v){
+  const u = normalizeUsername(v);
+  return u ? `@${u}` : "";
+}
+
+function isValidUsername(v){
+  return /^[a-z0-9_]{3,20}$/.test(normalizeUsername(v));
+}
+
+function looksLikeUuid(v){
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || "").trim());
+}
+
 function initSocial(){
   let _mod = null;
   let _sb = null;
@@ -457,6 +482,8 @@ async function deleteFeedComment(commentId, eventId){
   let _followers = [];  // list of follower user ids (strings)
   let _notifications = []; // like/comment/follow notifications (newest first)
   let _names = {};      // id -> display_name (from profiles)
+  let _usernames = {};  // id -> username (normalized, no @)
+  let _usernameConflictWarned = false;
   let _pollTimer = null;
   let _listeners = new Set();
 
@@ -666,10 +693,68 @@ async function fetchNotifications(){
     try{ _listeners.forEach(fn => fn()); }catch(_){}
   }
 
-  function nameFor(id){
-  const k = String(id || "");
-  return _names[k] || null;
-}
+    function nameFor(id){
+    const k = String(id || "");
+    return _names[k] || null;
+  }
+
+  function usernameFor(id){
+    const k = String(id || "");
+    return _usernames[k] || null;
+  }
+
+  function identityFor(id, fallbackName="User"){
+    const k = String(id || "");
+    return {
+      displayName: _names[k] || fallbackName || "User",
+      username: _usernames[k] || null
+    };
+  }
+
+  async function fetchNames(ids){
+    const sb = await ensureClient();
+    if(!sb || !_user) return { names:_names, usernames:_usernames };
+
+    const uniq = Array.from(new Set((ids || [])
+      .map(x => String(x || ""))
+      .filter(Boolean)
+    ));
+
+    const missing = uniq.filter(id =>
+      !Object.prototype.hasOwnProperty.call(_names, String(id)) ||
+      !Object.prototype.hasOwnProperty.call(_usernames, String(id))
+    );
+
+    if(!missing.length) return { names:_names, usernames:_usernames };
+
+    try{
+      const { data, error } = await sb
+        .from("profiles")
+        .select("id, display_name, username")
+        .in("id", missing);
+
+      if(error) throw error;
+
+      (data || []).forEach(r => {
+        const id = String(r.id || "");
+        if(!id) return;
+
+        const dn = String(r.display_name || "").trim();
+        const un = normalizeUsername(r.username || "");
+
+        _names[id] = dn || "User";
+        _usernames[id] = un || "";
+      });
+
+      missing.forEach(id => {
+        const k = String(id || "");
+        if(!Object.prototype.hasOwnProperty.call(_names, k)) _names[k] = "User";
+        if(!Object.prototype.hasOwnProperty.call(_usernames, k)) _usernames[k] = "";
+      });
+    }catch(_){}
+
+    return { names:_names, usernames:_usernames };
+  }
 
 async function upsertMyProfile(){
   const sb = await ensureClient();
@@ -680,16 +765,34 @@ async function upsertMyProfile(){
   const fromEmail = String(_user?.email || "").split("@")[0] || "";
   const displayName = (fromState || fromEmail || "User").slice(0, 40);
 
+  const localUsername = normalizeUsername(state?.profile?.username || "");
+  const emailUsername = normalizeUsername(fromEmail);
+  const fallbackUsername = normalizeUsername(`user_${String(_user.id || "").slice(0, 8)}`);
+  const username = isValidUsername(localUsername)
+    ? localUsername
+    : isValidUsername(emailUsername)
+      ? emailUsername
+      : fallbackUsername;
+
   try{
     const { error } = await sb.from("profiles").upsert({
       id: _user.id,
       display_name: displayName,
+      username,
       updated_at: new Date().toISOString()
     });
-    if(!error){
-      _names[_user.id] = displayName;
+
+    if(error) throw error;
+
+    _names[_user.id] = displayName;
+    _usernames[_user.id] = username;
+    _usernameConflictWarned = false;
+  }catch(e){
+    if(String(e?.code || "") === "23505" && !_usernameConflictWarned){
+      _usernameConflictWarned = true;
+      try{ showToast("Username is already taken in Friends. Change it in Settings."); }catch(_){}
     }
-  }catch(_){}
+  }
 }
 
 async function fetchNames(ids){
@@ -1150,11 +1253,42 @@ async function signInWithOAuth(provider){
     if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
   }
 
-  async function follow(userId){
+    async function resolveFollowTarget(target){
+    const raw = String(target || "").trim();
+    if(!raw) throw new Error("Enter a username");
+
+    if(looksLikeUuid(raw)) return raw;
+
+    const uname = normalizeUsername(raw);
+    if(!isValidUsername(uname)) throw new Error("Enter a valid @username");
+
     const sb = await ensureClient();
     if(!sb || !_user) throw new Error("Not signed in");
-    const id = (userId || "").trim();
-    if(!id) throw new Error("Friend code required");
+
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id, display_name, username")
+      .eq("username", uname)
+      .maybeSingle();
+
+    if(error) throw error;
+    if(!data?.id) throw new Error("Username not found");
+
+    const foundId = String(data.id || "");
+    if(foundId){
+      _names[foundId] = String(data.display_name || "").trim() || "User";
+      _usernames[foundId] = normalizeUsername(data.username || uname);
+    }
+
+    return foundId;
+  }
+
+  async function follow(userIdOrUsername){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+
+    const id = await resolveFollowTarget(userIdOrUsername);
+    if(!id) throw new Error("Username not found");
     if(id === _user.id) throw new Error("You can't follow yourself");
 
     const { error } = await sb.from("follows").insert({
@@ -1201,7 +1335,7 @@ async function signInWithOAuth(provider){
   let stateRef = () => null;
   function bindStateGetter(fn){ stateRef = (typeof fn === "function") ? fn : (() => null); }
 
-  function formatLogEvent(entry){
+    function formatLogEvent(entry){
     const state = stateRef();
     const lib = state?.library;
     const exName = (() => {
@@ -1220,6 +1354,7 @@ async function signInWithOAuth(provider){
       eventType: "exercise_logged",
       payload: {
         displayName: state?.profile?.name || null,
+        username: normalizeUsername(state?.profile?.username || "") || null,
         exerciseName: exName,
         workoutType: type,
         dateISO: entry?.dateISO || null,
@@ -1227,6 +1362,22 @@ async function signInWithOAuth(provider){
         dayId: entry?.dayId || null,
         summary,
         prCount
+      }
+    };
+  }
+
+  function formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+    const state = stateRef();
+    return {
+      eventType: "workout_completed",
+      payload: {
+        displayName: state?.profile?.name || null,
+        username: normalizeUsername(state?.profile?.username || "") || null,
+        dateISO: dateISO || null,
+        routineId: routineId || null,
+        dayId: dayId || null,
+        highlights: highlights || {},
+        details: details || null
       }
     };
   }
@@ -1520,6 +1671,9 @@ async function flushOutbox(){
     __clearNotifications: () => { _notifications = []; notify(); },
     fetchNames,
     nameFor,
+    usernameFor,
+    identityFor,
+    fetchFollows,
     fetchFollows,
     fetchFollowers,
     fetchMyProfileRoutineSetting,
@@ -1976,7 +2130,15 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
   };
   renderTplCards();
 
-  const nameInput = el("input", { type:"text", placeholder:"Jordan" });
+    const nameInput = el("input", { type:"text", placeholder:"Jordan" });
+  const usernameInput = el("input", {
+    type:"text",
+    placeholder:"jordand",
+    autocapitalize:"off",
+    autocorrect:"off",
+    spellcheck:"false"
+  });
+      
   const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
          
   const weekSelect = el("select", {});
@@ -2009,6 +2171,8 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
     errorBox.textContent = "";
 
     const cleanName = (nameInput.value || "").trim();
+    const cleanUsername = normalizeUsername(usernameInput.value);
+    
     const cleanProtein = Number(proteinInput.value);
     const weekStartsOn = weekSelect.value === "sun" ? "sun" : "mon";
 
@@ -2017,6 +2181,12 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
       errorBox.style.display = "block";
       return;
     }
+
+    if(!isValidUsername(cleanUsername)){
+    errorBox.textContent = "Choose a username with 3–20 letters, numbers, or underscores.";
+    errorBox.style.display = "block";
+    return;
+  }
 
     // ✅ Only require protein if Track Protein is ON
     if(trackProtein){
@@ -2028,7 +2198,8 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
     }
 
         const profile = {
-      name: cleanName,
+        name: cleanName,
+        username: cleanUsername,
       proteinGoal: trackProtein ? Math.round(cleanProtein) : 0, // ✅ NEW behavior
       weekStartsOn,
       hideRestDays: !!hideRestDays,
@@ -2077,30 +2248,30 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
     ]),
     el("div", { class:"card" }, [
       el("h2", { text:"Create profile" }),
-      el("div", { class:"form" }, [
+            el("div", { class:"form" }, [
         el("div", { class:"row2" }, [
           el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
-          proteinLabel
+          el("label", {}, [ el("span", { text:"Username" }), usernameInput ])
         ]),
         el("div", { class:"row2" }, [
-          el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ]),
-          el("div", {}, [
-            // ✅ NEW toggle (placed near other preferences)
-            el("div", { class:"toggle" }, [
-              el("div", { class:"ttext" }, [
-                el("div", { class:"a", text:"Track protein" }),
-                el("div", { class:"b", text:"Optional — turn off if you don’t want protein goals right now" })
-              ]),
-              proteinSwitchNode
+          proteinLabel,
+          el("label", {}, [ el("span", { text:"Week starts on" }), weekSelect ])
+        ]),
+        el("div", {}, [
+          el("div", { class:"toggle" }, [
+            el("div", { class:"ttext" }, [
+              el("div", { class:"a", text:"Track protein" }),
+              el("div", { class:"b", text:"Optional — turn off if you don’t want protein goals right now" })
             ]),
-            el("div", { style:"height:10px" }),
-            el("div", { class:"toggle" }, [
-              el("div", { class:"ttext" }, [
-                el("div", { class:"a", text:"Hide rest days" }),
-                el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)" })
-              ]),
-              switchNode
-            ])
+            proteinSwitchNode
+          ]),
+          el("div", { style:"height:10px" }),
+          el("div", { class:"toggle" }, [
+            el("div", { class:"ttext" }, [
+              el("div", { class:"a", text:"Hide rest days" }),
+              el("div", { class:"b", text:"Rest days won’t appear on Home (Routine can still show them later)" })
+            ]),
+            switchNode
           ])
         ]),
         errorBox
@@ -5700,23 +5871,42 @@ function openFollowerNotifsModal(){
     return el("span", { class:"connBadge" + (kind ? (" " + kind) : ""), text: label });
   }
 
-    function connectionRow({ id, mode, followsSet, followersSet }){
-    const dn = (Social.nameFor && Social.nameFor(id)) || "User";
-    const mutual = followsSet.has(id) && followersSet.has(id);
+   function connectionRow({ id, mode, followsSet, followersSet }){
+  const dn = (Social.nameFor && Social.nameFor(id)) || "User";
+  const un = (Social.usernameFor && Social.usernameFor(id)) || "";
+  const handle = usernameToHandle(un);
+  const mutual = followsSet.has(id) && followersSet.has(id);
 
-    let metaText = "";
-    if(mutual) metaText = "You follow each other";
-    else if(mode === "following") metaText = "You follow them";
-    else metaText = "Follower";
+  let metaText = "";
+  if(mutual) metaText = "You follow each other";
+  else if(mode === "following") metaText = "You follow them";
+  else metaText = "Follower";
 
-    const badges = [];
-    if(mutual) badges.push(badge("Mutual", "mutual"));
-    else if(mode === "following") badges.push(badge("Following"));
-    else badges.push(badge("Follows you"));
+  const badges = [];
+  if(mutual) badges.push(badge("Mutual", "mutual"));
+  else if(mode === "following") badges.push(badge("Following"));
+  else badges.push(badge("Follows you"));
 
-    const actions = [];
+  const actions = [];
 
-    if(mode === "following"){
+  if(mode === "following"){
+    actions.push(el("button", {
+      class:"btn danger sm",
+      onClick: async (e) => {
+        try{ e?.stopPropagation?.(); }catch(_){}
+        try{
+          await Social.unfollow(id);
+          showToast("Unfollowed");
+          await refreshLists();
+          repaintModal();
+          renderView();
+        }catch(e2){
+          showToast(e2?.message || "Couldn't unfollow");
+        }
+      }
+    }, ["Unfollow"]));
+  }else{
+    if(followsSet.has(id)){
       actions.push(el("button", {
         class:"btn danger sm",
         onClick: async (e) => {
@@ -5733,70 +5923,50 @@ function openFollowerNotifsModal(){
         }
       }, ["Unfollow"]));
     }else{
-      if(followsSet.has(id)){
-        actions.push(el("button", {
-          class:"btn danger sm",
-          onClick: async (e) => {
-            try{ e?.stopPropagation?.(); }catch(_){}
-            try{
-              await Social.unfollow(id);
-              showToast("Unfollowed");
-              await refreshLists();
-              repaintModal();
-              renderView();
-            }catch(e2){
-              showToast(e2?.message || "Couldn't unfollow");
-            }
-          }
-        }, ["Unfollow"]));
-      }else{
-        actions.push(el("button", {
-          class:"btn primary sm",
-          onClick: async (e) => {
-            try{ e?.stopPropagation?.(); }catch(_){}
-            try{
-              await Social.follow(id);
-              showToast("Following");
-              await refreshLists();
-              repaintModal();
-              renderView();
-            }catch(e2){
-              showToast(e2?.message || "Follow failed");
-            }
-          }
-        }, ["Follow back"]));
-      }
-    }
-
-    return el("div", { class:"connRow" }, [
-      el("div", {
-        class:"av",
-        style:"cursor:pointer;",
-        onClick: () => openFriendProfile(id)
-      }, [
-        el("div", { class:"ltr", text: avatarLetter(dn) })
-      ]),
-
-      el("div", {
-        class:"main",
-        style:"cursor:pointer;",
-        onClick: () => openFriendProfile(id)
-      }, [
-        el("div", { class:"top" }, [
-          el("div", { class:"dn", text: dn }),
-          el("div", { class:"badges" }, badges)
-        ]),
-        el("div", { class:"meta", text: metaText })
-      ]),
-
-      el("div", {
-        class:"acts",
-        onClick: (e) => {
+      actions.push(el("button", {
+        class:"btn primary sm",
+        onClick: async (e) => {
           try{ e?.stopPropagation?.(); }catch(_){}
+          try{
+            await Social.follow(id);
+            showToast("Following");
+            await refreshLists();
+            repaintModal();
+            renderView();
+          }catch(e2){
+            showToast(e2?.message || "Follow failed");
+          }
         }
-      }, actions)
-    ]);
+      }, ["Follow back"]));
+    }
   }
+
+  return el("div", { class:"connRow" }, [
+    el("div", {
+      class:"av",
+      style:"cursor:pointer;",
+      onClick: () => openFriendProfile(id)
+    }, [
+      el("div", { class:"ltr", text: avatarLetter(dn) })
+    ]),
+
+    el("div", {
+      style:"min-width:0; flex:1; cursor:pointer;",
+      onClick: () => openFriendProfile(id)
+    }, [
+      el("div", { style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;", text: dn }),
+      handle ? el("div", {
+        class:"note",
+        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
+        text: handle
+      }) : null,
+      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [metaText]),
+      badges.length ? el("div", { style:"display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;" }, badges) : null
+    ].filter(Boolean)),
+
+    el("div", { style:"display:flex; gap:8px; align-items:center; flex:0 0 auto;" }, actions)
+  ]);
+}
 
   // ─────────────────────────────────────────────
   // Add Friend popup (Friend Code)
@@ -5846,106 +6016,114 @@ function openFollowerNotifsModal(){
     const returnSearch = ui.connSearch;
 
     const myCodeInput = el("input", {
-      class:"connCodeInput",
-      type:"text",
-      readOnly:true,
-      value: getMyCode() || ""
-    });
+  class:"connCodeInput",
+  type:"text",
+  readOnly:true,
+  value: usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "")
+});
 
-    const friendCodeInput = el("input", {
-      class:"connCodeInput",
-      type:"text",
-      placeholder:"Paste friend code…",
-      value: ui.connAddCode
-    });
+const friendCodeInput = el("input", {
+  class:"connCodeInput",
+  type:"text",
+  placeholder:"@jordand",
+  value: ui.connAddCode,
+  autocapitalize:"off",
+  autocorrect:"off",
+  spellcheck:"false"
+});
 
-    friendCodeInput.addEventListener("input", () => {
-      ui.connAddCode = friendCodeInput.value || "";
-    });
+friendCodeInput.addEventListener("input", () => {
+  ui.connAddCode = friendCodeInput.value || "";
+});
 
-    async function doAdd(){
-      if(!user){
-        showToast("Sign in to add friends");
-        return;
-      }
-      const code = String(ui.connAddCode || "").trim();
-      if(!code){
-        showToast("Paste a friend code");
-        return;
-      }
-      const myCode = getMyCode();
-      if(myCode && code === myCode){
-        showToast("You can’t add yourself");
-        return;
-      }
+async function doAdd(){
+  if(!user){
+    showToast("Sign in to add friends");
+    return;
+  }
 
-      try{
-        await Social.follow(code);
-        showToast("Friend added");
-        ui.connAddCode = "";
-        friendCodeInput.value = "";
+  const raw = String(ui.connAddCode || "").trim();
+  const uname = normalizeUsername(raw);
+  if(!uname){
+    showToast("Enter a username");
+    return;
+  }
 
-        ui.connTab = returnTab;
-        ui.connSearch = returnSearch;
-        openConnectionsModal(returnTab);
-        renderView();
-      }catch(e){
-        showToast(e?.message || "Couldn't add friend");
-      }
-    }
+  const myUsername = normalizeUsername(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
+  if(myUsername && uname === myUsername){
+    showToast("You can’t add yourself");
+    return;
+  }
 
-    friendCodeInput.addEventListener("keydown", (e) => {
-      if(e.key === "Enter"){
-        e.preventDefault();
-        doAdd();
-      }
-    });
+  try{
+    await Social.follow(uname);
+    showToast("Friend added");
+    ui.connAddCode = "";
+    friendCodeInput.value = "";
 
-    Modal.open({
-      title: "Add Friend",
-      bodyNode: el("div", { class:"connAddFriendModal" }, [
-        el("div", { class:"note", text:"Share your code, or paste someone else’s code to add them." }),
-        el("div", { style:"height:10px" }),
+    ui.connTab = returnTab;
+    ui.connSearch = returnSearch;
+    openConnectionsModal(returnTab);
+    renderView();
+  }catch(e){
+    showToast(e?.message || "Couldn't add friend");
+  }
+}
 
-        el("div", { class:"setRow" }, [
-          el("div", {}, [
-            el("div", { style:"font-weight:820;", text:"Your friend code" }),
-            el("div", { class:"meta", text:"Tap Copy to share" })
-          ]),
-          el("div", { class:"connCodeRight" }, [
-            myCodeInput,
-            el("button", {
-              class:"btn sm",
-              onClick: async () => {
-                const myCode = getMyCode();
-                if(!myCode){
-                  showToast("Sign in to get your code");
-                  return;
-                }
-                try{
-                  await copyTextSafe(myCode);
-                  showToast("Copied");
-                }catch(_){
-                  showToast("Couldn't copy");
-                }
-              }
-            }, ["Copy"])
-          ])
-        ]),
+friendCodeInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){
+    e.preventDefault();
+    doAdd();
+  }
+});
 
-        el("div", { class:"setRow" }, [
-          el("div", {}, [
-            el("div", { style:"font-weight:820;", text:"Friend code" }),
-            el("div", { class:"meta", text:"Paste code to add" })
-          ]),
-          el("div", { class:"connCodeRight" }, [
-            friendCodeInput,
-            el("button", {
-              class:"btn primary sm",
-              onClick: doAdd
-            }, ["Add"])
-          ])
-        ]),
+Modal.open({
+  title: "Add Friend",
+  bodyNode: el("div", { class:"connAddFriendModal" }, [
+    el("div", { class:"note", text:"Share your username, or enter someone else’s username to add them." }),
+    el("div", { style:"height:10px" }),
+
+    el("div", { class:"setRow" }, [
+      el("div", {}, [
+        el("div", { style:"font-weight:820;", text:"Your username" }),
+        el("div", { class:"meta", text:"Tap Copy to share" })
+      ]),
+      el("div", { class:"connCodeRight" }, [
+        myCodeInput,
+        el("button", {
+          class:"btn sm",
+          onClick: async () => {
+            const myHandle = usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
+            if(!myHandle){
+              showToast("Set a username in Settings first");
+              return;
+            }
+            try{
+              await copyTextSafe(myHandle);
+              showToast("Copied");
+            }catch(_){
+              showToast("Couldn't copy");
+            }
+          }
+        }, ["Copy"])
+      ])
+    ]),
+
+    el("div", { class:"setRow" }, [
+      el("div", {}, [
+        el("div", { style:"font-weight:820;", text:"Friend username" }),
+        el("div", { class:"meta", text:"Enter @username to add" })
+      ]),
+      el("div", { class:"connCodeRight" }, [
+        friendCodeInput,
+        el("button", {
+          class:"btn primary sm",
+          onClick: doAdd
+        }, ["Add"])
+      ])
+    ])
+  ])
+});
 
         el("div", { style:"height:10px" }),
         el("div", { class:"btnrow connFooterRow" }, [
@@ -7398,12 +7576,21 @@ root.appendChild(el("div", { class:"card" }, [
       }
 
       (feedList || []).forEach(ev => {
-        const p = ev.payload || {};
-        const who = p.displayName || (String(ev.actorId||"").slice(0,8) + "…");
+                const p = ev.payload || {};
+        const identity = (Social.identityFor && Social.identityFor(
+          ev.actorId,
+          p.displayName || (String(ev.actorId||"").slice(0,8) + "…")
+        )) || {
+          displayName: p.displayName || (String(ev.actorId||"").slice(0,8) + "…"),
+          username: normalizeUsername(p.username || "")
+        };
+
+        const who = identity.displayName;
+        const whoHandle = usernameToHandle(identity.username || p.username || "");
 
         const whenObj = formatFeedWhen(ev.createdAt);
-        const when = whenObj.full;        // keep full string for the modal
-        const whenLine = whenObj.label;   // compact label for the row
+        const when = whenObj.full;
+        const whenLine = whenObj.label;
 
         const title = (ev.type === "exercise_logged")
           ? `${who} logged ${p.exerciseName || "an exercise"}`
@@ -8172,96 +8359,76 @@ if(Object.keys(ui.open).length === 0) ui.open.profile = true;
 
         // --- Profile controls ---
         const nameInput = el("input", { type:"text", value: state.profile?.name || "" });
-        const proteinInput = el("input", { type:"number", min:"0", step:"1", value: (state.profile?.proteinGoal ?? 150) });
+const usernameInput = el("input", {
+  type:"text",
+  value: state.profile?.username || "",
+  autocapitalize:"off",
+  autocorrect:"off",
+  spellcheck:"false",
+  placeholder:"jordand"
+});
+const proteinInput = el("input", { type:"number", min:"0", step:"1", value: state.profile?.proteinGoal || 150 });
 
-// Protein tracking is "off" when goal is 0
-let trackProtein = Number(state.profile?.proteinGoal || 0) > 0;
+const weekSelect = el("select", {});
+weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
+weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
 
-const trackProteinSwitch = el("div", {
-  class: "switch" + (trackProtein ? " on" : "")
+const ws = state.profile?.weekStartsOn;
+const normalized =
+  (ws === 0 || ws === "0" || ws === "sun") ? "sun" :
+  (ws === 1 || ws === "1" || ws === "mon") ? "mon" :
+  "mon";
+weekSelect.value = normalized;
+
+let hideRestDays = !!state.profile?.hideRestDays;
+let show3DPreview = (state.profile?.show3DPreview !== false);
+
+const hideRestSwitch = el("div", {
+  class: "switch" + (hideRestDays ? " on" : ""),
+  onClick: () => {
+    hideRestDays = !hideRestDays;
+    hideRestSwitch.classList.toggle("on", hideRestDays);
+  }
 });
 
-// Protein goal row (hide/show)
-const proteinRow = el("div", { class:"setRow" }, [
-  el("div", {}, [
-    el("div", { style:"font-weight:820;", text:"Daily protein goal" }),
-    el("div", { class:"meta", text:"grams/day" })
-  ]),
-  proteinInput
-]);
-proteinRow.style.display = trackProtein ? "" : "none";
-
-// Track protein row
-const trackProteinRow = el("div", { class:"setRow" }, [
-  el("div", {}, [
-    el("div", { style:"font-weight:820;", text:"Track protein" }),
-    el("div", { class:"meta", text:"Optional — turn off to disable protein goals" })
-  ]),
-  trackProteinSwitch
-]);
-
-trackProteinSwitch.addEventListener("click", () => {
-  trackProtein = !trackProtein;
-  trackProteinSwitch.classList.toggle("on", trackProtein);
-  proteinRow.style.display = trackProtein ? "" : "none";
+const show3DSwitch = el("div", {
+  class: "switch" + (show3DPreview ? " on" : ""),
+  onClick: () => {
+    show3DPreview = !show3DPreview;
+    show3DSwitch.classList.toggle("on", show3DPreview);
+  }
 });
-           
-        const weekSelect = el("select", {});
-        weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
-        weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
 
-        // Backward compatible: accept older numeric values (0/1) if they exist
-        const ws = state.profile?.weekStartsOn;
-        const normalized =
-          (ws === 0 || ws === "0" || ws === "sun") ? "sun" :
-          (ws === 1 || ws === "1" || ws === "mon") ? "mon" :
-          "mon";
-        weekSelect.value = normalized;
+function saveProfile(){
+  const nextName = String(nameInput.value || "").trim();
+  const nextUsername = normalizeUsername(usernameInput.value);
 
+  if(!nextName) throw new Error("Enter your name.");
+  if(!isValidUsername(nextUsername)) throw new Error("Username must be 3–20 letters, numbers, or underscores.");
 
-        let hideRestDays = !!state.profile?.hideRestDays;
-        let show3DPreview = (state.profile?.show3DPreview !== false); // default ON
+  state.profile = state.profile || {};
+  state.profile.name = nextName;
+  state.profile.username = nextUsername;
 
+  if(trackProtein){
+    state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
+    if(state.profile.proteinGoal <= 0){
+      showToast("Enter a protein goal");
+      return;
+    }
+  }else{
+    state.profile.proteinGoal = 0;
+  }
 
-        const hideRestSwitch = el("div", {
-          class: "switch" + (hideRestDays ? " on" : ""),
-          onClick: () => {
-            hideRestDays = !hideRestDays;
-            hideRestSwitch.classList.toggle("on", hideRestDays);
-          }
-        });
+  state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
+  state.profile.hideRestDays = !!hideRestDays;
+  state.profile.show3DPreview = !!show3DPreview;
+  Storage.save(state);
 
-           // ✅ NEW: 3D Preview switch (persisted)
-        const show3DSwitch = el("div", {
-          class: "switch" + (show3DPreview ? " on" : ""),
-          onClick: () => {
-            show3DPreview = !show3DPreview;
-            show3DSwitch.classList.toggle("on", show3DPreview);
-          }
-        });
-
-        function saveProfile(){
-          state.profile = state.profile || {};
-          state.profile.name = (nameInput.value || "").trim();
-
-          if(trackProtein){
-          state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
-          if(state.profile.proteinGoal <= 0){
-            showToast("Enter a protein goal");
-            return;
-          }
-        }else{
-          state.profile.proteinGoal = 0;
-        }
-          
-          
-          state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
-          state.profile.hideRestDays = !!hideRestDays;
-          state.profile.show3DPreview = !!show3DPreview;
-          Storage.save(state);
-          showToast("Saved");
-          renderView();
-        }
+  try{ Social.refreshUser?.(); }catch(_){}
+  showToast("Saved");
+  renderView();
+}
 
         function openImportFileModal(){
           const input = el("input", { type:"file", accept:"application/json,.json" });
@@ -8301,7 +8468,6 @@ trackProteinSwitch.addEventListener("click", () => {
 
         // --- Section bodies ---
 const profileBody = el("div", {}, [
-  // 1) Name
   el("div", { class:"setRow" }, [
     el("div", {}, [
       el("div", { style:"font-weight:820;", text:"Name" }),
@@ -8310,7 +8476,14 @@ const profileBody = el("div", {}, [
     nameInput
   ]),
 
-  // 2) Week starts on
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Username" }),
+      el("div", { class:"meta", text:"Shown in Friends as @username" })
+    ]),
+    usernameInput
+  ]),
+
   el("div", { class:"setRow" }, [
     el("div", {}, [
       el("div", { style:"font-weight:820;", text:"Week starts on" }),
@@ -8319,10 +8492,7 @@ const profileBody = el("div", {}, [
     weekSelect
   ]),
 
-  // 3) Daily Protein
   proteinRow,
-
-  // 4) Toggles
   trackProteinRow,
 
   el("div", { class:"setRow" }, [
