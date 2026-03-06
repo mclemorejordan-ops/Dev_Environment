@@ -6066,11 +6066,11 @@ root.appendChild(el("div", { class:"card" }, [
     return null;
   })();
 
-       const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
+           const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
     const entries = Array.isArray(feedList) ? feedList : [];
 
     const toTs = (ev) => {
-      const raw = ev?.payload?.dateISO || ev?.createdAt || null;
+      const raw = ev?.createdAt || ev?.payload?.dateISO || null;
       const t = raw ? new Date(raw).getTime() : 0;
       return Number.isFinite(t) ? t : 0;
     };
@@ -6078,7 +6078,8 @@ root.appendChild(el("div", { class:"card" }, [
     const fmtNum = (n) => {
       const x = Number(n);
       if(!Number.isFinite(x)) return "—";
-      return String(Math.round(x * 10) / 10);
+      const rounded = Math.round(x * 10) / 10;
+      return Number.isInteger(rounded) ? String(rounded) : String(rounded);
     };
 
     const fmtPaceSafe = (sec) => {
@@ -6087,13 +6088,13 @@ root.appendChild(el("div", { class:"card" }, [
       const whole = Math.floor(s);
       const m = Math.floor(whole / 60);
       const r = whole % 60;
-      return `${m}:${String(r).padStart(2,"0")} / unit`;
+      return `${m}:${String(r).padStart(2, "0")} / unit`;
     };
 
-    const uniqDayCount = (() => {
+    const uniquePostedDays = (() => {
       const set = new Set();
       entries.forEach(ev => {
-        const d = String(ev?.payload?.dateISO || "").slice(0,10);
+        const d = String(ev?.payload?.dateISO || "").slice(0, 10);
         if(d) set.add(d);
       });
       return set.size;
@@ -6101,23 +6102,29 @@ root.appendChild(el("div", { class:"card" }, [
 
     const strengthBest = (() => {
       let best = null;
+
       entries.forEach(ev => {
         if(ev?.type !== "exercise_logged") return;
+
         const p = ev?.payload || {};
-        const workoutType = String(p?.workoutType || "");
-        if(workoutType !== "weightlifting") return;
+        if(String(p?.workoutType || "") !== "weightlifting") return;
+
+        const prCount = Number(p?.prCount || 0);
+        if(!(Number.isFinite(prCount) && prCount > 0)) return;
 
         const weight = Number(p?.summary?.bestWeight);
         if(!Number.isFinite(weight) || weight <= 0) return;
 
-        if(!best || weight > best.weight || (weight === best.weight && toTs(ev) > best.ts)){
+        const ts = toTs(ev);
+        if(!best || weight > best.weight || (weight === best.weight && ts > best.ts)){
           best = {
             weight,
-            name: p?.exerciseName || "Strength",
-            ts: toTs(ev)
+            name: String(p?.exerciseName || "Strength"),
+            ts
           };
         }
       });
+
       return best;
     })();
 
@@ -6128,13 +6135,17 @@ root.appendChild(el("div", { class:"card" }, [
 
       entries.forEach(ev => {
         if(ev?.type !== "exercise_logged") return;
+
         const p = ev?.payload || {};
         if(String(p?.workoutType || "") !== "cardio") return;
+
+        const prCount = Number(p?.prCount || 0);
+        if(!(Number.isFinite(prCount) && prCount > 0)) return;
 
         const pace = Number(p?.summary?.paceSecPerUnit);
         const distance = Number(p?.summary?.distance);
         const timeSec = Number(p?.summary?.timeSec);
-        const name = p?.exerciseName || "Cardio";
+        const name = String(p?.exerciseName || "Cardio");
         const ts = toTs(ev);
 
         if(Number.isFinite(pace) && pace > 0){
@@ -6162,21 +6173,24 @@ root.appendChild(el("div", { class:"card" }, [
           meta: bestPace.name
         };
       }
+
       if(bestDistance){
         return {
           value: `${fmtNum(bestDistance.distance)} units`,
           meta: bestDistance.name
         };
       }
+
       if(bestTime){
         const whole = Math.floor(bestTime.timeSec);
         const m = Math.floor(whole / 60);
         const s = whole % 60;
         return {
-          value: `${m}:${String(s).padStart(2,"0")}`,
+          value: `${m}:${String(s).padStart(2, "0")}`,
           meta: bestTime.name
         };
       }
+
       return null;
     })();
 
@@ -6236,7 +6250,7 @@ root.appendChild(el("div", { class:"card" }, [
           el("div", {
             class:"note",
             style:"margin:4px 0 0 0; opacity:.82;"
-          }, ["Shared performance highlights from your profile activity."])
+          }, ["Pulled directly from your shared My Profile activity."])
         ])
       ]),
 
@@ -6247,7 +6261,7 @@ root.appendChild(el("div", { class:"card" }, [
       }, [
         metricCard(
           "Best Strength PR",
-          strengthBest ? `${fmtNum(strengthBest.weight)}` : "—",
+          strengthBest ? fmtNum(strengthBest.weight) : "—",
           strengthBest ? strengthBest.name : "No strength PR shared"
         ),
 
@@ -6259,8 +6273,8 @@ root.appendChild(el("div", { class:"card" }, [
 
         metricCard(
           "Consistency",
-          String(uniqDayCount),
-          uniqDayCount === 1 ? "Active day shared" : "Active days shared"
+          String(uniquePostedDays),
+          uniquePostedDays === 1 ? "Posted day" : "Posted days"
         ),
 
         metricCard(
