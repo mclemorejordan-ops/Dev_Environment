@@ -145,6 +145,36 @@ function isValidUsername(v){
   return /^[a-z0-9_]{3,20}$/.test(normalizeUsername(v));
 }
 
+function isValidUsername(v){
+  return /^[a-z0-9_]{3,20}$/.test(normalizeUsername(v));
+}
+
+async function getUsernameOwnerId(username){
+  const u = normalizeUsername(username);
+  if(!u) return null;
+
+  try{
+    const cfg = readSocialConfig();
+    if(!cfg?.url || !cfg?.anonKey) return null;
+
+    const mod = await loadSupabaseModule();
+    const sb = mod.createClient(cfg.url, cfg.anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id")
+      .eq("username", u)
+      .maybeSingle();
+
+    if(error) throw error;
+    return String(data?.id || "") || null;
+  }catch(_){
+    return null;
+  }
+}
+
 async function usernameAvailable(username){
   const sb = await ensureClient();
   if(!sb) return true;
@@ -8298,6 +8328,11 @@ const usernameInput = el("input", {
   spellcheck:"false",
   placeholder:"jordand"
 });
+
+// ✅ auto-clean username while typing
+usernameInput.addEventListener("input", () => {
+  usernameInput.value = normalizeUsername(usernameInput.value);
+});
 const proteinInput = el("input", { type:"number", min:"0", step:"1", value: state.profile?.proteinGoal || 150 });
 
 const weekSelect = el("select", {});
@@ -8313,6 +8348,108 @@ weekSelect.value = normalized;
 
 let hideRestDays = !!state.profile?.hideRestDays;
 let show3DPreview = (state.profile?.show3DPreview !== false);
+
+let usernameCheckSeq = 0;
+let usernameCheckTimer = null;
+let usernameStatus = "idle"; // idle | checking | available | taken | invalid
+let usernameOwnerId = null;
+
+const usernameStatusNode = el("div", {
+  class:"meta",
+  style:"margin-top:6px; min-height:18px;"
+});
+
+function paintUsernameStatus(){
+  const current = normalizeUsername(usernameInput.value);
+  const mine = String(Social.getUser?.()?.id || "");
+
+  if(!current){
+    usernameStatusNode.textContent = "3–20 letters, numbers, or underscores.";
+    usernameStatusNode.style.color = "";
+    return;
+  }
+
+  if(usernameStatus === "invalid"){
+    usernameStatusNode.textContent = "Use 3–20 lowercase letters, numbers, or underscores.";
+    usernameStatusNode.style.color = "rgba(255,92,122,.95)";
+    return;
+  }
+
+  if(usernameStatus === "checking"){
+    usernameStatusNode.textContent = "Checking availability…";
+    usernameStatusNode.style.color = "";
+    return;
+  }
+
+  if(usernameStatus === "taken"){
+    usernameStatusNode.textContent = "Username is already taken.";
+    usernameStatusNode.style.color = "rgba(255,92,122,.95)";
+    return;
+  }
+
+  if(usernameStatus === "available"){
+    if(usernameOwnerId && mine && usernameOwnerId === mine){
+      usernameStatusNode.textContent = "This is your current username.";
+      usernameStatusNode.style.color = "";
+      return;
+    }
+    usernameStatusNode.textContent = "Username is available.";
+    usernameStatusNode.style.color = "rgba(46,204,113,.95)";
+    return;
+  }
+
+  usernameStatusNode.textContent = "Shown in Friends as @username.";
+  usernameStatusNode.style.color = "";
+}
+
+async function checkUsernameAvailabilityLive(){
+  const mine = String(Social.getUser?.()?.id || "");
+  const current = normalizeUsername(usernameInput.value);
+  const seq = ++usernameCheckSeq;
+
+  if(!current){
+    usernameStatus = "idle";
+    usernameOwnerId = null;
+    paintUsernameStatus();
+    return;
+  }
+
+  if(!isValidUsername(current)){
+    usernameStatus = "invalid";
+    usernameOwnerId = null;
+    paintUsernameStatus();
+    return;
+  }
+
+  usernameStatus = "checking";
+  usernameOwnerId = null;
+  paintUsernameStatus();
+
+  const ownerId = await getUsernameOwnerId(current);
+  if(seq !== usernameCheckSeq) return;
+
+  usernameOwnerId = ownerId;
+  if(ownerId && (!mine || ownerId !== mine)){
+    usernameStatus = "taken";
+  }else{
+    usernameStatus = "available";
+  }
+
+  paintUsernameStatus();
+}
+
+function queueUsernameAvailabilityCheck(){
+  if(usernameCheckTimer) clearTimeout(usernameCheckTimer);
+  usernameCheckTimer = setTimeout(() => {
+    checkUsernameAvailabilityLive().catch(() => {});
+  }, 250);
+}
+
+usernameInput.addEventListener("input", () => {
+  queueUsernameAvailabilityCheck();
+});
+
+queueUsernameAvailabilityCheck();
 
 let trackProtein = Number(state.profile?.proteinGoal || 0) > 0;
 
@@ -8359,15 +8496,26 @@ const show3DSwitch = el("div", {
   }
 });
 
-function saveProfile(){
+async function saveProfile(){
   const nextName = String(nameInput.value || "").trim();
   const nextUsername = normalizeUsername(usernameInput.value);
+
+  if(usernameCheckTimer){
+  clearTimeout(usernameCheckTimer);
+  usernameCheckTimer = null;
+}
+await checkUsernameAvailabilityLive();
+
+if(usernameStatus === "taken"){
+  showToast("Username already taken");
+  return;
+}
 
 if(!nextName) throw new Error("Enter your name.");
 if(!isValidUsername(nextUsername))
   throw new Error("Username must be 3–20 letters, numbers, or underscores.");
 
-// ✅ check availability before saving
+// ✅ prevent duplicate usernames
 if(!(await usernameAvailable(nextUsername))){
   showToast("Username already taken");
   return;
@@ -8444,12 +8592,13 @@ const profileBody = el("div", {}, [
   ]),
 
   el("div", { class:"setRow" }, [
-    el("div", {}, [
-      el("div", { style:"font-weight:820;", text:"Username" }),
-      el("div", { class:"meta", text:"Shown in Friends as @username" })
-    ]),
-    usernameInput
+  el("div", { style:"min-width:0; flex:1;" }, [
+    el("div", { style:"font-weight:820;", text:"Username" }),
+    el("div", { class:"meta", text:"Shown in Friends as @username" }),
+    usernameStatusNode
   ]),
+  usernameInput
+]),
 
   el("div", { class:"setRow" }, [
     el("div", {}, [
