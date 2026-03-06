@@ -9196,39 +9196,9 @@ const Router = initRouter({
 const { Routes, renderNav, renderView, getCurrentRoute } = Router;
 navigate = Router.navigate;
 
-// ✅ Friends/Social: auto-refresh UI after OAuth redirect (and during feed polling)
-// Only re-render on Friends or Settings routes to avoid extra work elsewhere.
-try{
-  const sUI = UIState.social || (UIState.social = {});
-
-  if(!sUI.__scheduleRender){
-    sUI.__renderRaf = 0;
-    sUI.__scheduleRender = () => {
-      if(sUI.__renderRaf) return;
-      sUI.__renderRaf = requestAnimationFrame(() => {
-        sUI.__renderRaf = 0;
-        try{ renderView(); }catch(_){}
-      });
-    };
-  }
-
-  if(!sUI.__routeSub && Social?.onChange){
-    sUI.__routeSub = Social.onChange(() => {
-      const r = (typeof getCurrentRoute === "function")
-        ? getCurrentRoute()
-        : (String(location.hash || "").replace(/^#/, "") || "home");
-
-      // Do not re-render while OAuth launch is being handed off
-      try{
-        if(Social.__isAuthInFlight && Social.__isAuthInFlight()) return;
-      }catch(_){}
-
-      if(r === "friends" || r === "settings"){
-        try{ sUI.__scheduleRender(); }catch(_){}
-      }
-    });
-  }
-}catch(_){}
+// Friends/Social route-wide auto-refresh subscriber removed.
+// OAuth redirect/session refresh is already handled by the existing
+// Social.refreshUser() rehydrate flow in the Friends/Settings UI.
 
 
 /********************
