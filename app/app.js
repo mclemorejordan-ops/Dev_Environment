@@ -854,6 +854,163 @@ async function signInWithOAuth(provider){
   }
 }
 
+    let _myProfileRoutineEnabled = false;
+
+  function buildPublicRoutineSnapshot(routine){
+    const s = stateRef ? stateRef() : null;
+    if(!routine) return null;
+
+    const days = (routine.days || [])
+      .slice()
+      .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+      .map((day, idx) => ({
+        id: day?.id || null,
+        order: Number(day?.order ?? idx) || 0,
+        label: day?.label || `Day ${idx + 1}`,
+        isRest: !!day?.isRest,
+        exercises: (day?.exercises || []).map((rx, exIdx) => {
+          let resolvedName = rx?.nameSnap || "Exercise";
+          try{
+            const lib = s?.exerciseLibrary?.[String(rx?.type || "")] || [];
+            const found = lib.find(x => String(x?.id || "") === String(rx?.exerciseId || ""));
+            if(found?.name) resolvedName = String(found.name);
+          }catch(_){}
+          return {
+            id: rx?.id || null,
+            order: exIdx,
+            type: String(rx?.type || ""),
+            exerciseId: rx?.exerciseId || null,
+            name: resolvedName,
+            plan: rx?.plan || null,
+            notes: String(rx?.notes || "")
+          };
+        })
+      }));
+
+    return {
+      routineId: routine?.id || null,
+      name: routine?.name || "Routine",
+      days
+    };
+  }
+
+  async function fetchMyProfileRoutineSetting(){
+    const sb = await ensureClient();
+    if(!sb || !_user) return false;
+
+    try{
+      const { data, error } = await sb
+        .from("profile_routines")
+        .select("enabled")
+        .eq("user_id", _user.id)
+        .maybeSingle();
+
+      if(error) throw error;
+      _myProfileRoutineEnabled = !!data?.enabled;
+      return _myProfileRoutineEnabled;
+    }catch(_){
+      _myProfileRoutineEnabled = false;
+      return false;
+    }
+  }
+
+  function isProfileRoutineEnabled(){
+    return !!_myProfileRoutineEnabled;
+  }
+
+  async function setPublicRoutineEnabled(enabled, routine=null){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+
+    const on = !!enabled;
+    _myProfileRoutineEnabled = on;
+
+    const row = {
+      user_id: _user.id,
+      enabled: on,
+      updated_at: new Date().toISOString()
+    };
+
+    if(on && routine){
+      const snap = buildPublicRoutineSnapshot(routine);
+      row.routine_name = snap?.name || routine?.name || "Routine";
+      row.routine_payload = snap;
+    }
+
+    if(!on){
+      row.routine_name = null;
+      row.routine_payload = null;
+    }
+
+    const { error } = await sb.from("profile_routines").upsert(row);
+    if(error) throw error;
+
+    return row;
+  }
+
+  async function publishProfileRoutine(routine){
+    const sb = await ensureClient();
+    if(!sb || !_user) return null;
+    if(!routine) return null;
+
+    const snap = buildPublicRoutineSnapshot(routine);
+    if(!snap) return null;
+
+    const row = {
+      user_id: _user.id,
+      enabled: true,
+      routine_name: snap.name || routine?.name || "Routine",
+      routine_payload: snap,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await sb.from("profile_routines").upsert(row);
+    if(error) throw error;
+
+    _myProfileRoutineEnabled = true;
+    return row;
+  }
+
+  async function fetchProfileRoutine(userId){
+    const sb = await ensureClient();
+    const id = String(userId || "").trim();
+    if(!sb || !_user || !id) return null;
+
+    try{
+      const { data, error } = await sb
+        .from("profile_routines")
+        .select("user_id, enabled, routine_name, routine_payload, updated_at")
+        .eq("user_id", id)
+        .maybeSingle();
+
+      if(error) throw error;
+
+      if(String(id) === String(_user?.id || "")){
+        _myProfileRoutineEnabled = !!data?.enabled;
+      }
+
+      if(!data){
+        return {
+          userId: id,
+          enabled: false,
+          routineName: null,
+          routinePayload: null,
+          updatedAt: null
+        };
+      }
+
+      return {
+        userId: String(data.user_id || id),
+        enabled: !!data.enabled,
+        routineName: data.routine_name || data?.routine_payload?.name || null,
+        routinePayload: data.routine_payload || null,
+        updatedAt: data.updated_at || null
+      };
+    }catch(_){
+      return null;
+    }
+  }
+
   async function fetchProfileFollowCounts(userId){
     const sb = await ensureClient();
     const id = String(userId || "").trim();
@@ -871,6 +1028,36 @@ async function signInWithOAuth(provider){
       };
     }catch(_){
       return { following:0, followers:0 };
+    }
+  }
+
+  async function fetchProfileWorkoutHighlights(userId){
+    const sb = await ensureClient();
+    const id = String(userId || "").trim();
+    if(!sb || !_user || !id) return [];
+
+    try{
+      const { data, error } = await sb
+        .from("activity_events")
+        .select("id, actor_id, type, payload, created_at")
+        .eq("actor_id", id)
+        .eq("type", "workout_completed")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if(error) throw error;
+
+      try{ await fetchNames([id]); }catch(_){}
+
+      return (data || []).map(r => ({
+        id: r.id,
+        actorId: r.actor_id,
+        type: r.type,
+        payload: r.payload || {},
+        createdAt: r.created_at
+      }));
+    }catch(_){
+      return [];
     }
   }
 
@@ -1335,6 +1522,11 @@ async function flushOutbox(){
     nameFor,
     fetchFollows,
     fetchFollowers,
+    fetchMyProfileRoutineSetting,
+    isProfileRoutineEnabled,
+    setPublicRoutineEnabled,
+    publishProfileRoutine,
+    fetchProfileRoutine,
     fetchProfileFollowCounts,
     fetchProfileWorkoutHighlights,
     getFeed,
@@ -1554,6 +1746,38 @@ const { Routines, resolveExerciseName } = initRoutinesEngine({
   createRoutineFromTemplate
 });
 
+async function syncPublicRoutineAfterActiveChange(){
+  try{
+    if(!(Social && Social.isConfigured && Social.isConfigured())) return;
+    if(!(Social && Social.getUser && Social.getUser())) return;
+
+    const enabled = (Social.isProfileRoutineEnabled && Social.isProfileRoutineEnabled())
+      ? true
+      : await (Social.fetchMyProfileRoutineSetting ? Social.fetchMyProfileRoutineSetting() : Promise.resolve(false));
+
+    if(!enabled) return;
+
+    const active = (Routines && typeof Routines.getActive === "function")
+      ? Routines.getActive()
+      : null;
+
+    if(!active) return;
+
+    await Social.publishProfileRoutine?.(active);
+  }catch(_){}
+}
+
+async function setActiveRoutineAndSync(routineId){
+  Routines.setActive(routineId);
+  await syncPublicRoutineAfterActiveChange();
+  return Routines.getActive();
+}
+
+async function addRoutineFromTemplateAndSync(templateKey, nameOverride){
+  const routine = Routines.addFromTemplate(templateKey, nameOverride);
+  await syncPublicRoutineAfterActiveChange();
+  return routine;
+}
 
 /********************
  * 4c) Protein UI (Step 4) — moved to /app/protein-ui.js
@@ -2946,10 +3170,9 @@ const root = el("div", { class:"routinePage" });
       (RoutineTemplates || []).forEach(tpl => {
         list.appendChild(el("div", {
           class:"item",
-          onClick: () => {
+          onClick: async () => {
             try{
-              Routines.addFromTemplate(tpl.key, tpl.name); // seeds library + saves + sets active
-              Modal.close();
+              await addRoutineFromTemplateAndSync(tpl.key, tpl.name);              Modal.close();
               showToast(`Created: ${tpl.name}`);
               renderView(); // re-render current route (Routine)
             }catch(e){
@@ -3113,8 +3336,8 @@ if(all.length === 0){
     scrollHost.appendChild(
       el("div", {
         class:"popItem",
-        onClick: () => {
-          Routines.setActive(r.id);
+        onClick: async () => {
+          await setActiveRoutineAndSync(r.id);
           routine = Routines.getActive();
           selectedIndex = todayIndex;
           PopoverClose();
@@ -3153,13 +3376,13 @@ scrollHost.appendChild(
   scrollHost.appendChild(
     el("div", {
       class:"popItem",
-      onClick: () => {
+      onClick: async () => {
 
         all = Routines.getAll() || [];
         const existingNow = findRoutineForTemplate(tpl);
 
         if(existingNow){
-          Routines.setActive(existingNow.id);
+          await setActiveRoutineAndSync(existingNow.id);
           routine = Routines.getActive();
           selectedIndex = todayIndex;
 
@@ -3169,7 +3392,7 @@ scrollHost.appendChild(
           return;
         }
 
-        Routines.addFromTemplate(tpl.key, tpl.name);
+        await addRoutineFromTemplateAndSync(tpl.key, tpl.name);
 
         routine = Routines.getActive();
         selectedIndex = todayIndex;
@@ -5096,6 +5319,7 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   ui.view = ui.view || "feed"; // "feed" | "profile" (UI-only)
   ui.profileCountsById = ui.profileCountsById || {};
   ui.profileSharedById = ui.profileSharedById || {};
+  ui.profileRoutineById = ui.profileRoutineById || {};
   ui.profileLoadById = ui.profileLoadById || {};
 
   const root = el("div", { class:"grid" });
@@ -6285,23 +6509,39 @@ root.appendChild(el("div", { class:"card" }, [
     ? (feedAll || []).filter(ev => String(ev?.actorId || "") === String(profileUserId || ""))
     : (feedAll || []);
 
-  if(viewBody === "profile" && profileUserId && !isOwnProfile && configured && user){
+    if(viewBody === "profile" && profileUserId && !isOwnProfile && configured && user){
     const cacheId = String(profileUserId || "");
     const hasCounts = !!ui.profileCountsById?.[cacheId];
     const hasShared = Array.isArray(ui.profileSharedById?.[cacheId]);
+    const hasRoutine = Object.prototype.hasOwnProperty.call(ui.profileRoutineById || {}, cacheId);
 
-    if(!ui.profileLoadById?.[cacheId] && (!hasCounts || !hasShared)){
+    if(!ui.profileLoadById?.[cacheId] && (!hasCounts || !hasShared || !hasRoutine)){
       ui.profileLoadById[cacheId] = true;
       Promise.all([
         Social.fetchProfileFollowCounts ? Social.fetchProfileFollowCounts(cacheId) : Promise.resolve({ following:0, followers:0 }),
         Social.fetchProfileWorkoutHighlights ? Social.fetchProfileWorkoutHighlights(cacheId) : Promise.resolve([]),
+        Social.fetchProfileRoutine ? Social.fetchProfileRoutine(cacheId) : Promise.resolve(null),
         Social.fetchNames ? Social.fetchNames([cacheId]) : Promise.resolve(null)
-      ]).then(([counts, shared]) => {
+      ]).then(([counts, shared, routine]) => {
         ui.profileCountsById[cacheId] = counts || { following:0, followers:0 };
         ui.profileSharedById[cacheId] = Array.isArray(shared) ? shared : [];
+        ui.profileRoutineById[cacheId] = routine || {
+          userId: cacheId,
+          enabled: false,
+          routineName: null,
+          routinePayload: null,
+          updatedAt: null
+        };
       }).catch(() => {
         ui.profileCountsById[cacheId] = ui.profileCountsById[cacheId] || { following:0, followers:0 };
         ui.profileSharedById[cacheId] = ui.profileSharedById[cacheId] || [];
+        ui.profileRoutineById[cacheId] = ui.profileRoutineById[cacheId] || {
+          userId: cacheId,
+          enabled: false,
+          routineName: null,
+          routinePayload: null,
+          updatedAt: null
+        };
       }).finally(() => {
         ui.profileLoadById[cacheId] = false;
         try{
@@ -6721,130 +6961,170 @@ root.appendChild(el("div", { class:"card" }, [
     const cardioBest = isOwnProfile ? ownCardioBest : sharedCardioBest;
     const totalPRs = isOwnProfile ? ownTotalPRs : sharedTotalPRs;
 
-    const activeRoutine = isOwnProfile && Routines && typeof Routines.getActive === "function"
+        const activeRoutine = isOwnProfile && Routines && typeof Routines.getActive === "function"
       ? Routines.getActive()
       : null;
 
-    function openProfileRoutineModal(){
-      const routine = (Routines && typeof Routines.getActive === "function")
-        ? Routines.getActive()
-        : null;
+    const sharedRoutine = !isOwnProfile
+      ? (ui.profileRoutineById?.[String(profileUserId || "")] || null)
+      : null;
 
-      if(!routine){
-        showToast("No active routine");
-        return;
-      }
+    const sharedRoutineSnapshot = (!isOwnProfile && sharedRoutine?.enabled && sharedRoutine?.routinePayload)
+      ? sharedRoutine.routinePayload
+      : null;
 
-      const bodyNode = el("div", {}, [
-        el("div", { class:"note", text:"Read-only view of your current active routine." }),
+    function toOwnRoutineSnapshot(routine){
+      if(!routine) return null;
+      return {
+        routineId: routine?.id || null,
+        name: routine?.name || "Routine",
+        days: (routine.days || [])
+          .slice()
+          .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+          .map((day, idx) => ({
+            id: day?.id || null,
+            order: Number(day?.order ?? idx) || 0,
+            label: day?.label || `Day ${idx + 1}`,
+            isRest: !!day?.isRest,
+            exercises: (day?.exercises || []).map((rx, exIdx) => ({
+              id: rx?.id || null,
+              order: exIdx,
+              type: String(rx?.type || ""),
+              exerciseId: rx?.exerciseId || null,
+              name: resolveExerciseName(rx?.type, rx?.exerciseId, rx?.nameSnap || "Exercise"),
+              plan: rx?.plan || null,
+              notes: String(rx?.notes || "")
+            }))
+          }))
+      };
+    }
+
+    function buildRoutineModalBodyFromSnapshot(snapshot, noteText){
+      const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+
+      return el("div", {}, [
+        el("div", { class:"note", text: noteText || "Read-only routine view." }),
         el("div", { style:"height:10px" }),
 
-        ...(routine.days || []).length
-          ? (routine.days || [])
-              .slice()
-              .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
-              .map((day, idx) => {
-                const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
+        ...(days.length
+          ? days.map((day, idx) => {
+              const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
 
-                return el("div", {
-                  style:[
-                    "padding:12px",
-                    "border-radius:14px",
-                    "border:1px solid rgba(255,255,255,.10)",
-                    "background:rgba(255,255,255,.05)",
-                    "margin-bottom:8px"
-                  ].join(";")
+              return el("div", {
+                style:[
+                  "padding:12px",
+                  "border-radius:14px",
+                  "border:1px solid rgba(255,255,255,.10)",
+                  "background:rgba(255,255,255,.05)",
+                  "margin-bottom:8px"
+                ].join(";")
+              }, [
+                el("div", {
+                  style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
                 }, [
                   el("div", {
-                    style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
-                  }, [
-                    el("div", {
-                      style:"font-weight:1000; font-size:14px;"
-                    }, [day?.label || `Day ${idx + 1}`]),
-
-                    day?.isRest
-                      ? el("div", {
-                          style:[
-                            "padding:6px 10px",
-                            "border-radius:999px",
-                            "border:1px solid rgba(255,255,255,.10)",
-                            "background:rgba(255,255,255,.06)",
-                            "font-size:11px",
-                            "font-weight:900",
-                            "opacity:.86"
-                          ].join(";")
-                        }, ["Rest"])
-                      : el("div", {
-                          class:"note",
-                          style:"margin:0;"
-                        }, [exercises.length === 1 ? "1 exercise" : `${exercises.length} exercises`])
-                  ]),
-
-                  el("div", { style:"height:8px" }),
+                    style:"font-weight:1000; font-size:14px;"
+                  }, [day?.label || `Day ${idx + 1}`]),
 
                   day?.isRest
                     ? el("div", {
+                        style:[
+                          "padding:6px 10px",
+                          "border-radius:999px",
+                          "border:1px solid rgba(255,255,255,.10)",
+                          "background:rgba(255,255,255,.06)",
+                          "font-size:11px",
+                          "font-weight:900",
+                          "opacity:.86"
+                        ].join(";")
+                      }, ["Rest"])
+                    : el("div", {
                         class:"note",
-                        style:"margin:0; opacity:.86;"
-                      }, ["Rest day"])
-                    : (
-                        exercises.length
-                          ? el("div", {
-                              style:"display:flex; flex-direction:column; gap:6px;"
-                            }, exercises.map((rx, exIdx) => {
-                              const exName = resolveExerciseName(rx?.type, rx?.exerciseId, rx?.nameSnap || "Exercise");
-                              return el("div", {
-                                style:[
-                                  "display:flex",
-                                  "align-items:center",
-                                  "justify-content:space-between",
-                                  "gap:10px",
-                                  "padding:8px 10px",
-                                  "border-radius:12px",
-                                  "background:rgba(255,255,255,.04)",
-                                  "border:1px solid rgba(255,255,255,.06)"
-                                ].join(";")
+                        style:"margin:0;"
+                      }, [exercises.length === 1 ? "1 exercise" : `${exercises.length} exercises`])
+                ]),
+
+                el("div", { style:"height:8px" }),
+
+                day?.isRest
+                  ? el("div", {
+                      class:"note",
+                      style:"margin:0; opacity:.86;"
+                    }, ["Rest day"])
+                  : (
+                      exercises.length
+                        ? el("div", {
+                            style:"display:flex; flex-direction:column; gap:6px;"
+                          }, exercises.map((rx, exIdx) => {
+                            const planBits = [];
+                            if(Number.isFinite(Number(rx?.plan?.sets))) planBits.push(`${Number(rx.plan.sets)} sets`);
+                            if(String(rx?.plan?.reps || "").trim()) planBits.push(String(rx.plan.reps));
+                            if(Number.isFinite(Number(rx?.plan?.restSec))) planBits.push(`${Number(rx.plan.restSec)}s rest`);
+                            if(Number.isFinite(Number(rx?.plan?.targetWeight))) planBits.push(`${Number(rx.plan.targetWeight)} lb`);
+
+                            return el("div", {
+                              style:[
+                                "display:flex",
+                                "align-items:center",
+                                "justify-content:space-between",
+                                "gap:10px",
+                                "padding:8px 10px",
+                                "border-radius:12px",
+                                "background:rgba(255,255,255,.04)",
+                                "border:1px solid rgba(255,255,255,.06)"
+                              ].join(";")
+                            }, [
+                              el("div", {
+                                style:"min-width:0; display:flex; flex-direction:column; gap:2px;"
                               }, [
                                 el("div", {
-                                  style:"min-width:0; display:flex; flex-direction:column; gap:2px;"
-                                }, [
-                                  el("div", {
-                                    style:[
-                                      "font-weight:900",
-                                      "font-size:13px",
-                                      "overflow:hidden",
-                                      "text-overflow:ellipsis",
-                                      "white-space:nowrap"
-                                    ].join(";")
-                                  }, [exName]),
-                                  el("div", {
-                                    class:"note",
-                                    style:"margin:0; text-transform:capitalize;"
-                                  }, [String(rx?.type || "exercise")])
-                                ]),
+                                  style:[
+                                    "font-weight:900",
+                                    "font-size:13px",
+                                    "overflow:hidden",
+                                    "text-overflow:ellipsis",
+                                    "white-space:nowrap"
+                                  ].join(";")
+                                }, [String(rx?.name || "Exercise")]),
                                 el("div", {
-                                  style:"font-size:11px; font-weight:900; opacity:.7; flex:0 0 auto;"
-                                }, [`#${exIdx + 1}`])
-                              ]);
-                            }))
-                          : el("div", {
-                              class:"note",
-                              style:"margin:0; opacity:.86;"
-                            }, ["No exercises added"])
-                      )
-                ]);
-              })
+                                  class:"note",
+                                  style:"margin:0; text-transform:capitalize;"
+                                }, [
+                                  [String(rx?.type || "exercise"), planBits.join(" • "), String(rx?.notes || "").trim()]
+                                    .filter(Boolean)
+                                    .join(" • ")
+                                ])
+                              ]),
+                              el("div", {
+                                style:"font-size:11px; font-weight:900; opacity:.7; flex:0 0 auto;"
+                              }, [`#${exIdx + 1}`])
+                            ]);
+                          }))
+                        : el("div", {
+                            class:"note",
+                            style:"margin:0; opacity:.86;"
+                          }, ["No exercises added"])
+                    )
+              ]);
+            })
           : [
               el("div", {
                 class:"note",
                 style:"margin:0;"
-              }, ["No days found in the active routine."])
-            ]
+              }, ["No days found in this routine."])
+            ])
       ]);
+    }
+
+    function openProfileRoutineModal(snapshot, noteText){
+      if(!snapshot){
+        showToast("No routine available");
+        return;
+      }
 
       Modal.open({
-        title: routine?.name || "Workout Routine",
-        bodyNode
+        title: snapshot?.name || "Workout Routine",
+        bodyNode: buildRoutineModalBodyFromSnapshot(snapshot, noteText)
       });
     }
 
@@ -6899,7 +7179,7 @@ root.appendChild(el("div", { class:"card" }, [
       ]);
     };
 
-    const cards = [
+        const cards = [
       metricCard(
         "Best Strength PR",
         strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : (sharedLoading ? "Loading…" : "—"),
@@ -6909,17 +7189,27 @@ root.appendChild(el("div", { class:"card" }, [
         "Best Cardio PR",
         cardioBest ? cardioBest.value : (sharedLoading ? "Loading…" : "—"),
         cardioBest ? cardioBest.meta : (isOwnProfile ? "No cardio logs yet" : "No shared cardio PR yet")
+      ),
+      metricCard(
+        "Workout Routine",
+        isOwnProfile
+          ? (activeRoutine?.name || "No active routine")
+          : (sharedRoutineSnapshot?.name || (sharedLoading ? "Loading…" : "Private")),
+        isOwnProfile
+          ? (activeRoutine ? "Tap to view routine" : "Create or set a routine")
+          : (sharedRoutineSnapshot ? "Tap to view public routine" : "Routine not shared"),
+        ((isOwnProfile && activeRoutine) || (!isOwnProfile && sharedRoutineSnapshot))
+          ? {
+              onClick: () => openProfileRoutineModal(
+                isOwnProfile ? toOwnRoutineSnapshot(activeRoutine) : sharedRoutineSnapshot,
+                isOwnProfile
+                  ? "Read-only view of your current active routine."
+                  : "Public routine shared on this profile."
+              )
+            }
+          : {}
       )
     ];
-
-    if(isOwnProfile){
-      cards.push(metricCard(
-        "Workout Routine",
-        activeRoutine?.name || "No active routine",
-        activeRoutine ? "Tap to view routine" : "Create or set a routine",
-        activeRoutine ? { onClick: openProfileRoutineModal } : {}
-      ));
-    }
 
     cards.push(metricCard(
       "Total PRs",
@@ -8189,9 +8479,9 @@ const profileBody = el("div", {}, [
 
                   el("button", {
                     class:"btn" + (isActive ? " primary" : ""),
-                    onClick: () => {
+                    onClick: async () => {
                       try{
-                        Routines.setActive(r.id);
+                        await setActiveRoutineAndSync(r.id);
                         showToast("Active routine set");
                         renderView();
                       }catch(e){
@@ -8265,6 +8555,9 @@ const socialCfg = Social.getConfig && Social.getConfig();
 socialUI.supabaseUrl = (socialUI.supabaseUrl ?? socialCfg?.url ?? "");
 socialUI.supabaseAnon = (socialUI.supabaseAnon ?? socialCfg?.anonKey ?? "");
 socialUI.friendId = socialUI.friendId || "";
+socialUI.publicRoutineEnabled = !!socialUI.publicRoutineEnabled;
+socialUI._publicRoutineLoadedFor = socialUI._publicRoutineLoadedFor || "";
+socialUI._publicRoutineLoading = !!socialUI._publicRoutineLoading;
 
 
   // ✅ Auto-populate signed-in state after OAuth redirect
@@ -8291,6 +8584,28 @@ if(_socialConfigured && !_socialUserNow && !socialUI._autoUserRefreshDone){
 if(_socialUserNow){
   socialUI._autoUserRefreshDone = false;
 }         
+
+           if(_socialConfigured && _socialUserNow && !socialUI._publicRoutineLoading && socialUI._publicRoutineLoadedFor !== String(_socialUserNow.id || "")){
+  socialUI._publicRoutineLoading = true;
+
+  setTimeout(async () => {
+    try{
+      const enabled = await (Social.fetchMyProfileRoutineSetting ? Social.fetchMyProfileRoutineSetting() : Promise.resolve(false));
+      socialUI.publicRoutineEnabled = !!enabled;
+      socialUI._publicRoutineLoadedFor = String(_socialUserNow.id || "");
+    }catch(_){
+      socialUI.publicRoutineEnabled = false;
+    }finally{
+      socialUI._publicRoutineLoading = false;
+      try{ renderView(); }catch(_){}
+    }
+  }, 0);
+}
+
+if(!_socialUserNow){
+  socialUI._publicRoutineLoadedFor = "";
+  socialUI._publicRoutineLoading = false;
+}
            
   const socialBody = el("div", {}, [
   el("div", { class:"note", text:"Connect a free Supabase project to enable the Friends feed (events-only). This does not sync your full app data — it only posts compact activity events." }),
@@ -8371,7 +8686,37 @@ if(_socialUserNow){
       }
     }, ["Sign out"])
   ]),
+      el("div", { style:"height:14px" }),
 
+  el("div", { class:"note", text:"Public active routine" }),
+
+  el("div", { class:"setRow" }, [
+    el("div", {}, [
+      el("div", { style:"font-weight:820;", text:"Show Workout Routine on profile" }),
+      el("div", { class:"meta", text:"Shares your active routine name, days, exercise names, and targets/sets. Updates only when you set a routine active." })
+    ]),
+    (() => {
+      const sw = el("div", {
+        class:"switch" + (socialUI.publicRoutineEnabled ? " on" : ""),
+        onClick: async () => {
+          try{
+            const next = !socialUI.publicRoutineEnabled;
+            const active = (Routines && typeof Routines.getActive === "function")
+              ? Routines.getActive()
+              : null;
+
+            await Social.setPublicRoutineEnabled?.(next, next ? active : null);
+            socialUI.publicRoutineEnabled = next;
+            showToast(next ? "Public routine enabled" : "Public routine hidden");
+            renderView();
+          }catch(e){
+            showToast(e?.message || "Couldn't update routine privacy");
+          }
+        }
+      });
+      return sw;
+    })()
+  ]),
   // ─────────────────────────────
   // Friend code + follow controls (moved here)
   // ─────────────────────────────
