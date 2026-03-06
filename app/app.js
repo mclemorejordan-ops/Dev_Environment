@@ -6067,86 +6067,207 @@ root.appendChild(el("div", { class:"card" }, [
   })();
 
        const profileHeaderCard = (viewBody === "profile" && user) ? (() => {
-    const followsCount = ((Social.getFollows ? Social.getFollows() : followsNow) || []).length;
-    const followersCount = ((Social.getFollowers ? Social.getFollowers() : followersNow) || []).length;
-    const postsCount = (feedList || []).length;
-    const displayName = String(
-      user?.user_metadata?.full_name ||
-      user?.user_metadata?.name ||
-      user?.email ||
-      "You"
-    );
+    const entries = Array.isArray(feedList) ? feedList : [];
 
-    const statPill = (label, value) => el("div", {
+    const toTs = (ev) => {
+      const raw = ev?.payload?.dateISO || ev?.createdAt || null;
+      const t = raw ? new Date(raw).getTime() : 0;
+      return Number.isFinite(t) ? t : 0;
+    };
+
+    const fmtNum = (n) => {
+      const x = Number(n);
+      if(!Number.isFinite(x)) return "—";
+      return String(Math.round(x * 10) / 10);
+    };
+
+    const fmtPaceSafe = (sec) => {
+      const s = Number(sec);
+      if(!Number.isFinite(s) || s <= 0) return "—";
+      const whole = Math.floor(s);
+      const m = Math.floor(whole / 60);
+      const r = whole % 60;
+      return `${m}:${String(r).padStart(2,"0")} / unit`;
+    };
+
+    const uniqDayCount = (() => {
+      const set = new Set();
+      entries.forEach(ev => {
+        const d = String(ev?.payload?.dateISO || "").slice(0,10);
+        if(d) set.add(d);
+      });
+      return set.size;
+    })();
+
+    const strengthBest = (() => {
+      let best = null;
+      entries.forEach(ev => {
+        if(ev?.type !== "exercise_logged") return;
+        const p = ev?.payload || {};
+        const workoutType = String(p?.workoutType || "");
+        if(workoutType !== "weightlifting") return;
+
+        const weight = Number(p?.summary?.bestWeight);
+        if(!Number.isFinite(weight) || weight <= 0) return;
+
+        if(!best || weight > best.weight || (weight === best.weight && toTs(ev) > best.ts)){
+          best = {
+            weight,
+            name: p?.exerciseName || "Strength",
+            ts: toTs(ev)
+          };
+        }
+      });
+      return best;
+    })();
+
+    const cardioBest = (() => {
+      let bestPace = null;
+      let bestDistance = null;
+      let bestTime = null;
+
+      entries.forEach(ev => {
+        if(ev?.type !== "exercise_logged") return;
+        const p = ev?.payload || {};
+        if(String(p?.workoutType || "") !== "cardio") return;
+
+        const pace = Number(p?.summary?.paceSecPerUnit);
+        const distance = Number(p?.summary?.distance);
+        const timeSec = Number(p?.summary?.timeSec);
+        const name = p?.exerciseName || "Cardio";
+        const ts = toTs(ev);
+
+        if(Number.isFinite(pace) && pace > 0){
+          if(!bestPace || pace < bestPace.pace || (pace === bestPace.pace && ts > bestPace.ts)){
+            bestPace = { pace, name, ts };
+          }
+        }
+
+        if(Number.isFinite(distance) && distance > 0){
+          if(!bestDistance || distance > bestDistance.distance || (distance === bestDistance.distance && ts > bestDistance.ts)){
+            bestDistance = { distance, name, ts };
+          }
+        }
+
+        if(Number.isFinite(timeSec) && timeSec > 0){
+          if(!bestTime || timeSec > bestTime.timeSec || (timeSec === bestTime.timeSec && ts > bestTime.ts)){
+            bestTime = { timeSec, name, ts };
+          }
+        }
+      });
+
+      if(bestPace){
+        return {
+          value: fmtPaceSafe(bestPace.pace),
+          meta: bestPace.name
+        };
+      }
+      if(bestDistance){
+        return {
+          value: `${fmtNum(bestDistance.distance)} units`,
+          meta: bestDistance.name
+        };
+      }
+      if(bestTime){
+        const whole = Math.floor(bestTime.timeSec);
+        const m = Math.floor(whole / 60);
+        const s = whole % 60;
+        return {
+          value: `${m}:${String(s).padStart(2,"0")}`,
+          meta: bestTime.name
+        };
+      }
+      return null;
+    })();
+
+    const totalPRs = (() => {
+      return entries.reduce((sum, ev) => {
+        if(ev?.type !== "exercise_logged") return sum;
+        const n = Number(ev?.payload?.prCount || 0);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
+    })();
+
+    const metricCard = (label, value, meta) => el("div", {
       style:[
         "display:flex",
         "flex-direction:column",
-        "align-items:flex-start",
-        "gap:2px",
-        "padding:10px 12px",
+        "gap:4px",
+        "padding:12px",
         "border-radius:14px",
         "border:1px solid rgba(255,255,255,.10)",
         "background:rgba(255,255,255,.05)",
-        "min-width:88px",
-        "flex:1 1 0"
+        "min-width:0"
       ].join(";")
     }, [
       el("div", {
         style:"font-size:11px; font-weight:900; letter-spacing:.2px; opacity:.72; text-transform:uppercase;"
       }, [label]),
       el("div", {
-        style:"font-size:18px; font-weight:1000; line-height:1.1;"
-      }, [String(value)])
+        style:[
+          "font-size:18px",
+          "font-weight:1000",
+          "line-height:1.1",
+          "overflow:hidden",
+          "text-overflow:ellipsis",
+          "white-space:nowrap"
+        ].join(";")
+      }, [value]),
+      el("div", {
+        class:"note",
+        style:[
+          "margin:0",
+          "opacity:.82",
+          "overflow:hidden",
+          "text-overflow:ellipsis",
+          "white-space:nowrap"
+        ].join(";")
+      }, [meta])
     ]);
 
     return el("div", { class:"card" }, [
       el("div", {
-        style:"display:flex; align-items:center; gap:12px;"
+        style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
       }, [
-        el("div", {
-          style:[
-            "width:54px",
-            "height:54px",
-            "border-radius:999px",
-            "display:grid",
-            "place-items:center",
-            "font-weight:1000",
-            "font-size:20px",
-            "border:1px solid rgba(255,255,255,.12)",
-            "background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05))",
-            "flex:0 0 auto"
-          ].join(";")
-        }, [displayName.trim().charAt(0).toUpperCase() || "Y"]),
-
-        el("div", {
-          style:"min-width:0; display:flex; flex-direction:column; gap:4px;"
-        }, [
+        el("div", {}, [
           el("div", {
-            style:[
-              "font-size:18px",
-              "font-weight:1000",
-              "line-height:1.15",
-              "overflow:hidden",
-              "text-overflow:ellipsis",
-              "white-space:nowrap"
-            ].join(";")
-          }, [displayName]),
-
+            style:"font-size:18px; font-weight:1000; line-height:1.15;"
+          }, ["Highlights"]),
           el("div", {
             class:"note",
-            style:"margin:0; opacity:.82;"
-          }, ["Your shared activity and workout posts."])
+            style:"margin:4px 0 0 0; opacity:.82;"
+          }, ["Shared performance highlights from your profile activity."])
         ])
       ]),
 
       el("div", { style:"height:12px" }),
 
       el("div", {
-        style:"display:flex; gap:8px; flex-wrap:wrap;"
+        style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
       }, [
-        statPill("Posts", postsCount),
-        statPill("Followers", followersCount),
-        statPill("Following", followsCount)
+        metricCard(
+          "Best Strength PR",
+          strengthBest ? `${fmtNum(strengthBest.weight)}` : "—",
+          strengthBest ? strengthBest.name : "No strength PR shared"
+        ),
+
+        metricCard(
+          "Best Cardio PR",
+          cardioBest ? cardioBest.value : "—",
+          cardioBest ? cardioBest.meta : "No cardio PR shared"
+        ),
+
+        metricCard(
+          "Consistency",
+          String(uniqDayCount),
+          uniqDayCount === 1 ? "Active day shared" : "Active days shared"
+        ),
+
+        metricCard(
+          "Total PRs",
+          String(totalPRs),
+          totalPRs === 1 ? "PR shared" : "PRs shared"
+        )
       ])
     ]);
   })() : null;
