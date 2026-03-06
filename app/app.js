@@ -6693,19 +6693,22 @@ root.appendChild(el("div", { class:"card" }, [
   ]),
 
   el("div", { class:"card" }, [
-      el("div", {
-        style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
-      }, [
-        el("div", {}, [
-          el("div", {
-            style:"font-size:18px; font-weight:1000; line-height:1.15;"
-          }, ["Highlights"]),
-          el("div", {
-            class:"note",
-            style:"margin:4px 0 0 0; opacity:.82;"
-          }, ["Pulled from all logged workouts and your active routine."])
-        ])
-      ]),
+    el("div", {
+      style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
+    }, [
+      el("div", {}, [
+        el("div", {
+          style:"font-size:18px; font-weight:1000; line-height:1.15;"
+        }, ["Highlights"]),
+        el("div", {
+          class:"note",
+          style:"margin:4px 0 0 0; opacity:.82;"
+        }, ["Pulled from all logged workouts and your active routine."])
+      ])
+    ])
+  ])
+
+]);
 
       el("div", { style:"height:12px" }),
 
