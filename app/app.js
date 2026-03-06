@@ -7128,7 +7128,7 @@ const row = el("div", {
 
       return timeline;
     })() : null
-  ].filter(Boolean)));
+  ].filter(Boolean));
   // Auto-start polling when entering the view
   try{
     if(configured && user) Social.startFeed();
