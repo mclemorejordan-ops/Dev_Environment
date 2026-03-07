@@ -8429,53 +8429,35 @@ const show3DSwitch = el("div", {
 
 async function saveProfile(){
   const nextName = String(nameInput.value || "").trim();
-  const currentUsername = normalizeUsername(state?.profile?.username || "");
-  const nextUsername = normalizeUsername(usernameInput?.value || "");
-  const usernameChanged = nextUsername !== currentUsername;
+  const nextUsername = normalizeUsername(usernameInput.value);
 
-  if(!nextName) throw new Error("Enter your name.");
+  if(usernameCheckTimer){
+  clearTimeout(usernameCheckTimer);
+  usernameCheckTimer = null;
+}
+await checkUsernameAvailabilityLive();
+
+if(usernameStatus === "taken"){
+  showToast("Username already taken");
+  return;
+}
+
+if(!nextName) throw new Error("Enter your name.");
+if(!isValidUsername(nextUsername))
+  throw new Error("Username must be 3–20 letters, numbers, or underscores.");
+
+// ✅ prevent duplicate usernames
+if(!(await usernameAvailable(nextUsername))){
+  showToast("Username already taken");
+  return;
+}
 
   state.profile = state.profile || {};
-
-  // Only validate/check username if the user actually changed it
-  if(usernameChanged){
-    if(usernameCheckTimer){
-      clearTimeout(usernameCheckTimer);
-      usernameCheckTimer = null;
-    }
-
-    if(!isValidUsername(nextUsername)){
-      throw new Error("Username must be 3–20 letters, numbers, or underscores.");
-    }
-
-    // Live UI check (best effort)
-    if(typeof checkUsernameAvailabilityLive === "function"){
-      await checkUsernameAvailabilityLive();
-      if(usernameStatus === "taken"){
-        showToast("Username already taken");
-        return;
-      }
-    }
-
-    // Final server check (only when changed)
-    if(typeof usernameAvailable === "function"){
-      const ok = await usernameAvailable(nextUsername);
-      if(!ok){
-        showToast("Username already taken");
-        return;
-      }
-    }
-
-    state.profile.username = nextUsername;
-  }else{
-    // Keep existing username untouched on protein/settings-only saves
-    state.profile.username = currentUsername || nextUsername || "";
-  }
-
   state.profile.name = nextName;
+  state.profile.username = nextUsername;
 
   if(trackProtein){
-    state.profile.proteinGoal = Math.max(0, Number(proteinInput?.value || 0));
+    state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
     if(state.profile.proteinGoal <= 0){
       showToast("Enter a protein goal");
       return;
@@ -8487,20 +8469,9 @@ async function saveProfile(){
   state.profile.weekStartsOn = (weekSelect.value === "sun") ? "sun" : "mon";
   state.profile.hideRestDays = !!hideRestDays;
   state.profile.show3DPreview = !!show3DPreview;
-
   Storage.save(state);
 
-  // Public API only — never call ensureClient() from Settings scope
-  try{
-    if(
-      typeof Social !== "undefined" &&
-      Social &&
-      typeof Social.refreshUser === "function"
-    ){
-      await Social.refreshUser();
-    }
-  }catch(_){}
-
+  try{ Social.refreshUser?.(); }catch(_){}
   showToast("Saved");
   renderView();
 }
