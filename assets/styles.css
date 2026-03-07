@@ -2546,3 +2546,18 @@ button.mini.added{
     font-size: 16px !important;
   }
 }
+/* ─────────────────────────────
+   Sticky Hero Card (Progress Page)
+   Keeps the exercise hero visible while scrolling
+   ───────────────────────────── */
+
+.progressHeroSticky{
+  position: sticky;
+  top: 8px;              /* keeps slight spacing under nav/header */
+  z-index: 15;
+}
+
+/* optional: ensure chart scrolls under cleanly */
+.progressHeroSticky.card{
+  backdrop-filter: blur(6px);
+}
