@@ -5790,12 +5790,17 @@ function openFollowerNotifsModal(){
 }
 
 
-     function openConnectionsModal(initialTab){
-  ui.connTab = initialTab || ui.connTab || "following";
-  ui.connSearch = ui.connSearch || "";
-  ui.connAddCode = ui.connAddCode || "";
+       const searchWrap = el("div", { class:"connSearch" }, [
+    el("div", { class:"ico", text:"🔎" }),
+    searchInput
+  ]);
 
-  const statsRow = el("div", { class:"connStats" });
+  const searchStatus = el("div", {
+    class:"note",
+    style:"display:none; margin-top:6px;"
+  }, ["Searching…"]);
+
+  const bodyHost = el("div", { class:"connScroll" });
 
   const searchInput = el("input", {
     type:"text",
@@ -6283,6 +6288,8 @@ function openFollowerNotifsModal(){
 
     bodyHost.innerHTML = "";
 
+    searchStatus.style.display = "none";
+      
     if(!user){
       bodyHost.appendChild(el("div", { class:"note", text:"Sign in to manage connections." }));
       return;
@@ -6311,10 +6318,16 @@ function openFollowerNotifsModal(){
       q
     );
 
-    let remoteResults = [];
+        let remoteResults = [];
+    searchStatus.style.display = "block";
     try{
       if(Social.searchProfilesByUsername) remoteResults = await Social.searchProfilesByUsername(q, { limit: 8 });
     }catch(_){}
+    finally{
+      if(paintSeq === repaintSeq){
+        searchStatus.style.display = "none";
+      }
+    }
 
     if(paintSeq !== repaintSeq) return;
 
@@ -6360,6 +6373,7 @@ function openFollowerNotifsModal(){
       statsRow,
       el("div", { style:"height:10px" }),
       searchWrap,
+      searchStatus,
       el("div", { style:"height:10px" }),
       bodyHost,
       el("div", { style:"height:10px" }),
