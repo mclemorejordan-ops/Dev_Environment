@@ -5790,6 +5790,73 @@ function openFollowerNotifsModal(){
 }
 
 
+function openAddFriendModal(){
+  const friendCodeInput = el("input", {
+    class:"connCodeInput",
+    type:"text",
+    placeholder:"@username",
+    value: ui.connAddCode || "",
+    autocapitalize:"off",
+    autocorrect:"off",
+    spellcheck:"false"
+  });
+
+  friendCodeInput.addEventListener("input", () => {
+    ui.connAddCode = friendCodeInput.value || "";
+  });
+
+  async function doAdd(){
+    if(!user){
+      showToast("Sign in to add friends");
+      return;
+    }
+
+    const raw = String(ui.connAddCode || "").trim();
+    const uname = normalizeUsername(raw);
+
+    if(!uname){
+      showToast("Enter a username");
+      return;
+    }
+
+    try{
+      await Social.follow(uname);
+      showToast("Friend added");
+      ui.connAddCode = "";
+      Modal.close();
+      renderView();
+    }catch(e){
+      showToast(e?.message || "Couldn't add friend");
+    }
+  }
+
+  Modal.open({
+    title: "Add Friend",
+    bodyNode: el("div", { class:"connAddFriendModal" }, [
+
+      el("div", { class:"setRow" }, [
+        el("div", {}, [
+          el("div", { style:"font-weight:820;", text:"Friend username" }),
+          el("div", { class:"meta", text:"Enter @username to add" })
+        ]),
+
+        el("div", { class:"connCodeRight" }, [
+          friendCodeInput,
+          el("button", {
+            class:"btn primary sm",
+            onClick: doAdd
+          }, ["Add"])
+        ])
+      ])
+    ])
+  });
+}
+
+const addFriendBtn = el("button", {
+  class:"btn primary",
+  onClick: () => openAddFriendModal()
+}, ["Add Friend"]);
+     
   function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
   ui.connSearch = ui.connSearch || "";
