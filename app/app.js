@@ -778,6 +778,105 @@ async function fetchNotifications(){
     return { names:_names, usernames:_usernames };
   }
 
+    async function fetchNames(ids){
+    const sb = await ensureClient();
+    if(!sb || !_user) return { names:_names, usernames:_usernames };
+
+    const uniq = Array.from(new Set((ids || [])
+      .map(x => String(x || ""))
+      .filter(Boolean)
+    ));
+
+    const missing = uniq.filter(id =>
+      !Object.prototype.hasOwnProperty.call(_names, String(id)) ||
+      !Object.prototype.hasOwnProperty.call(_usernames, String(id))
+    );
+
+    if(!missing.length) return { names:_names, usernames:_usernames };
+
+    try{
+      const { data, error } = await sb
+        .from("profiles")
+        .select("id, display_name, username")
+        .in("id", missing);
+
+      if(error) throw error;
+
+      (data || []).forEach(r => {
+        const id = String(r.id || "");
+        if(!id) return;
+
+        const dn = String(r.display_name || "").trim();
+        const un = normalizeUsername(r.username || "");
+
+        _names[id] = dn || "User";
+        _usernames[id] = un || "";
+      });
+
+      missing.forEach(id => {
+        const k = String(id || "");
+        if(!Object.prototype.hasOwnProperty.call(_names, k)) _names[k] = "User";
+        if(!Object.prototype.hasOwnProperty.call(_usernames, k)) _usernames[k] = "";
+      });
+    }catch(_){}
+
+    return { names:_names, usernames:_usernames };
+  }
+
+  async function searchProfilesByUsername(query, opts={}){
+    const sb = await ensureClient();
+    if(!sb || !_user) return [];
+
+    const raw = String(query || "").trim();
+    const q = normalizeUsername(raw);
+    if(!q) return [];
+
+    const limit = Math.max(1, Math.min(20, Number(opts?.limit || 8) || 8));
+
+    try{
+      const { data, error } = await sb
+        .from("profiles")
+        .select("id, display_name, username")
+        .ilike("username", `${q}%`)
+        .limit(limit);
+
+      if(error) throw error;
+
+      const rows = (data || []).map(r => {
+        const id = String(r?.id || "");
+        const dn = String(r?.display_name || "").trim() || "User";
+        const un = normalizeUsername(r?.username || "");
+
+        if(id){
+          _names[id] = dn;
+          _usernames[id] = un || "";
+        }
+
+        return {
+          id,
+          displayName: dn,
+          username: un
+        };
+      }).filter(r => r.id && r.username);
+
+      rows.sort((a,b) => {
+        const au = String(a?.username || "");
+        const bu = String(b?.username || "");
+        const aExact = au === q;
+        const bExact = bu === q;
+        if(aExact !== bExact) return aExact ? -1 : 1;
+        const aStarts = au.startsWith(q);
+        const bStarts = bu.startsWith(q);
+        if(aStarts !== bStarts) return aStarts ? -1 : 1;
+        return au.localeCompare(bu);
+      });
+
+      return rows;
+    }catch(_){
+      return [];
+    }
+  }
+
 async function upsertMyProfile(){
   const sb = await ensureClient();
   if(!sb || !_user) return;
@@ -1550,6 +1649,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     __setNotifications: (arr) => { _notifications = Array.isArray(arr) ? arr : []; notify(); },
     __clearNotifications: () => { _notifications = []; notify(); },
     fetchNames,
+    searchProfilesByUsername,
     nameFor,
     usernameFor,
     identityFor,
@@ -5709,6 +5809,9 @@ function openFollowerNotifsModal(){
 
   const bodyHost = el("div", { class:"connScroll" });
 
+  const bodyHost = el("div", { class:"connScroll" });
+  let repaintSeq = 0;
+       
   searchInput.addEventListener("input", () => {
     ui.connSearch = searchInput.value || "";
     repaintModal();
@@ -5751,8 +5854,62 @@ function openFollowerNotifsModal(){
     ]);
   }
 
-  function badge(label, kind){
+    function badge(label, kind){
     return el("span", { class:"connBadge" + (kind ? (" " + kind) : ""), text: label });
+  }
+
+  function matchesConnectionSearch(id, q){
+    if(!q) return true;
+    const dn = ((Social.nameFor && Social.nameFor(id)) || "User").toLowerCase();
+    const un = ((Social.usernameFor && Social.usernameFor(id)) || "").toLowerCase();
+    const handle = un ? `@${un}` : "";
+    return dn.includes(q) || un.includes(q) || handle.includes(q);
+  }
+
+  function connectionSortValue(id, q){
+    const dn = ((Social.nameFor && Social.nameFor(id)) || "User").toLowerCase();
+    const un = ((Social.usernameFor && Social.usernameFor(id)) || "").toLowerCase();
+    const handle = un ? `@${un}` : "";
+
+    const exactUser = !!q && (un === q || handle === q);
+    const startsUser = !!q && !exactUser && (un.startsWith(q) || handle.startsWith(q));
+    const startsName = !!q && dn.startsWith(q);
+
+    return {
+      dn,
+      un,
+      exactUser,
+      startsUser,
+      startsName
+    };
+  }
+
+  function sortConnectionIds(ids, q){
+    return (ids || []).slice().sort((a,b) => {
+      const aa = connectionSortValue(a, q);
+      const bb = connectionSortValue(b, q);
+      if(aa.exactUser !== bb.exactUser) return aa.exactUser ? -1 : 1;
+      if(aa.startsUser !== bb.startsUser) return aa.startsUser ? -1 : 1;
+      if(aa.startsName !== bb.startsName) return aa.startsName ? -1 : 1;
+      const userCmp = aa.un.localeCompare(bb.un);
+      if(userCmp !== 0) return userCmp;
+      return aa.dn.localeCompare(bb.dn);
+    });
+  }
+
+  function sectionTitle(text){
+    return el("div", {
+      style:"font-size:12px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; opacity:.72; margin:2px 0 10px;"
+    }, [text]);
+  }
+
+  function appendRows(ids, mode, followsSet, followersSet){
+    (ids || []).forEach((id, idx) => {
+      bodyHost.appendChild(connectionRow({ id, mode, followsSet, followersSet }));
+      if(idx !== ids.length - 1){
+        bodyHost.appendChild(el("div", { class:"hr" }));
+      }
+    });
   }
 
    function connectionRow({ id, mode, followsSet, followersSet }){
@@ -5852,6 +6009,86 @@ function openFollowerNotifsModal(){
   ]);
 }
 
+
+         function searchResultRow({ id, followsSet, followersSet }){
+    const dn = (Social.nameFor && Social.nameFor(id)) || "User";
+    const un = (Social.usernameFor && Social.usernameFor(id)) || "";
+    const handle = usernameToHandle(un);
+    const iFollow = followsSet.has(id);
+    const followsMe = followersSet.has(id);
+    const mutual = iFollow && followsMe;
+
+    let metaText = "Suggested user";
+    if(mutual) metaText = "You follow each other";
+    else if(iFollow) metaText = "You follow them";
+    else if(followsMe) metaText = "Follows you";
+
+    const badges = [];
+    if(mutual) badges.push(badge("Mutual", "mutual"));
+    else if(iFollow) badges.push(badge("Following"));
+    else if(followsMe) badges.push(badge("Follows you"));
+    else badges.push(badge("Suggested"));
+
+    const action = iFollow
+      ? el("button", {
+          class:"btn danger sm",
+          onClick: async (e) => {
+            try{ e?.stopPropagation?.(); }catch(_){}
+            try{
+              await Social.unfollow(id);
+              showToast("Unfollowed");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e2){
+              showToast(e2?.message || "Couldn't unfollow");
+            }
+          }
+        }, ["Unfollow"])
+      : el("button", {
+          class:"btn primary sm",
+          onClick: async (e) => {
+            try{ e?.stopPropagation?.(); }catch(_){}
+            try{
+              await Social.follow(id);
+              showToast(followsMe ? "Followed back" : "Following");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e2){
+              showToast(e2?.message || "Follow failed");
+            }
+          }
+        }, [followsMe ? "Follow back" : "Add"]);
+
+    return el("div", { class:"connRow" }, [
+      el("div", {
+        class:"av",
+        style:"cursor:pointer;",
+        onClick: () => openFriendProfile(id)
+      }, [
+        el("div", { class:"ltr", text: avatarLetter(dn) })
+      ]),
+
+      el("div", {
+        style:"min-width:0; flex:1; cursor:pointer;",
+        onClick: () => openFriendProfile(id)
+      }, [
+        el("div", { style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;", text: dn }),
+        handle ? el("div", {
+          class:"note",
+          style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
+          text: handle
+        }) : null,
+        el("div", { class:"note", style:"margin:4px 0 0 0;" }, [metaText]),
+        badges.length ? el("div", { style:"display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;" }, badges) : null
+      ].filter(Boolean)),
+
+      el("div", { style:"display:flex; gap:8px; align-items:center; flex:0 0 auto;" }, [action])
+    ]);
+  }
+
+       
   // ─────────────────────────────────────────────
   // Add Friend popup (Friend Code)
   // ─────────────────────────────────────────────
@@ -6016,7 +6253,8 @@ function openFollowerNotifsModal(){
     onClick: () => openAddFriendModal()
   }, ["Add Friend"]);
 
-  async function repaintModal(){
+    async function repaintModal(){
+    const paintSeq = ++repaintSeq;
     const follows = Social.getFollows ? Social.getFollows() : [];
     const followers = Social.getFollowers ? Social.getFollowers() : [];
 
@@ -6030,12 +6268,20 @@ function openFollowerNotifsModal(){
     statsRow.appendChild(statPill({ tab:"followers", label:"Followers", value: followers.length }));
     statsRow.appendChild(statPill({ tab:"mutual", label:"Mutual", value: mutualCount }));
 
+    const q = normalizeUsername(ui.connSearch || "");
+    const allConnectionIds = Array.from(
+      new Set([].concat(follows || [], followers || []).map(x => String(x || "")).filter(Boolean))
+    );
+    const currentTabIds = ((ui.connTab === "following") ? follows
+      : (ui.connTab === "followers") ? followers
+      : mutualIds).map(x => String(x || "")).filter(Boolean);
+
     try{
-      const ids = (ui.connTab === "following") ? follows
-        : (ui.connTab === "followers") ? followers
-        : mutualIds;
-      if(Social.fetchNames) await Social.fetchNames(ids);
+      const idsToHydrate = q ? allConnectionIds : currentTabIds;
+      if(idsToHydrate.length && Social.fetchNames) await Social.fetchNames(idsToHydrate);
     }catch(_){}
+
+    if(paintSeq !== repaintSeq) return;
 
     bodyHost.innerHTML = "";
 
@@ -6044,45 +6290,68 @@ function openFollowerNotifsModal(){
       return;
     }
 
-    const q = (ui.connSearch || "").trim().toLowerCase();
-    const baseList = (ui.connTab === "following") ? follows
-      : (ui.connTab === "followers") ? followers
-      : mutualIds;
+    if(!q){
+      if(!currentTabIds.length){
+        bodyHost.appendChild(el("div", {
+          class:"note",
+          text:
+            (ui.connTab === "following") ? "Not following anyone yet."
+            : (ui.connTab === "followers") ? "No followers yet."
+            : "No mutual connections yet."
+        }));
+        return;
+      }
 
-    if(!baseList.length){
+      const items = sortConnectionIds(currentTabIds, "");
+      const mode = (ui.connTab === "following") ? "following" : "followers";
+      appendRows(items, mode, followsSet, followersSet);
+      return;
+    }
+
+    const localMatches = sortConnectionIds(
+      allConnectionIds.filter(id => matchesConnectionSearch(id, q)),
+      q
+    );
+
+    let remoteResults = [];
+    try{
+      if(Social.searchProfilesByUsername) remoteResults = await Social.searchProfilesByUsername(q, { limit: 8 });
+    }catch(_){}
+
+    if(paintSeq !== repaintSeq) return;
+
+    const remoteIds = (remoteResults || [])
+      .map(row => String(row?.id || ""))
+      .filter(Boolean)
+      .filter(id => String(id) !== String(user?.id || ""))
+      .filter(id => !allConnectionIds.includes(id));
+
+    let wroteSection = false;
+
+    if(localMatches.length){
+      wroteSection = true;
+      bodyHost.appendChild(sectionTitle("Your connections"));
+      appendRows(localMatches, "followers", followsSet, followersSet);
+    }
+
+    if(remoteIds.length){
+      if(wroteSection) bodyHost.appendChild(el("div", { style:"height:12px" }));
+      wroteSection = true;
+      bodyHost.appendChild(sectionTitle("Suggested users"));
+      remoteIds.forEach((id, idx) => {
+        bodyHost.appendChild(searchResultRow({ id, followsSet, followersSet }));
+        if(idx !== remoteIds.length - 1){
+          bodyHost.appendChild(el("div", { class:"hr" }));
+        }
+      });
+    }
+
+    if(!wroteSection){
       bodyHost.appendChild(el("div", {
         class:"note",
-        text:
-          (ui.connTab === "following") ? "Not following anyone yet."
-          : (ui.connTab === "followers") ? "No followers yet."
-          : "No mutual connections yet."
+        text:"No matches. Try a full @username."
       }));
-      return;
     }
-
-    const items = baseList
-      .map(x => String(x))
-      .filter(id => {
-        if(!q) return true;
-        const dn = ((Social.nameFor && Social.nameFor(id)) || "User").toLowerCase();
-        return dn.includes(q);
-      })
-      .sort((a,b) => {
-        const da = ((Social.nameFor && Social.nameFor(a)) || "User").toLowerCase();
-        const db = ((Social.nameFor && Social.nameFor(b)) || "User").toLowerCase();
-        return da.localeCompare(db);
-      });
-
-    if(!items.length){
-      bodyHost.appendChild(el("div", { class:"note", text:"No matches." }));
-      return;
-    }
-
-    const mode = (ui.connTab === "following") ? "following" : "followers";
-    items.forEach(id => {
-      bodyHost.appendChild(connectionRow({ id, mode, followsSet, followersSet }));
-      bodyHost.appendChild(el("div", { class:"hr" }));
-    });
   }
 
   Modal.open({
