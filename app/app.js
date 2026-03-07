@@ -4468,28 +4468,39 @@ Progress(){
     text:`${fromISO} → ${toISO}`
   });
 
-  const heroCard = el("div", { class:"card progressHeroSticky" }, [
+  const heroCard = el("div", {
+  class:"card progressHeroSticky",
+  style:[
+    "position:sticky",
+    "top:calc(var(--headerH, 0px) + 8px)",
+    "z-index:20",
+    "align-self:start",
+    "background:rgba(11,15,23,.92)",
+    "backdrop-filter:blur(10px)",
+    "-webkit-backdrop-filter:blur(10px)"
+  ].join(";")
+}, [
+  el("div", {
+    style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;"
+  }, [
+    el("div", { style:"min-width:0; flex:1;" }, [
+      el("div", { style:"height:0;" }),
+      heroExerciseName,
+      heroRangeNote
+    ]),
     el("div", {
-      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;"
+      style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
     }, [
-      el("div", { style:"min-width:0; flex:1;" }, [
-        el("div", { style:"height:0;" }),
-        heroExerciseName,
-        heroRangeNote
-      ]),
       el("div", {
-        style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
+        class:"pill",
+        style:"padding:8px 12px;"
       }, [
-        el("div", {
-          class:"pill",
-          style:"padding:8px 12px;"
-        }, [
-          el("div", { class:"t", text:"Exercise Progress" })
-        ])
+        el("div", { class:"t", text:"Exercise Progress" })
       ])
     ])
-  ]);
-  root.appendChild(heroCard);
+  ])
+]);
+root.appendChild(heroCard);
 
   // Type segmented
   const typeRow = el("div", { class:"segRow" });
