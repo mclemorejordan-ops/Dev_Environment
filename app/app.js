@@ -4609,9 +4609,9 @@ const controlsCard = el("div", { class:"card" }, [
 
   el("div", { style:"height:8px" }),
 
-  // Selected exercise
-  selectedRow,
-  resultsHost,
+  // Selected exercise (hidden — logic still uses it)
+  selectedRow.style.display = "none";
+  resultsHost
 
   el("div", { style:"height:18px" }),
 
