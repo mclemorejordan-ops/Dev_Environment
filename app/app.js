@@ -4936,19 +4936,67 @@ const all = (state.logs?.workouts || []).filter(e =>
       chartNote.textContent = `${asc.length} points • ${fromISO} → ${toISO}`;
     }
 
-    // History table
+        // History table
     if(desc.length === 0){
       tableHost.appendChild(el("div", { class:"note", text:"No logs in this range." }));
     }else{
       desc.slice(0, 40).forEach(entry => {
-        tableHost.appendChild(el("div", { class:"item" }, [
-          el("div", { class:"left" }, [
-            el("div", { class:"name", text: entry.dateISO }),
-            el("div", { class:"meta", text: tableLine(entry) })
+        const metricText = tableLine(entry);
+        const isLatest = latest && entry.id === latest.id;
+
+        const dateBadge = el("div", {
+          class:"pill",
+          style:"padding:6px 10px; font-size:11px; font-weight:900;"
+        }, [
+          el("div", { class:"t", text: entry.dateISO || "—" })
+        ]);
+
+        const latestBadge = isLatest
+          ? el("div", {
+              class:"pill",
+              style:"padding:6px 10px; font-size:11px; font-weight:900;"
+            }, [
+              el("div", { class:"t", text:"Latest" })
+            ])
+          : null;
+
+        const summaryBlock = el("div", { style:"min-width:0; flex:1;" }, [
+          el("div", {
+            style:"font-size:14px; font-weight:850; color:rgba(255,255,255,.97); line-height:1.25;"
+          }, [metricText]),
+          el("div", {
+            class:"note",
+            style:"margin-top:6px;",
+            text:`${typeLabel(type)} entry`
+          })
+        ]);
+
+        const actionRow = el("div", {
+          style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;"
+        }, [
+          el("button", {
+            class:"mini danger",
+            onClick: () => confirmDeleteLog(entry)
+          }, ["Delete"])
+        ]);
+
+        const topRowChildren = [dateBadge];
+        if(latestBadge) topRowChildren.push(latestBadge);
+
+        tableHost.appendChild(el("div", {
+          class:"card",
+          style:"padding:12px;"
+        }, [
+          el("div", {
+            style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+          }, [
+            el("div", {
+              style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
+            }, topRowChildren),
+            actionRow
           ]),
-          el("div", { class:"actions" }, [
-            el("button", { class:"mini danger", onClick: () => confirmDeleteLog(entry) }, ["Delete"])
-          ])
+          el("div", { style:"height:10px" }),
+          summaryBlock
         ]));
       });
     }
