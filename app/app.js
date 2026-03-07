@@ -8446,8 +8446,9 @@ if(!nextName) throw new Error("Enter your name.");
 if(!isValidUsername(nextUsername))
   throw new Error("Username must be 3–20 letters, numbers, or underscores.");
 
-// ✅ prevent duplicate usernames
-if(!(await usernameAvailable(nextUsername))){
+// ✅ prevent duplicate usernames (safe check)
+const ownerId = await getUsernameOwnerId(nextUsername);
+if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
   showToast("Username already taken");
   return;
 }
