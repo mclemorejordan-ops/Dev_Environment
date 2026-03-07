@@ -4473,7 +4473,6 @@ Progress(){
       style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;"
     }, [
       el("div", { style:"min-width:0; flex:1;" }, [
-        el("div", { class:"note", text:"Performance dashboard" }),
         el("div", { style:"height:0;" }),
         heroExerciseName,
         heroRangeNote
