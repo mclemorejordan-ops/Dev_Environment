@@ -3620,8 +3620,8 @@ function prettyDayTag(dateISO){
   let showTemplates = false;
 
   const shell = el("div", {
-    style:"display:flex; flex-direction:column; gap:10px; max-height:70vh; min-width:min(560px, 92vw);"
-  });
+  style:"display:flex; flex-direction:column; gap:10px; max-height:70vh;"
+});
 
   shell.appendChild(el("div", { class:"popTitle", text:"Select routine" }));
   shell.appendChild(el("div", {
