@@ -4581,66 +4581,80 @@ Progress(){
   ]);
   root.appendChild(summaryCard);
 
-  // Controls card
+    // Controls card
   const controlsCard = el("div", { class:"card" }, [
     el("div", {
-      style:"display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
     }, [
-      el("div", {}, [
+      el("div", { style:"min-width:0; flex:1;" }, [
         el("h2", { text:"Analyze" }),
         el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." })
       ]),
       el("div", { class:"note", text:"Search + filters" })
     ]),
 
-    el("div", { style:"height:8px" }),
-
-    el("div", { class:"note", text:"Exercise type" }),
-    typeRow,
-
-    el("div", { style:"height:12px" }),
-
-    el("div", { class:"note", text:"Find exercise" }),
-    searchWrap,
-    el("div", { style:"height:8px" }),
-    selectedRow,
-    resultsHost,
-
-    el("div", { style:"height:12px" }),
+    el("div", { style:"height:14px" }),
 
     el("div", {
-      style:"display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; align-items:end;"
+      style:"display:flex; flex-direction:column; gap:8px;"
     }, [
-      el("div", {}, [
+      el("div", { class:"note", text:"Exercise type" }),
+      typeRow
+    ]),
+
+    el("div", { style:"height:14px" }),
+
+    el("div", {
+      style:"display:flex; flex-direction:column; gap:8px;"
+    }, [
+      el("div", { class:"note", text:"Find exercise" }),
+      searchWrap,
+      selectedRow,
+      resultsHost
+    ]),
+
+    el("div", { style:"height:14px" }),
+
+    el("div", {
+      style:"display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; align-items:start;"
+    }, [
+      el("div", {
+        style:"display:flex; flex-direction:column; gap:8px; min-width:0;"
+      }, [
         el("div", { class:"note", text:"Routine" }),
         routineSelect
       ]),
-      el("div", {}, [
+
+      el("div", {
+        style:"display:flex; flex-direction:column; gap:8px; min-width:0;"
+      }, [
         el("div", { class:"note", text:"Quick range" }),
         rangeRow
-      ])
-    ]),
+      ]),
 
-    el("div", { style:"height:12px" }),
-
-    el("div", { class:"note", text:"Custom dates" }),
-    el("div", {
-      style:"display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px;"
-    }, [
-      el("div", {}, [
+      el("div", {
+        style:"display:flex; flex-direction:column; gap:8px; min-width:0;"
+      }, [
         el("div", { class:"note", text:"From" }),
         fromInput
       ]),
-      el("div", {}, [
+
+      el("div", {
+        style:"display:flex; flex-direction:column; gap:8px; min-width:0;"
+      }, [
         el("div", { class:"note", text:"To" }),
         toInput
       ])
     ]),
 
-    el("div", { style:"height:12px" }),
+    el("div", { style:"height:14px" }),
 
-    el("div", { class:"note", text:"Metric" }),
-    metricRow
+    el("div", {
+      style:"display:flex; flex-direction:column; gap:8px;"
+    }, [
+      el("div", { class:"note", text:"Metric" }),
+      metricRow
+    ])
   ]);
   root.appendChild(controlsCard);
 
