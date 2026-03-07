@@ -4593,22 +4593,21 @@ Progress(){
   ]);
   root.appendChild(summaryCard);
 
-      // Controls card
+        // Controls card
   const controlsCard = el("div", { class:"card" }, [
 
     // Header
     el("div", {
-      el("div", {
-  style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-}, [
-  el("div", { style:"min-width:0; flex:1;" }, [
-    el("h2", { text:"Analyze" }),
-    el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." }),
-    el("div", {
-      style:"height:1px; background:rgba(255,255,255,.08); margin-top:12px;"
-    })
-  ])
-]),
+      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+    }, [
+      el("div", { style:"min-width:0; flex:1;" }, [
+        el("h2", { text:"Analyze" }),
+        el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." }),
+        el("div", {
+          style:"height:1px; background:rgba(255,255,255,.08); margin-top:12px;"
+        })
+      ])
+    ]),
 
     el("div", { style:"height:14px" }),
 
