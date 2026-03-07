@@ -5790,19 +5790,32 @@ function openFollowerNotifsModal(){
 }
 
 
+  function openConnectionsModal(initialTab){
+  ui.connTab = initialTab || ui.connTab || "following";
+  ui.connSearch = ui.connSearch || "";
+  ui.connAddCode = ui.connAddCode || "";
+
+  const statsRow = el("div", { class:"connStats" });
+
   const searchInput = el("input", {
     type:"text",
     placeholder:"Search connections…",
     value: ui.connSearch
   });
+
   const searchWrap = el("div", { class:"connSearch" }, [
     el("div", { class:"ico", text:"🔎" }),
     searchInput
   ]);
 
+  const searchStatus = el("div", {
+    class:"note",
+    style:"display:none; margin-top:6px;"
+  }, ["Searching…"]);
+
   const bodyHost = el("div", { class:"connScroll" });
   let repaintSeq = 0;
-       
+
   searchInput.addEventListener("input", () => {
     ui.connSearch = searchInput.value || "";
     repaintModal();
@@ -5845,7 +5858,7 @@ function openFollowerNotifsModal(){
     ]);
   }
 
-    function badge(label, kind){
+  function badge(label, kind){
     return el("span", { class:"connBadge" + (kind ? (" " + kind) : ""), text: label });
   }
 
@@ -5903,42 +5916,25 @@ function openFollowerNotifsModal(){
     });
   }
 
-   function connectionRow({ id, mode, followsSet, followersSet }){
-  const dn = (Social.nameFor && Social.nameFor(id)) || "User";
-  const un = (Social.usernameFor && Social.usernameFor(id)) || "";
-  const handle = usernameToHandle(un);
-  const mutual = followsSet.has(id) && followersSet.has(id);
+  function connectionRow({ id, mode, followsSet, followersSet }){
+    const dn = (Social.nameFor && Social.nameFor(id)) || "User";
+    const un = (Social.usernameFor && Social.usernameFor(id)) || "";
+    const handle = usernameToHandle(un);
+    const mutual = followsSet.has(id) && followersSet.has(id);
 
-  let metaText = "";
-  if(mutual) metaText = "You follow each other";
-  else if(mode === "following") metaText = "You follow them";
-  else metaText = "Follower";
+    let metaText = "";
+    if(mutual) metaText = "You follow each other";
+    else if(mode === "following") metaText = "You follow them";
+    else metaText = "Follower";
 
-  const badges = [];
-  if(mutual) badges.push(badge("Mutual", "mutual"));
-  else if(mode === "following") badges.push(badge("Following"));
-  else badges.push(badge("Follows you"));
+    const badges = [];
+    if(mutual) badges.push(badge("Mutual", "mutual"));
+    else if(mode === "following") badges.push(badge("Following"));
+    else badges.push(badge("Follows you"));
 
-  const actions = [];
+    const actions = [];
 
-  if(mode === "following"){
-    actions.push(el("button", {
-      class:"btn danger sm",
-      onClick: async (e) => {
-        try{ e?.stopPropagation?.(); }catch(_){}
-        try{
-          await Social.unfollow(id);
-          showToast("Unfollowed");
-          await refreshLists();
-          repaintModal();
-          renderView();
-        }catch(e2){
-          showToast(e2?.message || "Couldn't unfollow");
-        }
-      }
-    }, ["Unfollow"]));
-  }else{
-    if(followsSet.has(id)){
+    if(mode === "following"){
       actions.push(el("button", {
         class:"btn danger sm",
         onClick: async (e) => {
@@ -5955,53 +5951,69 @@ function openFollowerNotifsModal(){
         }
       }, ["Unfollow"]));
     }else{
-      actions.push(el("button", {
-        class:"btn primary sm",
-        onClick: async (e) => {
-          try{ e?.stopPropagation?.(); }catch(_){}
-          try{
-            await Social.follow(id);
-            showToast("Following");
-            await refreshLists();
-            repaintModal();
-            renderView();
-          }catch(e2){
-            showToast(e2?.message || "Follow failed");
+      if(followsSet.has(id)){
+        actions.push(el("button", {
+          class:"btn danger sm",
+          onClick: async (e) => {
+            try{ e?.stopPropagation?.(); }catch(_){}
+            try{
+              await Social.unfollow(id);
+              showToast("Unfollowed");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e2){
+              showToast(e2?.message || "Couldn't unfollow");
+            }
           }
-        }
-      }, ["Follow back"]));
+        }, ["Unfollow"]));
+      }else{
+        actions.push(el("button", {
+          class:"btn primary sm",
+          onClick: async (e) => {
+            try{ e?.stopPropagation?.(); }catch(_){}
+            try{
+              await Social.follow(id);
+              showToast("Following");
+              await refreshLists();
+              repaintModal();
+              renderView();
+            }catch(e2){
+              showToast(e2?.message || "Follow failed");
+            }
+          }
+        }, ["Follow back"]));
+      }
     }
+
+    return el("div", { class:"connRow" }, [
+      el("div", {
+        class:"av",
+        style:"cursor:pointer;",
+        onClick: () => openFriendProfile(id)
+      }, [
+        el("div", { class:"ltr", text: avatarLetter(dn) })
+      ]),
+
+      el("div", {
+        style:"min-width:0; flex:1; cursor:pointer;",
+        onClick: () => openFriendProfile(id)
+      }, [
+        el("div", { style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;", text: dn }),
+        handle ? el("div", {
+          class:"note",
+          style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
+          text: handle
+        }) : null,
+        el("div", { class:"note", style:"margin:4px 0 0 0;" }, [metaText]),
+        badges.length ? el("div", { style:"display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;" }, badges) : null
+      ].filter(Boolean)),
+
+      el("div", { style:"display:flex; gap:8px; align-items:center; flex:0 0 auto;" }, actions)
+    ]);
   }
 
-  return el("div", { class:"connRow" }, [
-    el("div", {
-      class:"av",
-      style:"cursor:pointer;",
-      onClick: () => openFriendProfile(id)
-    }, [
-      el("div", { class:"ltr", text: avatarLetter(dn) })
-    ]),
-
-    el("div", {
-      style:"min-width:0; flex:1; cursor:pointer;",
-      onClick: () => openFriendProfile(id)
-    }, [
-      el("div", { style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;", text: dn }),
-      handle ? el("div", {
-        class:"note",
-        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-        text: handle
-      }) : null,
-      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [metaText]),
-      badges.length ? el("div", { style:"display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;" }, badges) : null
-    ].filter(Boolean)),
-
-    el("div", { style:"display:flex; gap:8px; align-items:center; flex:0 0 auto;" }, actions)
-  ]);
-}
-
-
-         function searchResultRow({ id, followsSet, followersSet }){
+  function searchResultRow({ id, followsSet, followersSet }){
     const dn = (Social.nameFor && Social.nameFor(id)) || "User";
     const un = (Social.usernameFor && Social.usernameFor(id)) || "";
     const handle = usernameToHandle(un);
@@ -6079,172 +6091,7 @@ function openFollowerNotifsModal(){
     ]);
   }
 
-       
-  // ─────────────────────────────────────────────
-  // Add Friend popup (Friend Code)
-  // ─────────────────────────────────────────────
-
-  function getMyCode(){
-    try{
-      const u = (Social.getUser && Social.getUser()) || null;
-      return String(u?.id || "");
-    }catch(_){
-      return "";
-    }
-  }
-
-  function copyTextSafe(text){
-    const t = String(text || "");
-    if(!t) return Promise.reject(new Error("Empty"));
-
-    try{
-      if(navigator?.clipboard?.writeText){
-        return navigator.clipboard.writeText(t);
-      }
-    }catch(_){ }
-
-    return new Promise((resolve, reject) => {
-      try{
-        const ta = document.createElement("textarea");
-        ta.value = t;
-        ta.setAttribute("readonly", "");
-        ta.style.position = "fixed";
-        ta.style.top = "-1000px";
-        ta.style.left = "-1000px";
-        document.body.appendChild(ta);
-        ta.select();
-        const ok = document.execCommand("copy");
-        document.body.removeChild(ta);
-        if(ok) resolve();
-        else reject(new Error("Copy failed"));
-      }catch(e){
-        reject(e);
-      }
-    });
-  }
-
-  function openAddFriendModal(){
-  const returnTab = ui.connTab;
-  const returnSearch = ui.connSearch;
-
-  const myCodeInput = el("input", {
-    class:"connCodeInput",
-    type:"text",
-    readOnly:true,
-    value: usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "")
-  });
-
-  const friendCodeInput = el("input", {
-    class:"connCodeInput",
-    type:"text",
-    placeholder:"@jordand",
-    value: ui.connAddCode,
-    autocapitalize:"off",
-    autocorrect:"off",
-    spellcheck:"false"
-  });
-
-  friendCodeInput.addEventListener("input", () => {
-    ui.connAddCode = friendCodeInput.value || "";
-  });
-
-  async function doAdd(){
-    if(!user){
-      showToast("Sign in to add friends");
-      return;
-    }
-
-    const raw = String(ui.connAddCode || "").trim();
-    const uname = normalizeUsername(raw);
-    if(!uname){
-      showToast("Enter a username");
-      return;
-    }
-
-    const myUsername = normalizeUsername(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
-    if(myUsername && uname === myUsername){
-      showToast("You can’t add yourself");
-      return;
-    }
-
-    try{
-      await Social.follow(uname);
-      showToast("Friend added");
-      ui.connAddCode = "";
-      friendCodeInput.value = "";
-
-      Modal.close();
-      await refreshLists();
-      ui.connTab = returnTab;
-      ui.connSearch = returnSearch;
-      renderView();
-    }catch(e){
-      showToast(e?.message || "Couldn't add friend");
-    }
-  }
-
-  friendCodeInput.addEventListener("keydown", (e) => {
-    if(e.key === "Enter"){
-      e.preventDefault();
-      doAdd();
-    }
-  });
-
-  Modal.open({
-    title: "Add Friend",
-    bodyNode: el("div", { class:"connAddFriendModal" }, [
-      el("div", { class:"note", text:"Share your username, or enter someone else’s username to add them." }),
-      el("div", { style:"height:10px" }),
-
-      el("div", { class:"setRow" }, [
-        el("div", {}, [
-          el("div", { style:"font-weight:820;", text:"Your username" }),
-          el("div", { class:"meta", text:"Tap Copy to share" })
-        ]),
-        el("div", { class:"connCodeRight" }, [
-          myCodeInput,
-          el("button", {
-            class:"btn sm",
-            onClick: async () => {
-              const myHandle = usernameToHandle(state?.profile?.username || Social.usernameFor?.(user?.id) || "");
-              if(!myHandle){
-                showToast("Set a username in Settings first");
-                return;
-              }
-              try{
-                await copyTextSafe(myHandle);
-                showToast("Copied");
-              }catch(_){
-                showToast("Couldn't copy");
-              }
-            }
-          }, ["Copy"])
-        ])
-      ]),
-
-      el("div", { class:"setRow" }, [
-        el("div", {}, [
-          el("div", { style:"font-weight:820;", text:"Friend username" }),
-          el("div", { class:"meta", text:"Enter @username to add" })
-        ]),
-        el("div", { class:"connCodeRight" }, [
-          friendCodeInput,
-          el("button", {
-            class:"btn primary sm",
-            onClick: doAdd
-          }, ["Add"])
-        ])
-      ])
-    ])
-  });
-}
-
-  const addFriendBtn = el("button", {
-    class:"btn primary",
-    onClick: () => openAddFriendModal()
-  }, ["Add Friend"]);
-
-    async function repaintModal(){
+  async function repaintModal(){
     const paintSeq = ++repaintSeq;
     const follows = Social.getFollows ? Social.getFollows() : [];
     const followers = Social.getFollowers ? Social.getFollowers() : [];
@@ -6275,9 +6122,8 @@ function openFollowerNotifsModal(){
     if(paintSeq !== repaintSeq) return;
 
     bodyHost.innerHTML = "";
-
     searchStatus.style.display = "none";
-      
+
     if(!user){
       bodyHost.appendChild(el("div", { class:"note", text:"Sign in to manage connections." }));
       return;
@@ -6306,7 +6152,7 @@ function openFollowerNotifsModal(){
       q
     );
 
-        let remoteResults = [];
+    let remoteResults = [];
     searchStatus.style.display = "block";
     try{
       if(Social.searchProfilesByUsername) remoteResults = await Social.searchProfilesByUsername(q, { limit: 8 });
@@ -6366,7 +6212,6 @@ function openFollowerNotifsModal(){
       bodyHost,
       el("div", { style:"height:10px" }),
 
-      // Footer: Add Friend (left) + Done (right)
       el("div", { class:"btnrow connFooterRow" }, [
         addFriendBtn,
         el("button", {
