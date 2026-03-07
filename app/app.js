@@ -171,26 +171,6 @@ async function getUsernameOwnerId(username){
   }
 }
 
-async function usernameAvailable(username){
-  const sb = await ensureClient();
-  if(!sb) return true;
-
-  const u = normalizeUsername(username);
-  if(!u) return true;
-
-  try{
-    const { data } = await sb
-      .from("profiles")
-      .select("id")
-      .eq("username", u)
-      .limit(1);
-
-    return !(data && data.length);
-  }catch(_){
-    return true;
-  }
-}
-
 function looksLikeUuid(v){
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || "").trim());
 }
