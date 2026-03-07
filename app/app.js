@@ -7203,159 +7203,473 @@ root.appendChild(el("div", { class:"card" }, [
       : null;
 
     function toOwnRoutineSnapshot(routine){
-      if(!routine) return null;
-      return {
-        routineId: routine?.id || null,
-        name: routine?.name || "Routine",
-        days: (routine.days || [])
-          .slice()
-          .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
-          .map((day, idx) => ({
-            id: day?.id || null,
-            order: Number(day?.order ?? idx) || 0,
-            label: day?.label || `Day ${idx + 1}`,
-            isRest: !!day?.isRest,
-            exercises: (day?.exercises || []).map((rx, exIdx) => ({
-              id: rx?.id || null,
-              order: exIdx,
-              type: String(rx?.type || ""),
-              exerciseId: rx?.exerciseId || null,
-              name: resolveExerciseName(rx?.type, rx?.exerciseId, rx?.nameSnap || "Exercise"),
-              plan: rx?.plan || null,
-              notes: String(rx?.notes || "")
-            }))
-          }))
-      };
+  if(!routine) return null;
+  return {
+    routineId: routine?.id || null,
+    name: routine?.name || "Routine",
+    days: (routine.days || [])
+      .slice()
+      .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+      .map((day, idx) => ({
+        id: day?.id || null,
+        order: Number(day?.order ?? idx) || 0,
+        label: day?.label || `Day ${idx + 1}`,
+        isRest: !!day?.isRest,
+        exercises: (day?.exercises || []).map((rx, exIdx) => ({
+          id: rx?.id || null,
+          order: exIdx,
+          type: String(rx?.type || ""),
+          exerciseId: rx?.exerciseId || null,
+          name: resolveExerciseName(rx?.type, rx?.exerciseId, rx?.nameSnap || "Exercise"),
+          plan: rx?.plan || null,
+          notes: String(rx?.notes || "")
+        }))
+      }))
+  };
+}
+
+function mondayFirstTodayOrder(){
+  const dow = new Date().getDay(); // 0=Sun..6=Sat
+  return (dow + 6) % 7;            // 0=Mon..6=Sun
+}
+
+function dayNameFromOrder(order){
+  const names = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  const idx = Number(order);
+  return names[idx] || `Day ${Number.isFinite(idx) ? (idx + 1) : ""}`.trim();
+}
+
+function inferRoutineFocus(snapshot){
+  const labels = (snapshot?.days || [])
+    .filter(day => !day?.isRest)
+    .map(day => String(day?.label || "").trim())
+    .filter(Boolean);
+
+  if(!labels.length) return "Custom Routine";
+
+  const seen = new Set();
+  const uniq = [];
+  labels.forEach(label => {
+    const k = normName(label);
+    if(!k || seen.has(k)) return;
+    seen.add(k);
+    uniq.push(label);
+  });
+
+  return uniq.slice(0, 3).join(" • ");
+}
+
+function nextSavedRoutineName(baseName){
+  const cleanBase = String(baseName || "Routine").trim() || "Routine";
+  const existing = (Routines.getAll ? Routines.getAll() : (state.routines || [])) || [];
+  const used = new Set(existing.map(r => String(r?.name || "").trim().toLowerCase()).filter(Boolean));
+
+  if(!used.has(cleanBase.toLowerCase())) return cleanBase;
+
+  let n = 2;
+  while(used.has(`${cleanBase} (${n})`.toLowerCase())){
+    n++;
+  }
+  return `${cleanBase} (${n})`;
+}
+
+function resolveLibraryExerciseIdFromSnapshot(rx){
+  ExerciseLibrary.ensureSeeded();
+
+  const type = String(rx?.type || "weightlifting");
+  const name = String(rx?.name || rx?.nameSnap || "Exercise").trim() || "Exercise";
+
+  state.exerciseLibrary = state.exerciseLibrary || { weightlifting: [], cardio: [], core: [] };
+  state.exerciseLibrary[type] = Array.isArray(state.exerciseLibrary[type]) ? state.exerciseLibrary[type] : [];
+
+  const lib = state.exerciseLibrary[type];
+
+  const byId = lib.find(x => String(x?.id || "") === String(rx?.exerciseId || ""));
+  if(byId) return byId.id;
+
+  const byName = lib.find(x => normName(x?.name || "") === normName(name));
+  if(byName) return byName.id;
+
+  const created = {
+    id: uid("ex"),
+    type,
+    name,
+    equipment: "",
+    primaryMuscle: "",
+    secondaryMuscles: [],
+    createdAt: Date.now()
+  };
+
+  lib.push(created);
+  return created.id;
+}
+
+function saveRoutineSnapshotToMyRoutines(snapshot){
+  if(!snapshot) throw new Error("No routine available to save.");
+
+  ExerciseLibrary.ensureSeeded();
+
+  state.routines = Array.isArray(state.routines) ? state.routines : [];
+
+  const nextRoutine = {
+    id: uid("rt"),
+    name: nextSavedRoutineName(snapshot?.name || "Routine"),
+    createdAt: Date.now(),
+    days: (Array.isArray(snapshot?.days) ? snapshot.days : [])
+      .slice()
+      .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+      .map((day, idx) => ({
+        id: uid("day"),
+        order: Number(day?.order ?? idx) || 0,
+        label: String(day?.label || `Day ${idx + 1}`),
+        isRest: !!day?.isRest,
+        exercises: (Array.isArray(day?.exercises) ? day.exercises : []).map((rx, exIdx) => ({
+          id: uid("rx"),
+          exerciseId: resolveLibraryExerciseIdFromSnapshot(rx),
+          type: String(rx?.type || "weightlifting"),
+          nameSnap: String(rx?.name || "Exercise"),
+          createdAt: Date.now() + exIdx,
+          plan: rx?.plan ? { ...rx.plan } : null,
+          notes: String(rx?.notes || "")
+        }))
+      }))
+  };
+
+  state.routines.push(nextRoutine);
+  Storage.save(state);
+
+  return nextRoutine;
+}
+
+function buildRoutineModalBodyFromSnapshot(snapshot, noteText, opts = {}){
+  const days = (Array.isArray(snapshot?.days) ? snapshot.days : [])
+    .slice()
+    .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+
+  const ownerName = String(opts?.ownerName || "Routine").trim() || "Routine";
+  const canSave = !!opts?.canSave;
+  const saveButtonText = String(opts?.saveButtonText || "Save This Routine");
+
+  const nonRestDays = days.filter(day => !day?.isRest);
+  const totalExercises = nonRestDays.reduce((sum, day) => {
+    return sum + ((Array.isArray(day?.exercises) ? day.exercises.length : 0) || 0);
+  }, 0);
+
+  const focusText = inferRoutineFocus(snapshot);
+  const todayOrder = mondayFirstTodayOrder();
+
+  const todayKey = (() => {
+    const found = days.find(day => !day?.isRest && Number(day?.order ?? -1) === todayOrder);
+    return found ? String(found?.id || `routine_day_${found?.order ?? 0}`) : null;
+  })();
+
+  const root = el("div", {
+    style:"display:flex; flex-direction:column; gap:10px;"
+  });
+
+  root.appendChild(el("div", {
+    style:[
+      "padding:14px",
+      "border-radius:16px",
+      "border:1px solid rgba(255,255,255,.10)",
+      "background:rgba(255,255,255,.05)"
+    ].join(";")
+  }, [
+    el("div", {
+      style:"font-size:18px; font-weight:1000; line-height:1.15;"
+    }, [`${ownerName}`]),
+    el("div", {
+      style:"margin-top:4px; font-size:14px; font-weight:900; opacity:.92;"
+    }, [String(snapshot?.name || "Routine")]),
+    el("div", { style:"height:10px" }),
+    el("div", {
+      style:"display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;"
+    }, [
+      el("div", {
+        style:"padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06);"
+      }, [
+        el("div", {
+          style:"font-size:11px; font-weight:900; opacity:.7; text-transform:uppercase;"
+        }, ["Days / Week"]),
+        el("div", {
+          style:"margin-top:4px; font-size:16px; font-weight:1000;"
+        }, [`${nonRestDays.length}`])
+      ]),
+      el("div", {
+        style:"padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06);"
+      }, [
+        el("div", {
+          style:"font-size:11px; font-weight:900; opacity:.7; text-transform:uppercase;"
+        }, ["Exercises"]),
+        el("div", {
+          style:"margin-top:4px; font-size:16px; font-weight:1000;"
+        }, [`${totalExercises}`])
+      ])
+    ]),
+    el("div", { style:"height:8px" }),
+    el("div", {
+      class:"note",
+      style:"margin:0; opacity:.9;"
+    }, [focusText || "Custom Routine"])
+  ]));
+
+  if(noteText){
+    root.appendChild(el("div", {
+      class:"note",
+      style:"margin:0;"
+    }, [noteText]));
+  }
+
+  if(!days.length){
+    root.appendChild(el("div", {
+      class:"note",
+      style:"margin:0;"
+    }, ["No days found in this routine."]));
+    return root;
+  }
+
+  const list = el("div", {
+    style:"display:flex; flex-direction:column; gap:8px;"
+  });
+
+  days.forEach((day, idx) => {
+    const key = String(day?.id || `routine_day_${idx}`);
+    const isRest = !!day?.isRest;
+    const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
+    const isActiveToday = !isRest && Number(day?.order ?? -1) === todayOrder;
+    const dayTitle = `${dayNameFromOrder(day?.order)} — ${String(day?.label || `Day ${idx + 1}`)}`;
+
+    const card = el("div", {
+      style:[
+        "padding:12px",
+        "border-radius:16px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background:rgba(255,255,255,.05)"
+      ].join(";")
+    });
+
+    const chevron = el("div", {
+      style:[
+        "font-size:18px",
+        "font-weight:1000",
+        "line-height:1",
+        "opacity:.88",
+        "transition:transform .18s ease",
+        "transform:rotate(0deg)",
+        "flex:0 0 auto"
+      ].join(";")
+    }, ["›"]);
+
+    const headerBtn = el("button", {
+      type:"button",
+      style:[
+        "display:flex",
+        "align-items:flex-start",
+        "justify-content:space-between",
+        "gap:10px",
+        "width:100%",
+        "padding:0",
+        "margin:0",
+        "border:0",
+        "background:transparent",
+        "color:inherit",
+        "font:inherit",
+        "text-align:left",
+        isRest ? "cursor:default" : "cursor:pointer",
+        "appearance:none",
+        "-webkit-appearance:none"
+      ].join(";")
+    });
+
+    const left = el("div", {
+      style:"min-width:0; display:flex; align-items:flex-start; gap:10px; flex:1;"
+    }, [
+      isRest
+        ? el("div", {
+            style:"width:18px; height:18px; flex:0 0 18px;"
+          })
+        : chevron,
+      el("div", {
+        style:"min-width:0; display:flex; flex-direction:column; gap:4px; flex:1;"
+      }, [
+        el("div", {
+          style:"font-weight:1000; font-size:14px; line-height:1.15;"
+        }, [dayTitle]),
+        el("div", {
+          class:"note",
+          style:"margin:0; opacity:.82;"
+        }, [
+          isRest
+            ? "Rest day"
+            : (exercises.length === 1 ? "1 Exercise" : `${exercises.length} Exercises`)
+        ])
+      ])
+    ]);
+
+    const right = el("div", {
+      style:"display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:8px;"
+    });
+
+    if(isActiveToday){
+      right.appendChild(el("div", {
+        style:[
+          "display:inline-flex",
+          "align-items:center",
+          "gap:6px",
+          "padding:6px 10px",
+          "border-radius:999px",
+          "border:1px solid rgba(46,204,113,.35)",
+          "background:rgba(46,204,113,.12)",
+          "font-size:11px",
+          "font-weight:900",
+          "color:rgba(180,255,205,.96)",
+          "white-space:nowrap"
+        ].join(";")
+      }, ["● Active Today"]));
+    }else if(isRest){
+      right.appendChild(el("div", {
+        style:[
+          "padding:6px 10px",
+          "border-radius:999px",
+          "border:1px solid rgba(255,255,255,.10)",
+          "background:rgba(255,255,255,.06)",
+          "font-size:11px",
+          "font-weight:900",
+          "opacity:.86"
+        ].join(";")
+      }, ["Rest"]));
     }
 
-    function buildRoutineModalBodyFromSnapshot(snapshot, noteText){
-      const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+    headerBtn.appendChild(left);
+    headerBtn.appendChild(right);
+    card.appendChild(headerBtn);
 
-      return el("div", {}, [
-        el("div", { class:"note", text: noteText || "Read-only routine view." }),
-        el("div", { style:"height:10px" }),
+    const body = el("div", {
+      style:[
+        "overflow:hidden",
+        "max-height:0px",
+        "opacity:0",
+        "margin-top:0px",
+        "transition:max-height .22s ease, opacity .18s ease, margin-top .18s ease"
+      ].join(";")
+    });
 
-        ...(days.length
-          ? days.map((day, idx) => {
-              const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
+    const bodyInner = el("div", {
+      style:"display:flex; flex-direction:column; gap:6px;"
+    });
 
-              return el("div", {
+    if(!isRest){
+      if(exercises.length){
+        exercises.forEach((rx, exIdx) => {
+          const planBits = [];
+          if(Number.isFinite(Number(rx?.plan?.sets))) planBits.push(`${Number(rx.plan.sets)} sets`);
+          if(String(rx?.plan?.reps || "").trim()) planBits.push(String(rx.plan.reps));
+          if(Number.isFinite(Number(rx?.plan?.restSec))) planBits.push(`${Number(rx.plan.restSec)}s rest`);
+          if(Number.isFinite(Number(rx?.plan?.targetWeight))) planBits.push(`${Number(rx.plan.targetWeight)} lb`);
+
+          bodyInner.appendChild(el("div", {
+            style:[
+              "display:flex",
+              "align-items:center",
+              "justify-content:space-between",
+              "gap:10px",
+              "padding:10px 12px",
+              "border-radius:12px",
+              "background:rgba(255,255,255,.04)",
+              "border:1px solid rgba(255,255,255,.06)"
+            ].join(";")
+          }, [
+            el("div", {
+              style:"min-width:0; display:flex; flex-direction:column; gap:3px; flex:1;"
+            }, [
+              el("div", {
                 style:[
-                  "padding:12px",
-                  "border-radius:14px",
-                  "border:1px solid rgba(255,255,255,.10)",
-                  "background:rgba(255,255,255,.05)",
-                  "margin-bottom:8px"
+                  "font-weight:900",
+                  "font-size:13px",
+                  "overflow:hidden",
+                  "text-overflow:ellipsis",
+                  "white-space:nowrap"
                 ].join(";")
-              }, [
-                el("div", {
-                  style:"display:flex; align-items:center; justify-content:space-between; gap:10px;"
-                }, [
-                  el("div", {
-                    style:"font-weight:1000; font-size:14px;"
-                  }, [day?.label || `Day ${idx + 1}`]),
-
-                  day?.isRest
-                    ? el("div", {
-                        style:[
-                          "padding:6px 10px",
-                          "border-radius:999px",
-                          "border:1px solid rgba(255,255,255,.10)",
-                          "background:rgba(255,255,255,.06)",
-                          "font-size:11px",
-                          "font-weight:900",
-                          "opacity:.86"
-                        ].join(";")
-                      }, ["Rest"])
-                    : el("div", {
-                        class:"note",
-                        style:"margin:0;"
-                      }, [exercises.length === 1 ? "1 exercise" : `${exercises.length} exercises`])
-                ]),
-
-                el("div", { style:"height:8px" }),
-
-                day?.isRest
-                  ? el("div", {
-                      class:"note",
-                      style:"margin:0; opacity:.86;"
-                    }, ["Rest day"])
-                  : (
-                      exercises.length
-                        ? el("div", {
-                            style:"display:flex; flex-direction:column; gap:6px;"
-                          }, exercises.map((rx, exIdx) => {
-                            const planBits = [];
-                            if(Number.isFinite(Number(rx?.plan?.sets))) planBits.push(`${Number(rx.plan.sets)} sets`);
-                            if(String(rx?.plan?.reps || "").trim()) planBits.push(String(rx.plan.reps));
-                            if(Number.isFinite(Number(rx?.plan?.restSec))) planBits.push(`${Number(rx.plan.restSec)}s rest`);
-                            if(Number.isFinite(Number(rx?.plan?.targetWeight))) planBits.push(`${Number(rx.plan.targetWeight)} lb`);
-
-                            return el("div", {
-                              style:[
-                                "display:flex",
-                                "align-items:center",
-                                "justify-content:space-between",
-                                "gap:10px",
-                                "padding:8px 10px",
-                                "border-radius:12px",
-                                "background:rgba(255,255,255,.04)",
-                                "border:1px solid rgba(255,255,255,.06)"
-                              ].join(";")
-                            }, [
-                              el("div", {
-                                style:"min-width:0; display:flex; flex-direction:column; gap:2px;"
-                              }, [
-                                el("div", {
-                                  style:[
-                                    "font-weight:900",
-                                    "font-size:13px",
-                                    "overflow:hidden",
-                                    "text-overflow:ellipsis",
-                                    "white-space:nowrap"
-                                  ].join(";")
-                                }, [String(rx?.name || "Exercise")]),
-                                el("div", {
-                                  class:"note",
-                                  style:"margin:0; text-transform:capitalize;"
-                                }, [
-                                  [String(rx?.type || "exercise"), planBits.join(" • "), String(rx?.notes || "").trim()]
-                                    .filter(Boolean)
-                                    .join(" • ")
-                                ])
-                              ]),
-                              el("div", {
-                                style:"font-size:11px; font-weight:900; opacity:.7; flex:0 0 auto;"
-                              }, [`#${exIdx + 1}`])
-                            ]);
-                          }))
-                        : el("div", {
-                            class:"note",
-                            style:"margin:0; opacity:.86;"
-                          }, ["No exercises added"])
-                    )
-              ]);
-            })
-          : [
+              }, [String(rx?.name || "Exercise")]),
               el("div", {
                 class:"note",
-                style:"margin:0;"
-              }, ["No days found in this routine."])
-            ])
-      ]);
+                style:"margin:0; text-transform:capitalize;"
+              }, [
+                [planBits.join(" • "), String(rx?.notes || "").trim()]
+                  .filter(Boolean)
+                  .join(" • ") || "No plan details"
+              ])
+            ]),
+            el("div", {
+              style:"font-size:11px; font-weight:900; opacity:.7; flex:0 0 auto;"
+            }, [`#${exIdx + 1}`])
+          ]));
+        });
+      }else{
+        bodyInner.appendChild(el("div", {
+          class:"note",
+          style:"margin:0; opacity:.86;"
+        }, ["No exercises added"]));
+      }
     }
 
-    function openProfileRoutineModal(snapshot, noteText){
-      if(!snapshot){
-        showToast("No routine available");
-        return;
-      }
+    body.appendChild(bodyInner);
+    card.appendChild(body);
+    list.appendChild(card);
 
-      Modal.open({
-        title: snapshot?.name || "Workout Routine",
-        bodyNode: buildRoutineModalBodyFromSnapshot(snapshot, noteText)
+    if(!isRest){
+      const setExpanded = (open) => {
+        chevron.style.transform = open ? "rotate(90deg)" : "rotate(0deg)";
+        body.style.opacity = open ? "1" : "0";
+        body.style.marginTop = open ? "10px" : "0px";
+        body.style.maxHeight = open ? `${bodyInner.scrollHeight + 8}px` : "0px";
+      };
+
+      headerBtn.addEventListener("click", () => {
+        const isOpen = body.style.maxHeight && body.style.maxHeight !== "0px";
+        setExpanded(!isOpen);
+      });
+
+      requestAnimationFrame(() => {
+        setExpanded(key === todayKey);
       });
     }
+  });
+
+  root.appendChild(list);
+
+  if(canSave){
+    root.appendChild(el("div", { style:"height:4px" }));
+    root.appendChild(el("div", { class:"btnrow" }, [
+      el("button", {
+        class:"btn primary",
+        onClick: () => {
+          try{
+            const saved = saveRoutineSnapshotToMyRoutines(snapshot);
+            Modal.close();
+            showToast(`Saved to Routines: ${saved.name}`);
+          }catch(e){
+            showToast(e?.message || "Could not save routine");
+          }
+        }
+      }, [saveButtonText])
+    ]));
+  }
+
+  return root;
+}
+
+function openProfileRoutineModal(snapshot, noteText, opts = {}){
+  if(!snapshot){
+    showToast("No routine available");
+    return;
+  }
+
+  Modal.open({
+    title: snapshot?.name || "Workout Routine",
+    bodyNode: buildRoutineModalBodyFromSnapshot(snapshot, noteText, opts)
+  });
+}
 
     const metricCard = (label, value, meta, opts={}) => {
       const clickable = typeof opts?.onClick === "function";
@@ -7420,24 +7734,29 @@ root.appendChild(el("div", { class:"card" }, [
         cardioBest ? cardioBest.meta : (isOwnProfile ? "No cardio logs yet" : "No shared cardio PR yet")
       ),
       metricCard(
-        "Workout Routine",
-        isOwnProfile
-          ? (activeRoutine?.name || "No active routine")
-          : (sharedRoutineSnapshot?.name || (sharedLoading ? "Loading…" : "Private")),
-        isOwnProfile
-          ? (activeRoutine ? "Tap to view routine" : "Create or set a routine")
-          : (sharedRoutineSnapshot ? "Tap to view public routine" : "Routine not shared"),
-        ((isOwnProfile && activeRoutine) || (!isOwnProfile && sharedRoutineSnapshot))
-          ? {
-              onClick: () => openProfileRoutineModal(
-                isOwnProfile ? toOwnRoutineSnapshot(activeRoutine) : sharedRoutineSnapshot,
-                isOwnProfile
-                  ? "Read-only view of your current active routine."
-                  : "Public routine shared on this profile."
-              )
-            }
-          : {}
-      )
+  "Workout Routine",
+  isOwnProfile
+    ? (activeRoutine?.name || "No active routine")
+    : (sharedRoutineSnapshot?.name || (sharedLoading ? "Loading…" : "Private")),
+  isOwnProfile
+    ? (activeRoutine ? "Tap to view routine" : "Create or set a routine")
+    : (sharedRoutineSnapshot ? "Tap to view public routine" : "Routine not shared"),
+  ((isOwnProfile && activeRoutine) || (!isOwnProfile && sharedRoutineSnapshot))
+    ? {
+        onClick: () => openProfileRoutineModal(
+          isOwnProfile ? toOwnRoutineSnapshot(activeRoutine) : sharedRoutineSnapshot,
+          isOwnProfile
+            ? "Read-only view of your current active routine."
+            : "Public routine shared on this profile.",
+          {
+            ownerName: `${String(isOwnProfile ? (state?.profile?.name || "Your") : (profileDisplayName || "User")).trim() || "User"}'s Routine`,
+            canSave: !isOwnProfile,
+            saveButtonText: "Save This Routine"
+          }
+        )
+      }
+    : {}
+)
     ];
 
     cards.push(metricCard(
