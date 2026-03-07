@@ -4536,8 +4536,11 @@ Progress(){
     style:"display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px;"
   });
 
-  const rangeBtnStyle = "min-height:42px; display:flex; align-items:center; justify-content:center; width:100%;";
 
+  const rangeBtnStyle =
+  "height:32px; min-width:46px; padding:0 10px; display:flex; align-items:center; justify-content:center;";
+
+  
   const r7  = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(7); } }, ["7D"]);
   const r30 = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(30); } }, ["30D"]);
   const r90 = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(90); } }, ["90D"]);
@@ -4632,27 +4635,40 @@ Progress(){
     el("div", { style:"height:14px" }),
 
     // Filters Row
+el("div", {
+  style:"display:flex; align-items:end; gap:10px; flex-wrap:wrap;"
+}, [
+
+     // Date Range
+el("div", {
+  style:"display:flex; flex-direction:column; flex:1; min-width:200px;"
+}, [
+
+  el("div", { class:"note", text:"Date Range" }),
+
+  el("div", {
+    style:"display:flex; align-items:center; gap:6px;"
+  }, [
+
+    el("div", { style:"flex:1;" }, [ fromInput ]),
+
     el("div", {
-      style:"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; align-items:end;"
-    }, [
+      class:"note",
+      style:"font-weight:700;"
+    }, ["→"]),
 
-      // From
-      el("div", {}, [
-        el("div", { class:"note", text:"From" }),
-        fromInput
-      ]),
+    el("div", { style:"flex:1;" }, [ toInput ])
 
-      // To
-      el("div", {}, [
-        el("div", { class:"note", text:"To" }),
-        toInput
-      ]),
+  ])
+]),
 
       // Quick Range
-      el("div", {}, [
-        el("div", { class:"note", text:"Quick Range" }),
-        rangeRow
-      ])
+el("div", {
+  style:"display:flex; flex-direction:column;"
+}, [
+  el("div", { class:"note", text:"Quick Range" }),
+  rangeRow
+])
     ])
   ]);
 
