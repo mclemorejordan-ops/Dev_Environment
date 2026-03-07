@@ -4475,7 +4475,7 @@ Progress(){
     }, [
       el("div", { style:"min-width:0; flex:1;" }, [
         el("div", { class:"note", text:"Performance dashboard" }),
-        el("h2", { text:"Progress" }),
+        el("div", { style:"height:0;" }),
         heroExerciseName,
         heroRangeNote
       ]),
@@ -4510,7 +4510,7 @@ Progress(){
     el("input", {
       type:"text",
       value:"",
-      placeholder:"Search exercise (e.g., Bench, Squat, Treadmill)…",
+      placeholder:"Search exercise...",
       onInput: (e) => {
         query = String(e.target.value || "");
         repaint(false);
@@ -4598,14 +4598,17 @@ Progress(){
 
     // Header
     el("div", {
-      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-    }, [
-      el("div", {}, [
-        el("h2", { text:"Analyze" }),
-        el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." })
-      ]),
-      el("div", { class:"note", text:"Search + filters" })
-    ]),
+      el("div", {
+  style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+}, [
+  el("div", { style:"min-width:0; flex:1;" }, [
+    el("h2", { text:"Analyze" }),
+    el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." }),
+    el("div", {
+      style:"height:1px; background:rgba(255,255,255,.08); margin-top:12px;"
+    })
+  ])
+]),
 
     el("div", { style:"height:14px" }),
 
@@ -4667,11 +4670,10 @@ Progress(){
       style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
     }, [
       el("div", { style:"min-width:0; flex:1;" }, [
-        el("h2", { text:"Trend" }),
-        el("div", { class:"note", text:"The chart updates from your current selection and filters." }),
-        el("div", { style:"height:6px" }),
-        chartMetricLabel
-      ]),
+      el("h2", { text:"Trend" }),
+      el("div", { style:"height:6px" }),
+      chartMetricLabel
+    ]),
       el("div", {
         style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
       }, [
