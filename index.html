@@ -182,6 +182,20 @@
     font-weight: 950;
     line-height: 1;
   }
+    /* Progress — sticky hero */
+.progressHeroSticky{
+  position: sticky;
+  top: 10px;
+  z-index: 20;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+@media (max-width: 768px){
+  .progressHeroSticky{
+    top: 8px;
+  }
+}
 </style>
 
 <!-- Instagram-style Comments Modal (UI only, additive) -->
