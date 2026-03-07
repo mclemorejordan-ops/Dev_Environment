@@ -3694,6 +3694,26 @@ function prettyDayTag(dateISO){
   templateSection.appendChild(templateList);
   shell.appendChild(templateSection);
 
+  shell.appendChild(el("div",{style:"height:6px"}));
+
+shell.appendChild(
+  el("button",{
+    class:"btn",
+    onClick: async ()=>{
+      try{
+        const r = await addRoutineFromTemplateAndSync("blank","New Routine");
+        routine = Routines.getActive();
+        selectedIndex = todayIndex;
+        PopoverClose();
+        repaint();
+        showToast(`Created: ${r?.name || "New Routine"}`);
+      }catch(e){
+        showToast(e?.message || "Could not create routine");
+      }
+    }
+  },["+ Create Routine"])
+);
+
   PopoverOpen(anchorBtn, shell);
 }
   
