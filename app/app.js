@@ -4468,7 +4468,7 @@ Progress(){
     text:`${fromISO} → ${toISO}`
   });
 
-  const heroCard = el("div", { class:"card" }, [
+  const heroCard = el("div", { class:"card progressHeroSticky" }, [
     el("div", {
       style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;"
     }, [
