@@ -5880,12 +5880,20 @@ const addFriendBtn = el("button", {
     style:"display:none; margin-top:6px;"
   }, ["Searching…"]);
 
-  const bodyHost = el("div", { class:"connScroll" });
+    const bodyHost = el("div", { class:"connScroll" });
   let repaintSeq = 0;
+  let searchDebounce = null;
 
   searchInput.addEventListener("input", () => {
     ui.connSearch = searchInput.value || "";
-    repaintModal();
+
+    try{
+      if(searchDebounce) clearTimeout(searchDebounce);
+    }catch(_){}
+
+    searchDebounce = setTimeout(() => {
+      repaintModal();
+    }, 150);
   });
 
   async function refreshLists(){
