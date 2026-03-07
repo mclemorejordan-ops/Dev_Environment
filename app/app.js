@@ -4457,7 +4457,18 @@ Progress(){
 
   const root = el("div", { class:"grid" });
 
-   // Hero
+     // Hero
+  const heroExerciseName = el("div", {
+    style:"font-size:14px; font-weight:800; color:rgba(255,255,255,.96); margin-top:2px;",
+    text:"Select an exercise below"
+  });
+
+  const heroRangeNote = el("div", {
+    class:"note",
+    style:"margin-top:8px;",
+    text:`${fromISO} → ${toISO}`
+  });
+
   const heroCard = el("div", { class:"card" }, [
     el("div", {
       style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;"
@@ -4465,15 +4476,8 @@ Progress(){
       el("div", { style:"min-width:0; flex:1;" }, [
         el("div", { class:"note", text:"Performance dashboard" }),
         el("h2", { text:"Progress" }),
-        el("div", {
-          style:"font-size:14px; font-weight:800; color:rgba(255,255,255,.96); margin-top:2px;",
-          text:"Track exercise trends, compare recent performance, and review history."
-        }),
-        el("div", {
-          class:"note",
-          style:"margin-top:8px;",
-          text:`Default range: ${fromISO} → ${toISO}`
-        })
+        heroExerciseName,
+        heroRangeNote
       ]),
       el("div", {
         style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
@@ -4515,6 +4519,7 @@ Progress(){
   ]);
 
   const selectedRow = el("div", { class:"pillRow" });
+  selectedRow.style.display = "none";
   const resultsHost = el("div", { class:"progResults" });
 
   // Routine select
@@ -4525,12 +4530,19 @@ Progress(){
     repaint(true);
   });
 
-  // Date range chips
-  const rangeRow = el("div", { class:"segRow" });
-  const r7  = el("button", { class:"seg", onClick: () => { setRange(7); } }, ["7D"]);
-  const r30 = el("button", { class:"seg", onClick: () => { setRange(30); } }, ["30D"]);
-  const r90 = el("button", { class:"seg", onClick: () => { setRange(90); } }, ["90D"]);
-  const r1y = el("button", { class:"seg", onClick: () => { setRange(365); } }, ["1Y"]);
+    // Date range chips
+  const rangeRow = el("div", {
+    class:"segRow",
+    style:"display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px;"
+  });
+
+  const rangeBtnStyle = "min-height:42px; display:flex; align-items:center; justify-content:center; width:100%;";
+
+  const r7  = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(7); } }, ["7D"]);
+  const r30 = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(30); } }, ["30D"]);
+  const r90 = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(90); } }, ["90D"]);
+  const r1y = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(365); } }, ["1Y"]);
+
   rangeRow.appendChild(r7);
   rangeRow.appendChild(r30);
   rangeRow.appendChild(r90);
@@ -4581,74 +4593,68 @@ Progress(){
   ]);
   root.appendChild(summaryCard);
 
-    // Controls card
-const controlsCard = el("div", { class:"card" }, [
+      // Controls card
+  const controlsCard = el("div", { class:"card" }, [
 
-  // Header
-  el("div", {
-    style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-  }, [
-    el("div", {}, [
-      el("h2", { text:"Analyze" }),
-      el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." })
-    ]),
-    el("div", { class:"note", text:"Search + filters" })
-  ]),
-
-  el("div", { style:"height:14px" }),
-
-  // Exercise Type
-  el("div", { class:"note", text:"Exercise Type" }),
-  typeRow,
-
-  el("div", { style:"height:14px" }),
-
-  // Search
-  el("div", { class:"note", text:"Find Exercise" }),
-  searchWrap,
-
-  el("div", { style:"height:8px" }),
-
-  // Selected exercise
-  selectedRow,
-  resultsHost,
-
-  el("div", { style:"height:18px" }),
-
-  // Divider
-  el("div", {
-    style:"height:1px; background:rgba(255,255,255,.08); margin:6px 0;"
-  }),
-
-  el("div", { style:"height:14px" }),
-
-  // Filters Row
-  el("div", {
-    style:"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; align-items:end;"
-  }, [
-
-    // From
-    el("div", {}, [
-      el("div", { class:"note", text:"From" }),
-      fromInput
+    // Header
+    el("div", {
+      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+    }, [
+      el("div", {}, [
+        el("h2", { text:"Analyze" }),
+        el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." })
+      ]),
+      el("div", { class:"note", text:"Search + filters" })
     ]),
 
-    // To
-    el("div", {}, [
-      el("div", { class:"note", text:"To" }),
-      toInput
-    ]),
+    el("div", { style:"height:14px" }),
 
-    // Quick Range
-    el("div", {}, [
-      el("div", { class:"note", text:"Quick Range" }),
-      rangeRow
+    // Exercise Type
+    el("div", { class:"note", text:"Exercise Type" }),
+    typeRow,
+
+    el("div", { style:"height:14px" }),
+
+    // Search
+    el("div", { class:"note", text:"Find Exercise" }),
+    searchWrap,
+    resultsHost,
+
+    el("div", { style:"height:18px" }),
+
+    // Divider
+    el("div", {
+      style:"height:1px; background:rgba(255,255,255,.08); margin:6px 0;"
+    }),
+
+    el("div", { style:"height:14px" }),
+
+    // Filters Row
+    el("div", {
+      style:"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; align-items:end;"
+    }, [
+
+      // From
+      el("div", {}, [
+        el("div", { class:"note", text:"From" }),
+        fromInput
+      ]),
+
+      // To
+      el("div", {}, [
+        el("div", { class:"note", text:"To" }),
+        toInput
+      ]),
+
+      // Quick Range
+      el("div", {}, [
+        el("div", { class:"note", text:"Quick Range" }),
+        rangeRow
+      ])
     ])
-  ])
+  ]);
 
-]);
-
-root.appendChild(controlsCard);
+  root.appendChild(controlsCard);
 
     // Chart card
   const chartMetricLabel = el("div", {
@@ -4847,26 +4853,14 @@ root.appendChild(controlsCard);
       if(!exerciseId || !lib.some(x => x.id === exerciseId)) exerciseId = lib[0].id;
     }
 
-    // Search results
+        // Search results + hero text
     resultsHost.innerHTML = "";
     selectedRow.innerHTML = "";
 
     const selectedName = exerciseId ? resolveExerciseName(type, exerciseId, "Exercise") : null;
 
-    if(selectedName){
-      selectedRow.appendChild(el("div", { class:"pill" }, [
-        el("div", { class:"t", text:selectedName }),
-        el("button", {
-          class:"x",
-          onClick: () => {
-            exerciseId = null;
-            repaint(true);
-          }
-        }, ["×"])
-      ]));
-    } else {
-      selectedRow.appendChild(el("div", { class:"note", text:"No exercise selected." }));
-    }
+    heroExerciseName.textContent = selectedName || "Select an exercise below";
+    heroRangeNote.textContent = `${fromISO} → ${toISO}`;
 
     const q = normName(query);
     if(query && lib.length){
