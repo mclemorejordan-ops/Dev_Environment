@@ -5790,18 +5790,6 @@ function openFollowerNotifsModal(){
 }
 
 
-       const searchWrap = el("div", { class:"connSearch" }, [
-    el("div", { class:"ico", text:"🔎" }),
-    searchInput
-  ]);
-
-  const searchStatus = el("div", {
-    class:"note",
-    style:"display:none; margin-top:6px;"
-  }, ["Searching…"]);
-
-  const bodyHost = el("div", { class:"connScroll" });
-
   const searchInput = el("input", {
     type:"text",
     placeholder:"Search connections…",
