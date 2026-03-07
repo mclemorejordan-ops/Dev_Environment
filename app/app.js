@@ -1,3 +1,4 @@
+
 /********************
  * 1) State + Storage (imported)
  ********************/
@@ -4456,40 +4457,18 @@ Progress(){
 
   const root = el("div", { class:"grid" });
 
-     // Hero
-  const heroExerciseName = el("div", {
-    style:"font-size:14px; font-weight:800; color:rgba(255,255,255,.96); margin-top:2px;",
-    text:"Select an exercise below"
-  });
+  // Header
+  root.appendChild(el("div", { class:"card" }, [
+    el("h2", { text:"Progress" }),
+    el("div", { class:"note", text:"Search an exercise, then view trends + history. Keep the graph front-and-center." })
+  ]));
 
-  const heroRangeNote = el("div", {
-    class:"note",
-    style:"margin-top:8px;",
-    text:`${fromISO} → ${toISO}`
-  });
-
-  const heroCard = el("div", { class:"card" }, [
-    el("div", {
-      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;"
-    }, [
-      el("div", { style:"min-width:0; flex:1;" }, [
-        el("div", { style:"height:0;" }),
-        heroExerciseName,
-        heroRangeNote
-      ]),
-      el("div", {
-        style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
-      }, [
-        el("div", {
-          class:"pill",
-          style:"padding:8px 12px;"
-        }, [
-          el("div", { class:"t", text:"Exercise Progress" })
-        ])
-      ])
-    ])
+  // ────────────────────────────
+  // Compact Controls + Overview (single card)
+  // ────────────────────────────
+  const topCard = el("div", { class:"card" }, [
+    el("h2", { text:"Find exercise" })
   ]);
-  root.appendChild(heroCard);
 
   // Type segmented
   const typeRow = el("div", { class:"segRow" });
@@ -4508,7 +4487,7 @@ Progress(){
     el("input", {
       type:"text",
       value:"",
-      placeholder:"Search exercise...",
+      placeholder:"Search exercise (e.g., Bench, Squat, Treadmill)…",
       onInput: (e) => {
         query = String(e.target.value || "");
         repaint(false);
@@ -4517,10 +4496,9 @@ Progress(){
   ]);
 
   const selectedRow = el("div", { class:"pillRow" });
-  selectedRow.style.display = "none";
   const resultsHost = el("div", { class:"progResults" });
 
-  // Routine select
+  // Routine select (kept, but compact)
   const routineSelect = el("select", {});
   routineSelect.appendChild(el("option", { value:"", text:"All routines" }));
   routineSelect.addEventListener("change", () => {
@@ -4528,25 +4506,15 @@ Progress(){
     repaint(true);
   });
 
-    // Date range chips
-  const rangeRow = el("div", {
-    class:"segRow",
-    style:"display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px;"
-  });
+  // Date range chips
+  const rangeRow = el("div", { class:"segRow" });
+  const r7  = el("button", { class:"seg", onClick: () => { setRange(7); } }, ["7D"]);
+  const r30 = el("button", { class:"seg", onClick: () => { setRange(30); } }, ["30D"]);
+  const r90 = el("button", { class:"seg", onClick: () => { setRange(90); } }, ["90D"]);
+  const r1y = el("button", { class:"seg", onClick: () => { setRange(365); } }, ["1Y"]);
+  rangeRow.appendChild(r7); rangeRow.appendChild(r30); rangeRow.appendChild(r90); rangeRow.appendChild(r1y);
 
-  const rangeBtnStyle = "min-height:42px; display:flex; align-items:center; justify-content:center; width:100%;";
-
-  const r7  = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(7); } }, ["7D"]);
-  const r30 = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(30); } }, ["30D"]);
-  const r90 = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(90); } }, ["90D"]);
-  const r1y = el("button", { class:"seg", style:rangeBtnStyle, onClick: () => { setRange(365); } }, ["1Y"]);
-
-  rangeRow.appendChild(r7);
-  rangeRow.appendChild(r30);
-  rangeRow.appendChild(r90);
-  rangeRow.appendChild(r1y);
-
-  // Custom date inputs
+  // Custom date inputs (still available, compact)
   const fromInput = el("input", { type:"date", value: fromISO });
   const toInput   = el("input", { type:"date", value: toISO });
 
@@ -4571,132 +4539,45 @@ Progress(){
   // Metric segmented
   const metricRow = el("div", { class:"segRow" });
 
-  // KPI host (kept for repaint contract)
-  const statsHost = el("div", {
-    style:"display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:10px;"
-  });
+  // Overview host (compact KPIs)
+const statsHost = el("div", { class:"pillRow", style:"margin-top:8px;" });
 
-  // Summary / KPI card
-  const summaryCard = el("div", { class:"card" }, [
-    el("div", {
-      style:"display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-    }, [
-      el("div", {}, [
-        el("h2", { text:"Overview" }),
-        el("div", { class:"note", text:"Your selected exercise will populate key stats here." })
-      ]),
-      el("div", { class:"note", text:"PR • Last • Sessions • Trend" })
-    ]),
-    statsHost
-  ]);
-  root.appendChild(summaryCard);
+  topCard.appendChild(el("div", { class:"note", text:"Type + search to select an exercise." }));
+  topCard.appendChild(typeRow);
+  topCard.appendChild(el("div", { style:"height:10px" }));
+  topCard.appendChild(searchWrap);
+  topCard.appendChild(selectedRow);
+  topCard.appendChild(resultsHost);
 
-        // Controls card
-  const controlsCard = el("div", { class:"card" }, [
+  topCard.appendChild(el("div", { style:"height:10px" }));
 
-    // Header
-    el("div", {
-      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-    }, [
-      el("div", { style:"min-width:0; flex:1;" }, [
-        el("h2", { text:"Analyze" }),
-        el("div", { class:"note", text:"Choose a type, search an exercise, then refine the view." }),
-        el("div", {
-          style:"height:1px; background:rgba(255,255,255,.08); margin-top:12px;"
-        })
-      ])
-    ]),
+// Dates (single-line)
+topCard.appendChild(el("div", {
+  style:"display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:2px;"
+}, [
+  el("div", { class:"note", text:"From:" }),
+  fromInput,
+  el("div", { class:"note", text:"|" }),
+  el("div", { class:"note", text:"To:" }),
+  toInput
+]));
 
-    el("div", { style:"height:14px" }),
+  topCard.appendChild(el("div", { style:"height:8px" }));
+  topCard.appendChild(el("div", { class:"note", text:"Metric" }));
+  topCard.appendChild(metricRow);
 
-    // Exercise Type
-    el("div", { class:"note", text:"Exercise Type" }),
-    typeRow,
+  topCard.appendChild(el("div", { style:"height:10px" }));
+  topCard.appendChild(el("div", { class:"note", text:"Overview" }));
+  topCard.appendChild(statsHost);
 
-    el("div", { style:"height:14px" }),
+  root.appendChild(topCard);
 
-    // Search
-    el("div", { class:"note", text:"Find Exercise" }),
-    searchWrap,
-    resultsHost,
-
-    el("div", { style:"height:18px" }),
-
-    // Divider
-    el("div", {
-      style:"height:1px; background:rgba(255,255,255,.08); margin:6px 0;"
-    }),
-
-    el("div", { style:"height:14px" }),
-
-    // Filters Row
-    el("div", {
-      style:"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; align-items:end;"
-    }, [
-
-      // From
-      el("div", {}, [
-        el("div", { class:"note", text:"From" }),
-        fromInput
-      ]),
-
-      // To
-      el("div", {}, [
-        el("div", { class:"note", text:"To" }),
-        toInput
-      ]),
-
-      // Quick Range
-      el("div", {}, [
-        el("div", { class:"note", text:"Quick Range" }),
-        rangeRow
-      ])
-    ])
-  ]);
-
-  root.appendChild(controlsCard);
-
-    // Chart card
-  const chartMetricLabel = el("div", {
-    class:"note",
-    style:"font-size:12px; font-weight:800;"
-  }, ["No metric selected"]);
-
+  // ────────────────────────────
+  // Graph (primary focus)
+  // ────────────────────────────
   const chartCard = el("div", { class:"card" }, [
-    el("div", {
-      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-    }, [
-      el("div", { style:"min-width:0; flex:1;" }, [
-      el("h2", { text:"Trend" }),
-      el("div", { style:"height:6px" }),
-      chartMetricLabel
-    ]),
-      el("div", {
-        style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
-      }, [
-        el("button", {
-          class:"btn ghost sm",
-          onClick: () => {
-            if(!exerciseId){
-              showToast("Select an exercise first");
-              return;
-            }
-
-            const safeType = String(type || "progress");
-            const safeMetric = String(metric || "metric");
-            const safeExercise = String(resolveExerciseName(type, exerciseId) || "exercise")
-              .replace(/[^\w\- ]+/g, "")
-              .trim()
-              .replace(/\s+/g, "-")
-              .toLowerCase();
-
-            downloadCanvasPNG(canvas, `progress-${safeType}-${safeExercise}-${safeMetric}.png`);
-          }
-        }, ["Export PNG"])
-      ])
-    ])
+    el("h2", { text:"Trend" })
   ]);
-
   const chartWrap = el("div", { class:"chartWrap" });
   const canvas = el("canvas", {});
   chartWrap.appendChild(canvas);
@@ -4706,18 +4587,30 @@ Progress(){
   chartCard.appendChild(chartNote);
   root.appendChild(chartCard);
 
-  // History card
+  // ────────────────────────────
+  // History (collapsible)
+  // ────────────────────────────
   const tableCard = el("div", { class:"card" }, [
-    el("div", {
-      style:"display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;"
-    }, [
-      el("div", {}, [
-        el("h2", { text:"History" }),
-        el("div", { class:"note", text:"Most recent logs for the selected exercise." })
+    el("div", { class:"accItem" }, [
+      el("div", {
+        class:"accHead",
+        onClick: () => {
+          const body = tableCard.querySelector(".accBody");
+          const caret = tableCard.querySelector(".accCaret");
+          const isOpen = body.style.display === "block";
+          body.style.display = isOpen ? "none" : "block";
+          caret.textContent = isOpen ? "▾" : "▴";
+        }
+      }, [
+        el("div", { class:"accTitle", text:"History" }),
+        el("div", { class:"accCaret", text:"▾" })
       ]),
-      el("div", { class:"note", text:"Latest entries" })
-    ]),
-    el("div", { class:"list", id:"progressHistoryHost" })
+      el("div", { class:"accBody" }, [
+        el("div", { class:"note", text:"Most recent logs for the selected exercise." }),
+        el("div", { style:"height:8px" }),
+        el("div", { class:"list", id:"progressHistoryHost" })
+      ])
+    ])
   ]);
   const tableHost = tableCard.querySelector("#progressHistoryHost");
   root.appendChild(tableCard);
@@ -4852,14 +4745,26 @@ Progress(){
       if(!exerciseId || !lib.some(x => x.id === exerciseId)) exerciseId = lib[0].id;
     }
 
-        // Search results + hero text
+    // Search results
     resultsHost.innerHTML = "";
     selectedRow.innerHTML = "";
 
     const selectedName = exerciseId ? resolveExerciseName(type, exerciseId, "Exercise") : null;
 
-    heroExerciseName.textContent = selectedName || "Select an exercise below";
-    heroRangeNote.textContent = `${fromISO} → ${toISO}`;
+    if(selectedName){
+      selectedRow.appendChild(el("div", { class:"pill" }, [
+        el("div", { class:"t", text:selectedName }),
+        el("button", {
+          class:"x",
+          onClick: () => {
+            exerciseId = null;
+            repaint(true);
+          }
+        }, ["×"])
+      ]));
+    } else {
+      selectedRow.appendChild(el("div", { class:"note", text:"No exercise selected." }));
+    }
 
     const q = normName(query);
     if(query && lib.length){
@@ -4893,11 +4798,11 @@ Progress(){
     chartNote.textContent = "";
 
     if(!exerciseId){
-    destroyProgressChart();
-    chartMetricLabel.textContent = "No metric selected";
-    chartNote.textContent = "Select an exercise to view progress.";
-    return;
-  }
+      destroyProgressChart();
+      chartNote.textContent = "Select an exercise to see your trend.";
+      tableHost.appendChild(el("div", { class:"note", text:"Select an exercise to see history." }));
+      return;
+    }
 
     // Filter entries for selected exercise
 const all = (state.logs?.workouts || []).filter(e =>
@@ -4907,127 +4812,45 @@ const all = (state.logs?.workouts || []).filter(e =>
 );
 
 
-       // Overview KPIs
+    // Overview KPIs
     const desc = all.slice().sort((a,b) => (b.dateISO||"").localeCompare(a.dateISO||"") || (b.createdAt||0)-(a.createdAt||0));
     const latest = desc[0] || null;
 
     const bests = LogEngine.lifetimeBests(type, exerciseId);
     const bestText = bestsText(type, bests);
 
-    const prVal = formatMetricValue(type, metric, prForMetric(type, metric, bests));
-    const lastVal = latest ? formatMetricValue(type, metric, metricValue(type, metric, latest)) : "—";
-    const sessionCount = String(all.length);
+    // Overview (single pill): { PR: xxx | Last: xxx }
+const prVal = formatMetricValue(type, metric, prForMetric(type, metric, bests));
+const lastVal = latest ? formatMetricValue(type, metric, metricValue(type, metric, latest)) : "—";
 
-    let supportLabel = "Lifetime Best";
-    let supportVal = bestText || "—";
-
-    if(type === "weightlifting"){
-      supportLabel = "Best 1RM";
-      supportVal = formatMetricValue(type, "est1RM", prForMetric(type, "est1RM", bests));
-    }else if(type === "cardio"){
-      supportLabel = "Best Pace";
-      supportVal = formatMetricValue(type, "pace", prForMetric(type, "pace", bests));
-    }else if(type === "core"){
-      supportLabel = "Best Volume";
-      supportVal = formatMetricValue(type, "volume", prForMetric(type, "volume", bests));
-    }
-
-    function kpiCard(label, value){
-      return el("div", {
-        class:"card",
-        style:"padding:12px; min-height:84px; display:flex; flex-direction:column; justify-content:center;"
-      }, [
-        el("div", {
-          class:"note",
-          style:"font-size:11px; text-transform:uppercase; letter-spacing:.08em;",
-          text: label
-        }),
-        el("div", {
-          style:"margin-top:6px; font-size:20px; font-weight:900; line-height:1.1; color:rgba(255,255,255,.98);",
-          text: value || "—"
-        })
-      ]);
-    }
-
-    statsHost.appendChild(kpiCard("PR", prVal));
-    statsHost.appendChild(kpiCard("Last", lastVal));
-    statsHost.appendChild(kpiCard("Sessions", sessionCount));
-    statsHost.appendChild(kpiCard(supportLabel, supportVal));
+statsHost.appendChild(el("div", { class:"pill" }, [
+  el("div", { class:"t", text:`{ PR: ${prVal} | Last: ${lastVal} }` })
+]));
 
     // Chart (ascending for series builder)
     const asc = all.slice().sort((a,b) => (a.dateISO||"").localeCompare(b.dateISO||"") || (a.createdAt||0)-(b.createdAt||0));
     if(asc.length < 2){
       destroyProgressChart();
-      chartMetricLabel.textContent = `${typeLabel(type)} • ${metric}`;
       chartNote.textContent = `Not enough data in this range (${fromISO} to ${toISO}). Log at least 2 sessions.`;
     }else{
       const series = buildSeries(type, asc);
-      chartMetricLabel.textContent = `${typeLabel(type)} • ${metric}`;
-      renderProgressChart(canvas, series, metric);
+      renderProgressChart(canvas, type, metric, series);
       chartNote.textContent = `${asc.length} points • ${fromISO} → ${toISO}`;
     }
 
-        // History table
+    // History table
     if(desc.length === 0){
       tableHost.appendChild(el("div", { class:"note", text:"No logs in this range." }));
     }else{
       desc.slice(0, 40).forEach(entry => {
-        const metricText = tableLine(entry);
-        const isLatest = latest && entry.id === latest.id;
-
-        const dateBadge = el("div", {
-          class:"pill",
-          style:"padding:6px 10px; font-size:11px; font-weight:900;"
-        }, [
-          el("div", { class:"t", text: entry.dateISO || "—" })
-        ]);
-
-        const latestBadge = isLatest
-          ? el("div", {
-              class:"pill",
-              style:"padding:6px 10px; font-size:11px; font-weight:900;"
-            }, [
-              el("div", { class:"t", text:"Latest" })
-            ])
-          : null;
-
-        const summaryBlock = el("div", { style:"min-width:0; flex:1;" }, [
-          el("div", {
-            style:"font-size:14px; font-weight:850; color:rgba(255,255,255,.97); line-height:1.25;"
-          }, [metricText]),
-          el("div", {
-            class:"note",
-            style:"margin-top:6px;",
-            text:`${typeLabel(type)} entry`
-          })
-        ]);
-
-        const actionRow = el("div", {
-          style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;"
-        }, [
-          el("button", {
-            class:"mini danger",
-            onClick: () => confirmDeleteLog(entry)
-          }, ["Delete"])
-        ]);
-
-        const topRowChildren = [dateBadge];
-        if(latestBadge) topRowChildren.push(latestBadge);
-
-        tableHost.appendChild(el("div", {
-          class:"card",
-          style:"padding:12px;"
-        }, [
-          el("div", {
-            style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-          }, [
-            el("div", {
-              style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
-            }, topRowChildren),
-            actionRow
+        tableHost.appendChild(el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text: entry.dateISO }),
+            el("div", { class:"meta", text: tableLine(entry) })
           ]),
-          el("div", { style:"height:10px" }),
-          summaryBlock
+          el("div", { class:"actions" }, [
+            el("button", { class:"mini danger", onClick: () => confirmDeleteLog(entry) }, ["Delete"])
+          ])
         ]));
       });
     }
