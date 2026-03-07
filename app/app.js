@@ -4878,20 +4878,52 @@ const all = (state.logs?.workouts || []).filter(e =>
 );
 
 
-    // Overview KPIs
+       // Overview KPIs
     const desc = all.slice().sort((a,b) => (b.dateISO||"").localeCompare(a.dateISO||"") || (b.createdAt||0)-(a.createdAt||0));
     const latest = desc[0] || null;
 
     const bests = LogEngine.lifetimeBests(type, exerciseId);
     const bestText = bestsText(type, bests);
 
-    // Overview (single pill): { PR: xxx | Last: xxx }
-const prVal = formatMetricValue(type, metric, prForMetric(type, metric, bests));
-const lastVal = latest ? formatMetricValue(type, metric, metricValue(type, metric, latest)) : "—";
+    const prVal = formatMetricValue(type, metric, prForMetric(type, metric, bests));
+    const lastVal = latest ? formatMetricValue(type, metric, metricValue(type, metric, latest)) : "—";
+    const sessionCount = String(all.length);
 
-statsHost.appendChild(el("div", { class:"pill" }, [
-  el("div", { class:"t", text:`{ PR: ${prVal} | Last: ${lastVal} }` })
-]));
+    let supportLabel = "Lifetime Best";
+    let supportVal = bestText || "—";
+
+    if(type === "weightlifting"){
+      supportLabel = "Best 1RM";
+      supportVal = formatMetricValue(type, "est1RM", prForMetric(type, "est1RM", bests));
+    }else if(type === "cardio"){
+      supportLabel = "Best Pace";
+      supportVal = formatMetricValue(type, "pace", prForMetric(type, "pace", bests));
+    }else if(type === "core"){
+      supportLabel = "Best Volume";
+      supportVal = formatMetricValue(type, "volume", prForMetric(type, "volume", bests));
+    }
+
+    function kpiCard(label, value){
+      return el("div", {
+        class:"card",
+        style:"padding:12px; min-height:84px; display:flex; flex-direction:column; justify-content:center;"
+      }, [
+        el("div", {
+          class:"note",
+          style:"font-size:11px; text-transform:uppercase; letter-spacing:.08em;",
+          text: label
+        }),
+        el("div", {
+          style:"margin-top:6px; font-size:20px; font-weight:900; line-height:1.1; color:rgba(255,255,255,.98);",
+          text: value || "—"
+        })
+      ]);
+    }
+
+    statsHost.appendChild(kpiCard("PR", prVal));
+    statsHost.appendChild(kpiCard("Last", lastVal));
+    statsHost.appendChild(kpiCard("Sessions", sessionCount));
+    statsHost.appendChild(kpiCard(supportLabel, supportVal));
 
     // Chart (ascending for series builder)
     const asc = all.slice().sort((a,b) => (a.dateISO||"").localeCompare(b.dateISO||"") || (a.createdAt||0)-(b.createdAt||0));
