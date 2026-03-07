@@ -3420,159 +3420,284 @@ function prettyDayTag(dateISO){
     routine = Routines.getActive(); // ✅ always refresh active routine
     return (routine?.days || []).find(d => d.order === index) || null;
   }
-function openRoutinePicker(anchorBtn){
+
+
+  function openRoutinePicker(anchorBtn){
   let all = Routines.getAll() || [];
   const activeId = Routines.getActive()?.id || null;
 
-  // Find an existing routine that was created from a template (preferred),
-  // otherwise fall back to name match (for older saved data).
+  function getRoutineDayCount(r){
+    return Array.isArray(r?.days) ? r.days.filter(d => !d?.isRest).length : 0;
+  }
+
+  function getRoutineExerciseCount(r){
+    return (Array.isArray(r?.days) ? r.days : []).reduce((sum, day) => {
+      if(day?.isRest) return sum;
+      return sum + (Array.isArray(day?.exercises) ? day.exercises.length : 0);
+    }, 0);
+  }
+
+  function getRoutineFocusText(r){
+    const labels = (Array.isArray(r?.days) ? r.days : [])
+      .filter(day => !day?.isRest)
+      .map(day => String(day?.label || "").trim())
+      .filter(Boolean);
+
+    const seen = new Set();
+    const uniq = [];
+    labels.forEach(label => {
+      const k = normName(label);
+      if(!k || seen.has(k)) return;
+      seen.add(k);
+      uniq.push(label);
+    });
+
+    return uniq.length ? uniq.slice(0, 3).join(" • ") : "Custom routine";
+  }
+
+  function getTemplateMetaText(tpl){
+    const preview = createRoutineFromTemplate(tpl.key, tpl.name || "Routine");
+    const days = getRoutineDayCount(preview);
+    const exercises = getRoutineExerciseCount(preview);
+    return `${days} Day${days === 1 ? "" : "s"} • ${tpl?.desc || `${exercises} Exercises`}`;
+  }
+
   function findRoutineForTemplate(tpl){
-    const byKey = all.find(r => String(r.templateKey || "") === String(tpl.key || ""));
+    // Blank should always create a new routine, never resolve to an existing saved one
+    if(String(tpl?.key || "") === "blank") return null;
+
+    const byKey = all.find(r => String(r?.templateKey || "") === String(tpl?.key || ""));
     if(byKey) return byKey;
 
-    const byName = all.find(r => normName(r.name) === normName(tpl.name));
+    const byName = all.find(r => normName(r?.name || "") === normName(tpl?.name || ""));
     return byName || null;
   }
 
-// ────────────────────────────
-// Visual-only layout upgrade
-// Active pinned, rest scrollable
-// ────────────────────────────
+  async function activateRoutine(routineId){
+    await setActiveRoutineAndSync(routineId);
+    routine = Routines.getActive();
+    selectedIndex = todayIndex;
+    PopoverClose();
+    repaint();
+  }
 
-// Outer shell (column layout)
-const shell = el("div", {
-  style: "display:flex; flex-direction:column; max-height:70vh;"
-});
+  async function createBlankRoutine(){
+    const r = await addRoutineFromTemplateAndSync("blank", "New Routine");
+    routine = Routines.getActive();
+    selectedIndex = todayIndex;
+    PopoverClose();
+    repaint();
+    showToast(`Created: ${r?.name || "New Routine"}`);
+  }
 
-// Title (fixed)
-shell.appendChild(
-  el("div", { class:"popTitle", text:"Select routine" })
-);
+  function buildSectionHeader({ title, count, expanded, onToggle }){
+    const chevron = el("div", {
+      style:[
+        "font-size:16px",
+        "font-weight:1000",
+        "line-height:1",
+        "opacity:.88",
+        "transition:transform .18s ease",
+        `transform:${expanded ? "rotate(90deg)" : "rotate(0deg)"}`,
+        "flex:0 0 auto"
+      ].join(";")
+    }, ["›"]);
 
-// Identify active routine (visual only)
-const activeRoutine = all.find(r => r.id === activeId);
-
-// Fixed Active Section
-if(activeRoutine){
-  shell.appendChild(
-    el("div", { style:"margin-top:8px;" }, [
-      el("div", { class:"popItem" }, [
-        el("div", { class:"l" }, [
-          el("div", { class:"n", text: activeRoutine.name }),
-          el("div", { class:"m", text:"Currently active" })
-        ]),
-        el("div", { class:"popBadge", text:"Active" })
-      ])
-    ])
-  );
-
-  shell.appendChild(el("div", {
-    style:"height:1px; background:rgba(255,255,255,.08); margin:12px 0;"
-  }));
-}
-
-// Scrollable area (existing + templates)
-const scrollHost = el("div", {
-  style:"overflow:auto; padding-right:4px; display:grid; gap:10px;"
-});
-
-// ────────────────────────────
-// Existing routines (UNCHANGED LOGIC)
-// ────────────────────────────
-
-if(all.length === 0){
-  scrollHost.appendChild(
-    el("div", { class:"note", text:"No routines yet. Choose a template below to create one." })
-  );
-}else{
-  all.forEach(r => {
-    const isActive = (r.id === activeId);
-
-    scrollHost.appendChild(
+    return el("button", {
+      type:"button",
+      onClick: onToggle,
+      style:[
+        "display:flex",
+        "align-items:center",
+        "justify-content:space-between",
+        "gap:12px",
+        "width:100%",
+        "padding:12px 14px",
+        "border-radius:16px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background:rgba(255,255,255,.05)",
+        "color:inherit",
+        "font:inherit",
+        "text-align:left",
+        "cursor:pointer",
+        "appearance:none",
+        "-webkit-appearance:none"
+      ].join(";")
+    }, [
       el("div", {
-        class:"popItem",
-        onClick: async () => {
-          await setActiveRoutineAndSync(r.id);
-          routine = Routines.getActive();
-          selectedIndex = todayIndex;
-          PopoverClose();
-          repaint();
-        }
+        style:"display:flex; align-items:center; gap:10px; min-width:0;"
       }, [
-        el("div", { class:"l" }, [
-          el("div", { class:"n", text:r.name }),
-          el("div", { class:"m", text: isActive ? "Currently active" : "Tap to activate" })
-        ]),
-        isActive
-          ? el("div", { class:"popBadge", text:"Active" })
-          : el("div", { class:"m", text:"" })
-      ])
-    );
-  });
-}
+        chevron,
+        el("div", {
+          style:"font-size:14px; font-weight:900; min-width:0;"
+        }, [`${title} (${count})`])
+      ]),
+      el("div", {
+        class:"note",
+        style:"margin:0; white-space:nowrap;"
+      }, [expanded ? "Hide" : "Show"])
+    ]);
+  }
 
-// Spacer before templates
-scrollHost.appendChild(el("div", { style:"height:12px" }));
+  function buildRoutineRow(r, opts={}){
+    const isActive = !!opts.isActive;
+    const dayCount = getRoutineDayCount(r);
+    const exerciseCount = getRoutineExerciseCount(r);
+    const focus = getRoutineFocusText(r);
 
-// Templates title
-scrollHost.appendChild(
-  el("div", { class:"popTitle", text:"Default templates" })
-);
-
-// ────────────────────────────
-// Default templates (UNCHANGED LOGIC)
-// ────────────────────────────
-
-(RoutineTemplates || []).forEach(tpl => {
-
-  const existingAtRender = findRoutineForTemplate(tpl);
-  const labelRight = existingAtRender ? "Activate" : "Add";
-
-  scrollHost.appendChild(
-    el("div", {
+    return el("div", {
       class:"popItem",
       onClick: async () => {
-
-        all = Routines.getAll() || [];
-        const existingNow = findRoutineForTemplate(tpl);
-
-        if(existingNow){
-          await setActiveRoutineAndSync(existingNow.id);
-          routine = Routines.getActive();
-          selectedIndex = todayIndex;
-
-          PopoverClose();
-          repaint();
-          showToast(`Active: ${existingNow.name}`);
-          return;
+        try{
+          await activateRoutine(r.id);
+          if(!isActive) showToast(`Active: ${r.name || "Routine"}`);
+        }catch(e){
+          showToast(e?.message || "Could not set active");
         }
-
-        await addRoutineFromTemplateAndSync(tpl.key, tpl.name);
-
-        routine = Routines.getActive();
-        selectedIndex = todayIndex;
-
-        PopoverClose();
-        repaint();
-        showToast(`Created: ${tpl.name}`);
       }
     }, [
       el("div", { class:"l" }, [
-        el("div", { class:"n", text: tpl.name }),
-        el("div", { class:"m", text: tpl.desc || "Template" })
+        el("div", { class:"n", text: r.name || "Routine" }),
+        el("div", { class:"m", text: focus }),
+        el("div", { class:"m", text: `${dayCount} Days • ${exerciseCount} Exercises` })
+      ]),
+      isActive
+        ? el("div", { class:"popBadge", text:"Active" })
+        : el("div", { class:"m", text:"Activate" })
+    ]);
+  }
+
+  function buildTemplateRow(tpl){
+    const isBlank = String(tpl?.key || "") === "blank";
+    const existingAtRender = isBlank ? null : findRoutineForTemplate(tpl);
+    const labelRight = isBlank ? "New" : (existingAtRender ? "Activate" : "Add");
+
+    return el("div", {
+      class:"popItem",
+      onClick: async () => {
+        try{
+          if(isBlank){
+            await createBlankRoutine();
+            return;
+          }
+
+          all = Routines.getAll() || [];
+          const existingNow = findRoutineForTemplate(tpl);
+
+          if(existingNow){
+            await activateRoutine(existingNow.id);
+            showToast(`Active: ${existingNow.name || tpl.name}`);
+            return;
+          }
+
+          await addRoutineFromTemplateAndSync(tpl.key, tpl.name);
+          routine = Routines.getActive();
+          selectedIndex = todayIndex;
+          PopoverClose();
+          repaint();
+          showToast(`Created: ${tpl.name}`);
+        }catch(e){
+          showToast(e?.message || "Could not create routine");
+        }
+      }
+    }, [
+      el("div", { class:"l" }, [
+        el("div", { class:"n", text: isBlank ? "Blank Routine" : (tpl.name || "Template") }),
+        el("div", {
+          class:"m",
+          text: isBlank ? "Create your own routine" : getTemplateMetaText(tpl)
+        })
       ]),
       el("div", { class:"m", text: labelRight })
-    ])
-  );
-});
+    ]);
+  }
 
-// Attach scroll area
-shell.appendChild(scrollHost);
+  const activeRoutine = all.find(r => r.id === activeId) || null;
+  const savedRoutines = all.filter(r => r && r.id !== activeId);
+  const templates = (RoutineTemplates || []).slice();
 
-// Open popover (same behavior)
-PopoverOpen(anchorBtn, shell);
+  let showSaved = false;
+  let showTemplates = false;
+
+  const shell = el("div", {
+    style:"display:flex; flex-direction:column; gap:10px; max-height:70vh; min-width:min(560px, 92vw);"
+  });
+
+  shell.appendChild(el("div", { class:"popTitle", text:"Select routine" }));
+  shell.appendChild(el("div", {
+    class:"note",
+    style:"margin:0;"
+  }, ["Choose your active program"]));
+
+  if(activeRoutine){
+    shell.appendChild(el("div", {
+      style:"display:grid; gap:8px;"
+    }, [
+      el("div", {
+        class:"note",
+        style:"margin:2px 0 0 2px; font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; opacity:.72;"
+      }, ["Active Routine"]),
+      buildRoutineRow(activeRoutine, { isActive:true })
+    ]));
+  }
+
+  const savedSection = el("div", { style:"display:grid; gap:8px;" });
+  const savedList = el("div", {
+    style:`display:${showSaved ? "grid" : "none"}; gap:8px;`
+  });
+
+  if(savedRoutines.length){
+    savedRoutines.forEach(r => savedList.appendChild(buildRoutineRow(r)));
+  }else{
+    savedList.appendChild(el("div", {
+      class:"note",
+      style:"margin:0; padding:2px 2px 0;"
+    }, ["No saved routines yet."]));
+  }
+
+  const savedHeader = buildSectionHeader({
+    title:"Your Routines",
+    count:savedRoutines.length,
+    expanded:showSaved,
+    onToggle: () => {
+      showSaved = !showSaved;
+      savedHeader.firstChild.firstChild.style.transform = showSaved ? "rotate(90deg)" : "rotate(0deg)";
+      savedHeader.lastChild.textContent = showSaved ? "Hide" : "Show";
+      savedList.style.display = showSaved ? "grid" : "none";
+    }
+  });
+
+  savedSection.appendChild(savedHeader);
+  savedSection.appendChild(savedList);
+  shell.appendChild(savedSection);
+
+  const templateSection = el("div", { style:"display:grid; gap:8px;" });
+  const templateList = el("div", {
+    style:`display:${showTemplates ? "grid" : "none"}; gap:8px;`
+  });
+
+  templates.forEach(tpl => templateList.appendChild(buildTemplateRow(tpl)));
+
+  const templateHeader = buildSectionHeader({
+    title:"Default Templates",
+    count:templates.length,
+    expanded:showTemplates,
+    onToggle: () => {
+      showTemplates = !showTemplates;
+      templateHeader.firstChild.firstChild.style.transform = showTemplates ? "rotate(90deg)" : "rotate(0deg)";
+      templateHeader.lastChild.textContent = showTemplates ? "Hide" : "Show";
+      templateList.style.display = showTemplates ? "grid" : "none";
+    }
+  });
+
+  templateSection.appendChild(templateHeader);
+  templateSection.appendChild(templateList);
+  shell.appendChild(templateSection);
+
+  PopoverOpen(anchorBtn, shell);
 }
-
+  
+  
   // Phase 3: Per-exercise Workout Execution (logger)
 function openExerciseLogger(rx, day, defaultDateISO){
   ExerciseLibrary.ensureSeeded();
