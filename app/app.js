@@ -3614,8 +3614,11 @@ function prettyDayTag(dateISO){
 
   const activeRoutine = all.find(r => r.id === activeId) || null;
   const savedRoutines = all.filter(r => r && r.id !== activeId);
-  const templates = (RoutineTemplates || []).slice();
+  const templates = (RoutineTemplates || [])
+  .filter(tpl => String(tpl?.key || "") !== "blank");
 
+
+    
   let showSaved = false;
   let showTemplates = false;
 
@@ -3697,21 +3700,25 @@ function prettyDayTag(dateISO){
   shell.appendChild(el("div",{style:"height:6px"}));
 
 shell.appendChild(
-  el("button",{
-    class:"btn",
+  el("div",{
+    class:"popItem",
     onClick: async ()=>{
       try{
         const r = await addRoutineFromTemplateAndSync("blank","New Routine");
-        routine = Routines.getActive();
-        selectedIndex = todayIndex;
         PopoverClose();
-        repaint();
         showToast(`Created: ${r?.name || "New Routine"}`);
+        navigate("routine_editor");
       }catch(e){
         showToast(e?.message || "Could not create routine");
       }
     }
-  },["+ Create Routine"])
+  },[
+    el("div",{class:"l"},[
+      el("div",{class:"n",text:"+ Create Routine"}),
+      el("div",{class:"m",text:"Create a new workout program"})
+    ]),
+    el("div",{class:"m",text:"+"})
+  ])
 );
 
   PopoverOpen(anchorBtn, shell);
