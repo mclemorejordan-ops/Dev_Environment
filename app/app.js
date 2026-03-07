@@ -8262,6 +8262,7 @@ let show3DPreview = (state.profile?.show3DPreview !== false);
 
 let usernameCheckSeq = 0;
 let usernameCheckTimer = null;
+let lastUsernameChecked = "";
 let usernameStatus = "idle"; // idle | checking | available | taken | invalid
 let usernameOwnerId = null;
 
@@ -8316,6 +8317,10 @@ function paintUsernameStatus(){
 async function checkUsernameAvailabilityLive(){
   const mine = String(Social.getUser?.()?.id || "");
   const current = normalizeUsername(usernameInput.value);
+
+  // ✅ skip duplicate checks
+  if(current === lastUsernameChecked) return;
+  lastUsernameChecked = current;
   const seq = ++usernameCheckSeq;
 
   if(!current){
