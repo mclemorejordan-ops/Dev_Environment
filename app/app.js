@@ -4644,18 +4644,48 @@ Progress(){
   ]);
   root.appendChild(controlsCard);
 
-  // Chart card
+    // Chart card
+  const chartMetricLabel = el("div", {
+    class:"note",
+    style:"font-size:12px; font-weight:800;"
+  }, ["No metric selected"]);
+
   const chartCard = el("div", { class:"card" }, [
     el("div", {
-      style:"display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+      style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;"
     }, [
-      el("div", {}, [
+      el("div", { style:"min-width:0; flex:1;" }, [
         el("h2", { text:"Trend" }),
-        el("div", { class:"note", text:"The chart updates from your current selection and filters." })
+        el("div", { class:"note", text:"The chart updates from your current selection and filters." }),
+        el("div", { style:"height:6px" }),
+        chartMetricLabel
       ]),
-      el("div", { class:"note", text:"Chart view" })
+      el("div", {
+        style:"display:flex; align-items:center; gap:8px; flex-wrap:wrap;"
+      }, [
+        el("button", {
+          class:"btn ghost sm",
+          onClick: () => {
+            if(!exerciseId){
+              showToast("Select an exercise first");
+              return;
+            }
+
+            const safeType = String(type || "progress");
+            const safeMetric = String(metric || "metric");
+            const safeExercise = String(resolveExerciseName(type, exerciseId) || "exercise")
+              .replace(/[^\w\- ]+/g, "")
+              .trim()
+              .replace(/\s+/g, "-")
+              .toLowerCase();
+
+            downloadCanvasPNG(canvas, `progress-${safeType}-${safeExercise}-${safeMetric}.png`);
+          }
+        }, ["Export PNG"])
+      ])
     ])
   ]);
+
   const chartWrap = el("div", { class:"chartWrap" });
   const canvas = el("canvas", {});
   chartWrap.appendChild(canvas);
@@ -4864,11 +4894,11 @@ Progress(){
     chartNote.textContent = "";
 
     if(!exerciseId){
-      destroyProgressChart();
-      chartNote.textContent = "Select an exercise to see your trend.";
-      tableHost.appendChild(el("div", { class:"note", text:"Select an exercise to see history." }));
-      return;
-    }
+    destroyProgressChart();
+    chartMetricLabel.textContent = "No metric selected";
+    chartNote.textContent = "Select an exercise to view progress.";
+    return;
+  }
 
     // Filter entries for selected exercise
 const all = (state.logs?.workouts || []).filter(e =>
@@ -4929,10 +4959,12 @@ const all = (state.logs?.workouts || []).filter(e =>
     const asc = all.slice().sort((a,b) => (a.dateISO||"").localeCompare(b.dateISO||"") || (a.createdAt||0)-(b.createdAt||0));
     if(asc.length < 2){
       destroyProgressChart();
+      chartMetricLabel.textContent = `${typeLabel(type)} • ${metric}`;
       chartNote.textContent = `Not enough data in this range (${fromISO} to ${toISO}). Log at least 2 sessions.`;
     }else{
       const series = buildSeries(type, asc);
-      renderProgressChart(canvas, type, metric, series);
+      chartMetricLabel.textContent = `${typeLabel(type)} • ${metric}`;
+      renderProgressChart(canvas, series, metric);
       chartNote.textContent = `${asc.length} points • ${fromISO} → ${toISO}`;
     }
 
