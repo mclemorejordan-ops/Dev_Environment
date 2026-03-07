@@ -7358,11 +7358,6 @@ function buildRoutineModalBodyFromSnapshot(snapshot, noteText, opts = {}){
   const focusText = inferRoutineFocus(snapshot);
   const todayOrder = mondayFirstTodayOrder();
 
-  const todayKey = (() => {
-    const found = days.find(day => !day?.isRest && Number(day?.order ?? -1) === todayOrder);
-    return found ? String(found?.id || `routine_day_${found?.order ?? 0}`) : null;
-  })();
-
   const root = el("div", {
     style:"display:flex; flex-direction:column; gap:10px;"
   });
@@ -7631,8 +7626,8 @@ function buildRoutineModalBodyFromSnapshot(snapshot, noteText, opts = {}){
       });
 
       requestAnimationFrame(() => {
-        setExpanded(key === todayKey);
-      });
+  setExpanded(false);
+});
     }
   });
 
