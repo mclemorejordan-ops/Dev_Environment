@@ -5808,8 +5808,6 @@ function openFollowerNotifsModal(){
   ]);
 
   const bodyHost = el("div", { class:"connScroll" });
-
-  const bodyHost = el("div", { class:"connScroll" });
   let repaintSeq = 0;
        
   searchInput.addEventListener("input", () => {
