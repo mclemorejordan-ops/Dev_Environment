@@ -8092,6 +8092,560 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
+
+      function fmtShareInt(n){
+        const x = Number(n);
+        if(!Number.isFinite(x)) return "0";
+        return String(Math.round(x));
+      }
+
+      function fmtShareWeight(n){
+        const x = Number(n);
+        if(!Number.isFinite(x) || x <= 0) return "";
+        return (Math.round(x * 10) % 10 === 0) ? String(Math.round(x)) : x.toFixed(1);
+      }
+
+      function fmtShareDistance(n){
+        const x = Number(n);
+        if(!Number.isFinite(x) || x <= 0) return "";
+        return x.toFixed(x >= 10 ? 1 : 2);
+      }
+
+      function fmtSharePace(sec){
+        const x = Number(sec);
+        if(!Number.isFinite(x) || x <= 0) return "";
+        const whole = Math.floor(x);
+        const m = Math.floor(whole / 60);
+        const s = whole % 60;
+        return `${m}:${String(s).padStart(2, "0")} /MI`;
+      }
+
+      function getDayCountLabel(dateISO){
+        try{
+          const arr = Array.isArray(state?.attendance) ? state.attendance.slice() : [];
+          const target = String(dateISO || "").trim();
+          if(!target) return "DAY 1";
+          const uniq = Array.from(new Set(arr.map(x => String(x || "").trim()).filter(Boolean))).sort();
+          const idx = uniq.indexOf(target);
+          return `DAY ${idx >= 0 ? (idx + 1) : Math.max(1, uniq.length || 1)}`;
+        }catch(_){
+          return "DAY 1";
+        }
+      }
+
+      function getWorkoutItemsFromEvent(ev){
+        try{
+          const items = ev?.payload?.details?.items;
+          return Array.isArray(items) ? items.slice() : [];
+        }catch(_){
+          return [];
+        }
+      }
+
+      function pickWeightliftingPR(items){
+        const wl = (items || []).filter(it => String(it?.type || "") === "weightlifting");
+        if(!wl.length) return null;
+
+        const withPr = wl.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
+        const source = withPr || wl[0];
+        if(!source) return null;
+
+        const topText = String(source?.topText || "").trim();
+        const topWeightMatch = topText.match(/(\d+(\.\d+)?)/);
+        const topWeight = topWeightMatch ? Number(topWeightMatch[1]) : null;
+
+        let deltaText = "";
+        try{
+          const badges = Array.isArray(source?.prBadges) ? source.prBadges : [];
+          const joined = badges.join(" • ");
+          const m = joined.match(/\+?\d+(\.\d+)?/);
+          if(m) deltaText = `+${String(m[0]).replace(/^\+/, "")} LB`;
+          else if(badges.length) deltaText = badges[0].toUpperCase();
+        }catch(_){}
+
+        return {
+          name: String(source?.name || "PR HIGHLIGHT").trim().toUpperCase(),
+          weight: topWeight,
+          deltaText
+        };
+      }
+
+      function pickTop3Lifts(items){
+        try{
+          const wl = (items || [])
+            .filter(it => String(it?.type || "") === "weightlifting")
+            .map(it => {
+              const topText = String(it?.topText || "").trim();
+              const m = topText.match(/(\d+(\.\d+)?)/);
+              return {
+                name: String(it?.name || "LIFT").trim().toUpperCase(),
+                weight: m ? Number(m[1]) : 0
+              };
+            })
+            .filter(it => it.weight > 0)
+            .sort((a,b) => b.weight - a.weight)
+            .slice(0, 3);
+
+          return wl;
+        }catch(_){
+          return [];
+        }
+      }
+
+      function pickCardioMetrics(items){
+        try{
+          const cardio = (items || []).find(it => String(it?.type || "") === "cardio");
+          const s = cardio?.summary || cardio || {};
+          const pace = Number(s?.paceSecPerUnit);
+          const distance = Number(s?.distance);
+          const timeSec = Number(s?.timeSec);
+
+          return {
+            pace: Number.isFinite(pace) && pace > 0 ? pace : null,
+            distance: Number.isFinite(distance) && distance > 0 ? distance : null,
+            timeSec: Number.isFinite(timeSec) && timeSec > 0 ? timeSec : null
+          };
+        }catch(_){
+          return { pace:null, distance:null, timeSec:null };
+        }
+      }
+
+      function classifyShareCard(ev){
+        try{
+          const items = getWorkoutItemsFromEvent(ev);
+          const hasW = items.some(it => String(it?.type || "") === "weightlifting");
+          const hasC = items.some(it => String(it?.type || "") === "cardio");
+
+          if(hasW && hasC) return "mixed";
+          if(hasC) return "cardio";
+          return "weightlifting";
+        }catch(_){
+          return "weightlifting";
+        }
+      }
+
+      function buildShareCardLines(ev){
+        const p = ev?.payload || {};
+        const d = p?.details || {};
+        const h = p?.highlights || {};
+        const items = getWorkoutItemsFromEvent(ev);
+        const kind = classifyShareCard(ev);
+        const dayCount = getDayCountLabel(p?.dateISO || d?.dateISO || "");
+        const routineName = String(d?.routineName || d?.routine || "").trim().toUpperCase();
+        const dayLabel = String(d?.dayLabel || "WORKOUT").trim().toUpperCase();
+        const exerciseCount = Number(h?.exerciseCount || 0) || items.length || 0;
+
+        if(kind === "cardio"){
+          const c = pickCardioMetrics(items);
+          if(!c.distance && !c.pace && !c.timeSec) return null;
+
+          return {
+            kind,
+            lines: [
+              "CARDIO SESSION",
+              routineName || "",
+              "──────────────",
+              "DISTANCE",
+              c.distance ? `${fmtShareDistance(c.distance)} MI` : "—",
+              "",
+              "PACE",
+              c.pace ? fmtSharePace(c.pace) : "—",
+              "",
+              "TIME",
+              c.timeSec ? formatTime(c.timeSec) : "—",
+              "──────────────",
+              `🔥 FASTEST PACE PR | ${dayCount}`
+            ].filter(x => x !== null && x !== undefined)
+          };
+        }
+
+        if(kind === "mixed"){
+          const pr = pickWeightliftingPR(items);
+          const c = pickCardioMetrics(items);
+          if(!pr && !c.distance && !c.pace && !c.timeSec) return null;
+
+          return {
+            kind,
+            lines: [
+              "WORKOUT OVERVIEW",
+              routineName || "ROUTINE",
+              "──────────────",
+              `🔥 ${(pr?.name || "TOP LIFT").toUpperCase()}`,
+              pr?.weight ? `${fmtShareWeight(pr.weight)} LB` : "",
+              pr?.deltaText || "",
+              "",
+              "DISTANCE",
+              c.distance ? `${fmtShareDistance(c.distance)} MI` : "—",
+              "",
+              "PACE",
+              c.pace ? fmtSharePace(c.pace) : "—",
+              "",
+              "TIME",
+              c.timeSec ? formatTime(c.timeSec) : "—",
+              "──────────────",
+              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+            ].filter(x => x !== null && x !== undefined)
+          };
+        }
+
+        const pr = pickWeightliftingPR(items);
+        if(pr && pr.weight){
+          return {
+            kind,
+            lines: [
+              dayLabel || "WORKOUT",
+              routineName || "ROUTINE",
+              "──────────────",
+              "🔥 PR HIGHLIGHT",
+              `${fmtShareWeight(pr.weight)} LB`,
+              pr.deltaText || "",
+              "──────────────",
+              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+            ].filter(x => x !== null && x !== undefined)
+          };
+        }
+
+        const top3 = pickTop3Lifts(items);
+        if(top3.length){
+          return {
+            kind,
+            lines: [
+              dayLabel || "WORKOUT",
+              routineName || "ROUTINE",
+              "──────────────",
+              "TOP 3 LIFTS",
+              ...top3.map(it => `${it.name} — ${fmtShareWeight(it.weight)} LB`),
+              "──────────────",
+              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+            ]
+          };
+        }
+
+        return null;
+      }
+
+      function buildShareCaption(ev, meta={}){
+        try{
+          const p = ev?.payload || {};
+          const d = p?.details || {};
+          const h = p?.highlights || {};
+          const items = getWorkoutItemsFromEvent(ev);
+          const kind = classifyShareCard(ev);
+          const dayCount = getDayCountLabel(p?.dateISO || d?.dateISO || "");
+          const routineName = String(d?.routineName || d?.routine || "").trim() || "Routine";
+          const dayLabel = String(d?.dayLabel || "Workout").trim();
+          const exerciseCount = Number(h?.exerciseCount || 0) || items.length || 0;
+
+          if(kind === "cardio"){
+            const c = pickCardioMetrics(items);
+            return [
+              `${dayLabel || "Cardio Session"} • ${routineName}`,
+              c.distance ? `Distance: ${fmtShareDistance(c.distance)} mi` : "",
+              c.pace ? `Pace: ${fmtSharePace(c.pace)}` : "",
+              c.timeSec ? `Time: ${formatTime(c.timeSec)}` : "",
+              `${dayCount}`
+            ].filter(Boolean).join("\n");
+          }
+
+          if(kind === "mixed"){
+            const pr = pickWeightliftingPR(items);
+            const c = pickCardioMetrics(items);
+            return [
+              `${dayLabel} • ${routineName}`,
+              pr?.name ? `${pr.name}: ${pr.weight ? `${fmtShareWeight(pr.weight)} lb` : ""} ${pr.deltaText || ""}`.trim() : "",
+              c.distance ? `Distance: ${fmtShareDistance(c.distance)} mi` : "",
+              c.pace ? `Pace: ${fmtSharePace(c.pace)}` : "",
+              c.timeSec ? `Time: ${formatTime(c.timeSec)}` : "",
+              `${exerciseCount} exercises • ${dayCount}`
+            ].filter(Boolean).join("\n");
+          }
+
+          const pr = pickWeightliftingPR(items);
+          const top3 = pickTop3Lifts(items);
+          if(pr?.weight){
+            return [
+              `${dayLabel} • ${routineName}`,
+              `PR Highlight: ${fmtShareWeight(pr.weight)} lb`,
+              pr.deltaText || "",
+              `${exerciseCount} exercises • ${dayCount}`
+            ].filter(Boolean).join("\n");
+          }
+
+          return [
+            `${dayLabel} • ${routineName}`,
+            ...top3.map(it => `${it.name}: ${fmtShareWeight(it.weight)} lb`),
+            `${exerciseCount} exercises • ${dayCount}`
+          ].filter(Boolean).join("\n");
+        }catch(_){
+          return meta?.title || "Workout shared";
+        }
+      }
+
+      function renderShareCardNode(lines){
+        const root = el("div", {
+          style:[
+            "width:1080px",
+            "min-height:1080px",
+            "padding:96px 88px",
+            "background:transparent",
+            "color:#ffffff",
+            "display:flex",
+            "align-items:center",
+            "justify-content:center",
+            "text-align:center",
+            "font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          ].join(";")
+        });
+
+        const col = el("div", {
+          style:[
+            "width:100%",
+            "display:flex",
+            "flex-direction:column",
+            "align-items:center",
+            "justify-content:center",
+            "gap:0"
+          ].join(";")
+        });
+
+        (lines || []).forEach((line, idx) => {
+          const txt = String(line || "");
+          const isDivider = txt.includes("────────");
+          const isBlank = txt === "";
+          const style = [];
+
+          if(isBlank){
+            style.push("height:18px");
+          }else if(idx === 0){
+            style.push("font-size:64px", "font-weight:900", "letter-spacing:.06em", "line-height:1.05");
+          }else if(idx === 1){
+            style.push("font-size:38px", "font-weight:800", "letter-spacing:.05em", "line-height:1.1", "margin-top:10px");
+          }else if(isDivider){
+            style.push("font-size:42px", "font-weight:700", "letter-spacing:.04em", "line-height:1", "margin:22px 0");
+          }else if(/^\d+(\.\d+)? LB$/i.test(txt) || /^\d+(\.\d+)? MI$/i.test(txt) || /^\d+:\d{2} \/MI$/i.test(txt) || /^\d+:\d{2}$/.test(txt)){
+            style.push("font-size:92px", "font-weight:900", "line-height:1.02", "letter-spacing:.01em");
+          }else if(/^TOP 3 LIFTS$/i.test(txt) || /^DISTANCE$/i.test(txt) || /^PACE$/i.test(txt) || /^TIME$/i.test(txt) || /^🔥 PR HIGHLIGHT$/i.test(txt)){
+            style.push("font-size:42px", "font-weight:850", "letter-spacing:.04em", "line-height:1.15");
+          }else if(/\| DAY \d+$/i.test(txt) || /^🔥 FASTEST PACE PR \| DAY \d+$/i.test(txt)){
+            style.push("font-size:34px", "font-weight:850", "letter-spacing:.03em", "line-height:1.15", "margin-top:6px");
+          }else if(/^(\+|\-)?\d+(\.\d+)? LB$/i.test(txt)){
+            style.push("font-size:54px", "font-weight:850", "line-height:1.08");
+          }else{
+            style.push("font-size:40px", "font-weight:800", "letter-spacing:.02em", "line-height:1.18");
+          }
+
+          col.appendChild(el("div", { style: style.join(";"), text: txt }, []));
+        });
+
+        root.appendChild(col);
+        return root;
+      }
+
+      async function exportNodeToTransparentPng(node){
+        const width = 1080;
+        const height = Math.max(1080, Math.ceil(node.scrollHeight || 1080));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if(!ctx) throw new Error("Canvas unavailable");
+
+        ctx.clearRect(0, 0, width, height);
+
+        const host = el("div", {
+          style:[
+            "position:fixed",
+            "left:-99999px",
+            "top:0",
+            "pointer-events:none",
+            "opacity:1",
+            "z-index:-1"
+          ].join(";")
+        }, [node]);
+
+        document.body.appendChild(host);
+
+        try{
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+          const blocks = Array.from(node.querySelectorAll("div"));
+          blocks.forEach((n) => {
+            const text = String(n.textContent || "");
+            if(!text) return;
+
+            const cs = getComputedStyle(n);
+            const rect = n.getBoundingClientRect();
+            const rootRect = node.getBoundingClientRect();
+
+            const x = rect.left - rootRect.left;
+            const y = rect.top - rootRect.top;
+            const w = rect.width;
+            const h = rect.height;
+
+            const fontSize = Number.parseFloat(cs.fontSize || "16") || 16;
+            const fontWeight = cs.fontWeight || "800";
+            const lineHeight = Number.parseFloat(cs.lineHeight || String(fontSize * 1.15)) || (fontSize * 1.15);
+
+            ctx.save();
+            ctx.fillStyle = "#FFFFFF";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.font = `${fontWeight} ${fontSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`;
+
+            const centerX = x + (w / 2);
+            const centerY = y + (h / 2);
+
+            if(text.includes("────────")){
+              ctx.fillText(text, centerX, centerY);
+            }else{
+              const parts = text.split("\n");
+              parts.forEach((part, i) => {
+                ctx.fillText(part, centerX, centerY + ((i - ((parts.length - 1) / 2)) * lineHeight));
+              });
+            }
+            ctx.restore();
+          });
+
+          return await new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+              if(blob) resolve(blob);
+              else reject(new Error("PNG export failed"));
+            }, "image/png");
+          });
+        } finally {
+          try{ host.remove(); }catch(_){}
+        }
+      }
+
+      async function copyTextSafe(text){
+        const value = String(text || "");
+        if(!value) throw new Error("Nothing to copy");
+        if(navigator.clipboard?.writeText){
+          await navigator.clipboard.writeText(value);
+          return;
+        }
+        const ta = el("textarea", {
+          style:"position:fixed; left:-99999px; top:0; opacity:0;"
+        }, [value]);
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+
+      async function sharePngBlob(blob, filename, fallbackText){
+        const file = new File([blob], filename || "workout-share.png", { type:"image/png" });
+
+        if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+          await navigator.share({
+            files: [file],
+            title: "Workout Share",
+            text: fallbackText || ""
+          });
+          return "shared";
+        }
+
+        const url = URL.createObjectURL(blob);
+        try{
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename || "workout-share.png";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          return "downloaded";
+        } finally {
+          setTimeout(() => URL.revokeObjectURL(url), 500);
+        }
+      }
+
+      async function openShareModal(ev, meta={}){
+        try{
+          const card = buildShareCardLines(ev);
+          const caption = buildShareCaption(ev, meta);
+
+          const preview = card
+            ? renderShareCardNode(card.lines)
+            : el("div", { class:"note", text:"This event is from an older build and doesn’t have enough detail for an image card yet." });
+
+          const previewWrap = el("div", {
+            style:[
+              "display:flex",
+              "justify-content:center",
+              "align-items:center",
+              "padding:16px 0 10px"
+            ].join(";")
+          }, [
+            card
+              ? el("div", {
+                  style:[
+                    "width:220px",
+                    "min-height:220px",
+                    "border-radius:18px",
+                    "border:1px solid rgba(255,255,255,.10)",
+                    "background:rgba(255,255,255,.03)",
+                    "display:flex",
+                    "align-items:center",
+                    "justify-content:center",
+                    "overflow:hidden"
+                  ].join(";")
+                }, [
+                  (() => {
+                    const mini = renderShareCardNode(card.lines);
+                    mini.style.width = "520px";
+                    mini.style.minHeight = "520px";
+                    mini.style.transform = "scale(.38)";
+                    mini.style.transformOrigin = "center center";
+                    return mini;
+                  })()
+                ])
+              : preview
+          ]);
+
+          const body = el("div", {}, [
+            previewWrap,
+            el("div", { class:"note", text:"Transparent PNG • white lettering • corrected labels" }),
+            el("div", { style:"height:12px" }),
+            el("div", { class:"btnrow" }, [
+              el("button", {
+                class:"btn primary",
+                onClick: async () => {
+                  try{
+                    if(!card) throw new Error("This event can only be copied as text");
+                    const blob = await exportNodeToTransparentPng(renderShareCardNode(card.lines));
+                    const status = await sharePngBlob(blob, "performance-coach-share.png", caption);
+                    showToast(status === "shared" ? "Shared" : "PNG downloaded");
+                  }catch(e){
+                    showToast(e?.message || "Share failed");
+                  }
+                }
+              }, ["Share PNG"]),
+              el("button", {
+                class:"btn",
+                onClick: async () => {
+                  try{
+                    await copyTextSafe(caption);
+                    showToast("Caption copied");
+                  }catch(_){
+                    showToast("Couldn't copy");
+                  }
+                }
+              }, ["Copy Caption"])
+            ])
+          ]);
+
+          Modal.open({
+            title: "Share Workout",
+            bodyNode: body
+          });
+        }catch(e){
+          showToast(e?.message || "Couldn't open share");
+        }
+      }
+
+      
+
       (feedList || []).forEach(ev => {
                 const p = ev.payload || {};
         const identity = (Social.identityFor && Social.identityFor(
@@ -8351,6 +8905,15 @@ onClick: () => openExerciseHistoryFromFeed(
   }catch(_){ }
 }
 
+
+        function handleFeedShare(ev, title, who, when){
+          try{
+            openShareModal(ev, { title, who, when });
+          }catch(_){
+            showToast("Couldn't open share");
+          }
+        }
+        
         function openCommentsModal({ eventId, title, who }){
   try{
     const me = Social.getUser ? Social.getUser() : null;
@@ -8726,28 +9289,16 @@ onClick: () => openExerciseHistoryFromFeed(
   }, ["💬"]);
 
   const shareBtn = el("button", {
-    style: iconBtnStyle + " opacity:.92;",
-    onClick: async (e) => {
-      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
-      try{
-        const shareText = [title, summaryLine].filter(Boolean).join(" — ");
-        if(navigator?.clipboard?.writeText){
-          await navigator.clipboard.writeText(shareText || title || "");
-          showToast("Copied");
-        }else{
-          const ta = document.createElement("textarea");
-          ta.value = shareText || title || "";
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          ta.remove();
-          showToast("Copied");
-        }
-      }catch(_){
-        showToast("Could not copy");
-      }
+  style: iconBtnStyle + " opacity:.92;",
+  onClick: (e) => {
+    try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+    try{
+      handleFeedShare(ev, title, who, when);
+    }catch(_){
+      showToast("Couldn't open share");
     }
-  }, ["📨"]);
+  }
+}, ["📨"]);
 
   const iconsRow = el("div", {
     style:"display:flex; align-items:center; justify-content:space-between;"
