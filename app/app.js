@@ -8390,19 +8390,27 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           }
 
           const prs = pickWeightliftingPRs(items);
-          const top3 = pickTop3Lifts(items);
-          if(prs.length){
-            return [
-              `${dayLabel} • ${routineName}`,
-              ...prs.map(pr => formatSharePrInline(pr)),
-              `${exerciseCount} ${Number(exerciseCount) === 1 ? "exercise" : "exercises"} • ${dayCount}`
-            ].filter(Boolean).join("\n");
-          }
+const top3 = pickTop3Lifts(items);
+
+if(prs.length){
+  return [
+    `${dayLabel} • ${routineName}`,
+    prs.length === 1 ? "🔥 NEW PR" : "🔥 NEW PRs",
+    ...prs.map((pr, idx) => formatSharePrInline(pr, idx)),
+    `${exerciseCount} ${Number(exerciseCount) === 1 ? "exercise" : "exercises"} • ${dayCount}`
+  ].filter(Boolean).join("\n");
+}
+
+                    const topLiftLabel =
+            top3.length === 1 ? "TOP LIFT" :
+            top3.length === 2 ? "TOP 2 LIFTS" :
+            "TOP 3 LIFTS";
 
           return [
             `${dayLabel} • ${routineName}`,
-            ...top3.map(it => `${it.name}: ${fmtShareWeight(it.weight)} lb`),
-            `${exerciseCount} exercises • ${dayCount}`
+            topLiftLabel,
+            ...top3.map((it, idx) => `${idx + 1}. ${String(it.name || "").trim().toUpperCase()} - ${fmtShareWeight(it.weight)} LB`),
+            `${exerciseCount} ${Number(exerciseCount) === 1 ? "exercise" : "exercises"} • ${dayCount}`
           ].filter(Boolean).join("\n");
         }catch(_){
           return meta?.title || "Workout shared";
