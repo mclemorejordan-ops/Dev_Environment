@@ -8173,7 +8173,8 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
-            function formatSharePrInline(pr){
+                       function formatSharePrInline(pr, index=null){
+        const prefix = Number.isFinite(Number(index)) ? `${Number(index) + 1}. ` : "";
         const name = String(pr?.name || "TOP LIFT").trim().toUpperCase();
         const weight = pr?.weight ? `${fmtShareWeight(pr.weight)} LB` : "";
 
@@ -8185,7 +8186,8 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           }
         }
 
-        return [name, weight, delta].filter(Boolean).join(" - ").replace(" - +", " +");
+        const tail = [weight, delta].filter(Boolean).join(" ");
+        return `${prefix}${name}${tail ? ` - ${tail}` : ""}`;
       }
 
       function pickWeightliftingPR(items){
@@ -8311,7 +8313,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           };
         }
 
-      const prs = pickWeightliftingPRs(items);
+            const prs = pickWeightliftingPRs(items);
         if(prs.length){
           return {
             kind,
@@ -8320,14 +8322,14 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               routineName || "ROUTINE",
               "──────────────",
               prs.length === 1 ? "🔥 NEW PR" : "🔥 NEW PRs",
-              ...prs.map(pr => formatSharePrInline(pr)),
+              ...prs.map((pr, idx) => formatSharePrInline(pr, idx)),
               "──────────────",
               `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount}`
             ].filter(x => x !== null && x !== undefined && x !== "")
           };
         }
 
-                        const top3 = pickTop3Lifts(items);
+        const top3 = pickTop3Lifts(items);
         if(top3.length){
           const topLiftLabel =
             top3.length === 1 ? "TOP LIFT" :
@@ -8341,7 +8343,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               routineName || "ROUTINE",
               "──────────────",
               topLiftLabel,
-              ...top3.map(it => `${it.name} — ${fmtShareWeight(it.weight)} LB`),
+              ...top3.map((it, idx) => `${idx + 1}. ${it.name} - ${fmtShareWeight(it.weight)} LB`),
               "──────────────",
               `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount}`
             ]
@@ -8534,13 +8536,24 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
     }
 
     /* DEFAULT TEXT */
-    else{
-      style.push(
-        "font-size:34px",
-        "font-weight:800",
-        "letter-spacing:.04em",
-        "text-transform:uppercase"
-      );
+        else{
+      if(/^\d+\.\s/.test(txt)){
+        style.push(
+          "font-size:30px",
+          "font-weight:850",
+          "letter-spacing:.03em",
+          "text-transform:uppercase",
+          "white-space:nowrap",
+          "line-height:1.1"
+        );
+      }else{
+        style.push(
+          "font-size:34px",
+          "font-weight:800",
+          "letter-spacing:.04em",
+          "text-transform:uppercase"
+        );
+      }
     }
 
     col.appendChild(
