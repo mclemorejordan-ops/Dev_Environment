@@ -9438,7 +9438,9 @@ onClick: () => openExerciseHistoryFromFeed(
     }
   }, ["💬"]);
 
-  const shareBtn = el("button", {
+  const isOwnEvent = (Social?.getUser?.()?.id && String(ev.actorId) === String(Social.getUser().id));
+
+const shareBtn = isOwnEvent ? el("button", {
   style: iconBtnStyle + " opacity:.92;",
   onClick: (e) => {
     try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
@@ -9448,14 +9450,16 @@ onClick: () => openExerciseHistoryFromFeed(
       showToast("Couldn't open share");
     }
   }
-}, ["📨"]);
+}, ["📨"]) : null;
 
   const iconsRow = el("div", {
     style:"display:flex; align-items:center; justify-content:space-between;"
   }, [
     el("div", { style:"display:flex; align-items:center; gap:14px;" }, [
-      likeBtn, commentBtn, shareBtn
-    ])
+  likeBtn,
+  commentBtn,
+  shareBtn
+].filter(Boolean))
   ]);
 
   const countsRow = el("div", {
