@@ -8142,33 +8142,40 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
-      function pickWeightliftingPR(items){
-        const wl = (items || []).filter(it => String(it?.type || "") === "weightlifting");
-        if(!wl.length) return null;
+      function pickWeightliftingPRs(items){
+  try{
+    const wl = (items || []).filter(it => String(it?.type || "") === "weightlifting");
+    if(!wl.length) return [];
 
-        const withPr = wl.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
-        const source = withPr || wl[0];
-        if(!source) return null;
+    const out = [];
 
-        const topText = String(source?.topText || "").trim();
-        const topWeightMatch = topText.match(/(\d+(\.\d+)?)/);
-        const topWeight = topWeightMatch ? Number(topWeightMatch[1]) : null;
+    wl.forEach((it) => {
+      const badges = Array.isArray(it?.prBadges) ? it.prBadges : [];
+      if(!badges.length) return;
 
-        let deltaText = "";
-        try{
-          const badges = Array.isArray(source?.prBadges) ? source.prBadges : [];
-          const joined = badges.join(" • ");
-          const m = joined.match(/\+?\d+(\.\d+)?/);
-          if(m) deltaText = `+${String(m[0]).replace(/^\+/, "")} LB`;
-          else if(badges.length) deltaText = badges[0].toUpperCase();
-        }catch(_){}
+      const topText = String(it?.topText || "").trim();
+      const m = topText.match(/(\d+(\.\d+)?)/);
+      const weight = m ? Number(m[1]) : null;
 
-        return {
-          name: String(source?.name || "PR HIGHLIGHT").trim().toUpperCase(),
-          weight: topWeight,
-          deltaText
-        };
-      }
+      let deltaText = "";
+      const joined = badges.join(" • ");
+      const dm = joined.match(/\+?\d+(\.\d+)?/);
+      if(dm) deltaText = `+${String(dm[0]).replace(/^\+/, "")} LB`;
+
+      out.push({
+        name: String(it?.name || "EXERCISE").trim().toUpperCase(),
+        weight,
+        deltaText,
+        sortWeight: Number.isFinite(weight) ? weight : 0
+      });
+    });
+
+    out.sort((a, b) => b.sortWeight - a.sortWeight);
+    return out.slice(0, 3);
+  }catch(_){
+    return [];
+  }
+}
 
       function pickTop3Lifts(items){
         try{
