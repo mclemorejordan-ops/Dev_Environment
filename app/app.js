@@ -8327,15 +8327,20 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           };
         }
 
-                const top3 = pickTop3Lifts(items);
+                        const top3 = pickTop3Lifts(items);
         if(top3.length){
+          const topLiftLabel =
+            top3.length === 1 ? "TOP LIFT" :
+            top3.length === 2 ? "TOP 2 LIFTS" :
+            "TOP 3 LIFTS";
+
           return {
             kind,
             lines: [
               dayLabel || "WORKOUT",
               routineName || "ROUTINE",
               "──────────────",
-              "TOP 3 LIFTS",
+              topLiftLabel,
               ...top3.map(it => `${it.name} — ${fmtShareWeight(it.weight)} LB`),
               "──────────────",
               `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount}`
