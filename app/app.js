@@ -8142,40 +8142,33 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
-      function pickWeightliftingPRs(items){
-  try{
-    const wl = (items || []).filter(it => String(it?.type || "") === "weightlifting");
-    if(!wl.length) return [];
+      function pickWeightliftingPR(items){
+        const wl = (items || []).filter(it => String(it?.type || "") === "weightlifting");
+        if(!wl.length) return null;
 
-    const out = [];
+        const withPr = wl.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
+        const source = withPr || wl[0];
+        if(!source) return null;
 
-    wl.forEach((it) => {
-      const badges = Array.isArray(it?.prBadges) ? it.prBadges : [];
-      if(!badges.length) return;
+        const topText = String(source?.topText || "").trim();
+        const topWeightMatch = topText.match(/(\d+(\.\d+)?)/);
+        const topWeight = topWeightMatch ? Number(topWeightMatch[1]) : null;
 
-      const topText = String(it?.topText || "").trim();
-      const m = topText.match(/(\d+(\.\d+)?)/);
-      const weight = m ? Number(m[1]) : null;
+        let deltaText = "";
+        try{
+          const badges = Array.isArray(source?.prBadges) ? source.prBadges : [];
+          const joined = badges.join(" • ");
+          const m = joined.match(/\+?\d+(\.\d+)?/);
+          if(m) deltaText = `+${String(m[0]).replace(/^\+/, "")} LB`;
+          else if(badges.length) deltaText = badges[0].toUpperCase();
+        }catch(_){}
 
-      let deltaText = "";
-      const joined = badges.join(" • ");
-      const dm = joined.match(/\+?\d+(\.\d+)?/);
-      if(dm) deltaText = `+${String(dm[0]).replace(/^\+/, "")} LB`;
-
-      out.push({
-        name: String(it?.name || "EXERCISE").trim().toUpperCase(),
-        weight,
-        deltaText,
-        sortWeight: Number.isFinite(weight) ? weight : 0
-      });
-    });
-
-    out.sort((a, b) => b.sortWeight - a.sortWeight);
-    return out.slice(0, 3);
-  }catch(_){
-    return [];
-  }
-}
+        return {
+          name: String(source?.name || "PR HIGHLIGHT").trim().toUpperCase(),
+          weight: topWeight,
+          deltaText
+        };
+      }
 
       function pickTop3Lifts(items){
         try{
@@ -8281,16 +8274,16 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               pr?.weight ? `${fmtShareWeight(pr.weight)} LB` : "",
               pr?.deltaText || "",
               "",
-              "🏃 DISTANCE",
+              "DISTANCE",
               c.distance ? `${fmtShareDistance(c.distance)} MI` : "—",
               "",
-              "⚡ PACE",
+              "PACE",
               c.pace ? fmtSharePace(c.pace) : "—",
               "",
-              "⏱ TIME",
+              "TIME",
               c.timeSec ? formatTime(c.timeSec) : "—",
               "──────────────",
-              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount} STREAK`
+              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
             ].filter(x => x !== null && x !== undefined)
           };
         }
@@ -8303,11 +8296,11 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               dayLabel || "WORKOUT",
               routineName || "ROUTINE",
               "──────────────",
-              "🔥 NEW PR",
+              "🔥 PR HIGHLIGHT",
               `${fmtShareWeight(pr.weight)} LB`,
               pr.deltaText || "",
               "──────────────",
-              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount} STREAK`
+              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
             ].filter(x => x !== null && x !== undefined)
           };
         }
@@ -8323,7 +8316,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               "TOP 3 LIFTS",
               ...top3.map(it => `${it.name} — ${fmtShareWeight(it.weight)} LB`),
               "──────────────",
-              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount} STREAK`
+              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
             ]
           };
         }
@@ -8388,8 +8381,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
-
-function renderShareCardNode(lines){
+      function renderShareCardNode(lines){
 
   const root = el("div", {
     style: [
@@ -8432,25 +8424,23 @@ function renderShareCardNode(lines){
     /* HEADER (PUSH DAY / CARDIO SESSION) */
     else if(idx === 0){
       style.push(
-        "font-size:44px",
+        "font-size:54px",
         "font-weight:900",
         "letter-spacing:.12em",
         "text-transform:uppercase",
-        "line-height:1.05",
-        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
+        "line-height:1.05"
       );
     }
 
     /* ROUTINE NAME */
     else if(idx === 1){
       style.push(
-        "font-size:28px",
+        "font-size:30px",
         "font-weight:800",
         "letter-spacing:.08em",
         "text-transform:uppercase",
         "line-height:1.15",
-        "margin-top:14px",
-        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
+        "margin-top:14px"
       );
     }
 
@@ -8458,14 +8448,13 @@ function renderShareCardNode(lines){
     else if(isDivider){
       style.push(
         "font-size:42px",
-        "color:rgba(255,255,255,.55)",
+        "color:rgba(255,255,255,.75)",
         "letter-spacing:.04em",
-        "margin:34px 0",
-        "text-shadow:0 2px 8px rgba(0,0,0,.45)"
+        "margin:34px 0"
       );
     }
 
-    /* HERO VALUES (225 LB / 3.10 MI / 8:32 /MI) */
+    /* HERO VALUES (205 LB / 3.10 MI / 8:32 /MI) */
     else if(
       /^\d+(\.\d+)? LB$/i.test(txt) ||
       /^\d+(\.\d+)? MI$/i.test(txt) ||
@@ -8473,11 +8462,10 @@ function renderShareCardNode(lines){
       /^\d+:\d{2}$/.test(txt)
     ){
       style.push(
-        "font-size:125px",
+        "font-size:110px",
         "font-weight:900",
         "letter-spacing:.02em",
-        "line-height:1.02",
-        "text-shadow:0 3px 12px rgba(0,0,0,.65)"
+        "line-height:1.05"
       );
     }
 
@@ -8487,43 +8475,35 @@ function renderShareCardNode(lines){
       /^DISTANCE$/i.test(txt) ||
       /^PACE$/i.test(txt) ||
       /^TIME$/i.test(txt) ||
-      /^🔥 NEW PR$/i.test(txt) ||
-      /^🏋️ TOP 3 LIFTS$/i.test(txt) ||
-      /^🏃 DISTANCE$/i.test(txt) ||
-      /^⚡ PACE$/i.test(txt) ||
-      /^⏱ TIME$/i.test(txt)
+      /^🔥 PR HIGHLIGHT$/i.test(txt)
     ){
       style.push(
-        "font-size:32px",
+        "font-size:36px",
         "font-weight:800",
         "letter-spacing:.06em",
         "text-transform:uppercase",
-        "line-height:1.2",
-        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
+        "line-height:1.2"
       );
     }
 
     /* PR DELTA */
     else if(/^\+\d+(\.\d+)? LB$/i.test(txt)){
       style.push(
-        "font-size:38px",
-        "font-weight:700",
+        "font-size:46px",
+        "font-weight:800",
         "letter-spacing:.04em",
-        "margin-top:6px",
-        "opacity:.85",
-        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
+        "margin-top:6px"
       );
     }
 
     /* FOOTER */
-    else if(/\| DAY \d+ STREAK$/i.test(txt) || /FASTEST PACE PR/i.test(txt)){
+    else if(/\| DAY \d+$/i.test(txt) || /FASTEST PACE PR/i.test(txt)){
       style.push(
         "font-size:28px",
         "font-weight:800",
         "letter-spacing:.06em",
         "text-transform:uppercase",
-        "margin-top:8px",
-        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
+        "margin-top:8px"
       );
     }
 
@@ -8533,18 +8513,17 @@ function renderShareCardNode(lines){
         "font-size:34px",
         "font-weight:800",
         "letter-spacing:.04em",
-        "text-transform:uppercase",
-        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
+        "text-transform:uppercase"
       );
     }
 
     col.appendChild(
-      el("div", {
-        style: style.join(";"),
-        text: txt,
-        "data-share-line": "1"
-      })
-    );
+  el("div", {
+    style: style.join(";"),
+    text: txt,
+    "data-share-line": "1"
+  })
+);
 
   });
 
@@ -8553,7 +8532,6 @@ function renderShareCardNode(lines){
   return root;
 }
 
-      
       async function exportNodeToTransparentPng(node){
         const width = 1080;
         const height = Math.max(1080, Math.ceil(node.scrollHeight || 1080));
