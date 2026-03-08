@@ -8382,64 +8382,154 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
       }
 
       function renderShareCardNode(lines){
-        const root = el("div", {
-          style:[
-            "width:1080px",
-            "min-height:1080px",
-            "padding:96px 88px",
-            "background:transparent",
-            "color:#ffffff",
-            "display:flex",
-            "align-items:center",
-            "justify-content:center",
-            "text-align:center",
-            "font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-          ].join(";")
-        });
 
-        const col = el("div", {
-          style:[
-            "width:100%",
-            "display:flex",
-            "flex-direction:column",
-            "align-items:center",
-            "justify-content:center",
-            "gap:0"
-          ].join(";")
-        });
+  const root = el("div", {
+    style: [
+      "width:1080px",
+      "min-height:1080px",
+      "padding:120px 90px",
+      "background:transparent",
+      "color:#ffffff",
+      "display:flex",
+      "align-items:center",
+      "justify-content:center",
+      "text-align:center",
+      "font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    ].join(";")
+  });
 
-        (lines || []).forEach((line, idx) => {
-          const txt = String(line || "");
-          const isDivider = txt.includes("────────");
-          const isBlank = txt === "";
-          const style = [];
+  const col = el("div", {
+    style:[
+      "width:100%",
+      "display:flex",
+      "flex-direction:column",
+      "align-items:center",
+      "justify-content:center"
+    ].join(";")
+  });
 
-          if(isBlank){
-            style.push("height:18px");
-          }else if(idx === 0){
-            style.push("font-size:64px", "font-weight:900", "letter-spacing:.06em", "line-height:1.05");
-          }else if(idx === 1){
-            style.push("font-size:38px", "font-weight:800", "letter-spacing:.05em", "line-height:1.1", "margin-top:10px");
-          }else if(isDivider){
-            style.push("font-size:42px", "font-weight:700", "letter-spacing:.04em", "line-height:1", "margin:22px 0");
-          }else if(/^\d+(\.\d+)? LB$/i.test(txt) || /^\d+(\.\d+)? MI$/i.test(txt) || /^\d+:\d{2} \/MI$/i.test(txt) || /^\d+:\d{2}$/.test(txt)){
-            style.push("font-size:92px", "font-weight:900", "line-height:1.02", "letter-spacing:.01em");
-          }else if(/^TOP 3 LIFTS$/i.test(txt) || /^DISTANCE$/i.test(txt) || /^PACE$/i.test(txt) || /^TIME$/i.test(txt) || /^🔥 PR HIGHLIGHT$/i.test(txt)){
-            style.push("font-size:42px", "font-weight:850", "letter-spacing:.04em", "line-height:1.15");
-          }else if(/\| DAY \d+$/i.test(txt) || /^🔥 FASTEST PACE PR \| DAY \d+$/i.test(txt)){
-            style.push("font-size:34px", "font-weight:850", "letter-spacing:.03em", "line-height:1.15", "margin-top:6px");
-          }else if(/^(\+|\-)?\d+(\.\d+)? LB$/i.test(txt)){
-            style.push("font-size:54px", "font-weight:850", "line-height:1.08");
-          }else{
-            style.push("font-size:40px", "font-weight:800", "letter-spacing:.02em", "line-height:1.18");
-          }
+  (lines || []).forEach((line, idx) => {
 
-          col.appendChild(el("div", { style: style.join(";"), text: txt }, []));
-        });
+    const txt = String(line || "");
+    const isDivider = txt.includes("────────");
+    const isBlank = txt === "";
 
-        root.appendChild(col);
-        return root;
-      }
+    const style = [];
+
+    /* blank spacing rows */
+    if(isBlank){
+      style.push("height:26px");
+    }
+
+    /* HEADER (PUSH DAY / CARDIO SESSION) */
+    else if(idx === 0){
+      style.push(
+        "font-size:54px",
+        "font-weight:900",
+        "letter-spacing:.12em",
+        "text-transform:uppercase",
+        "line-height:1.05"
+      );
+    }
+
+    /* ROUTINE NAME */
+    else if(idx === 1){
+      style.push(
+        "font-size:30px",
+        "font-weight:800",
+        "letter-spacing:.08em",
+        "text-transform:uppercase",
+        "line-height:1.15",
+        "margin-top:14px"
+      );
+    }
+
+    /* DIVIDER */
+    else if(isDivider){
+      style.push(
+        "font-size:42px",
+        "color:rgba(255,255,255,.75)",
+        "letter-spacing:.04em",
+        "margin:34px 0"
+      );
+    }
+
+    /* HERO VALUES (205 LB / 3.10 MI / 8:32 /MI) */
+    else if(
+      /^\d+(\.\d+)? LB$/i.test(txt) ||
+      /^\d+(\.\d+)? MI$/i.test(txt) ||
+      /^\d+:\d{2} \/MI$/i.test(txt) ||
+      /^\d+:\d{2}$/.test(txt)
+    ){
+      style.push(
+        "font-size:110px",
+        "font-weight:900",
+        "letter-spacing:.02em",
+        "line-height:1.05"
+      );
+    }
+
+    /* LABELS */
+    else if(
+      /^TOP 3 LIFTS$/i.test(txt) ||
+      /^DISTANCE$/i.test(txt) ||
+      /^PACE$/i.test(txt) ||
+      /^TIME$/i.test(txt) ||
+      /^🔥 PR HIGHLIGHT$/i.test(txt)
+    ){
+      style.push(
+        "font-size:36px",
+        "font-weight:800",
+        "letter-spacing:.06em",
+        "text-transform:uppercase",
+        "line-height:1.2"
+      );
+    }
+
+    /* PR DELTA */
+    else if(/^\+\d+(\.\d+)? LB$/i.test(txt)){
+      style.push(
+        "font-size:46px",
+        "font-weight:800",
+        "letter-spacing:.04em",
+        "margin-top:6px"
+      );
+    }
+
+    /* FOOTER */
+    else if(/\| DAY \d+$/i.test(txt) || /FASTEST PACE PR/i.test(txt)){
+      style.push(
+        "font-size:28px",
+        "font-weight:800",
+        "letter-spacing:.06em",
+        "text-transform:uppercase",
+        "margin-top:8px"
+      );
+    }
+
+    /* DEFAULT TEXT */
+    else{
+      style.push(
+        "font-size:34px",
+        "font-weight:800",
+        "letter-spacing:.04em",
+        "text-transform:uppercase"
+      );
+    }
+
+    col.appendChild(
+      el("div", {
+        style: style.join(";"),
+        text: txt
+      })
+    );
+
+  });
+
+  root.appendChild(col);
+
+  return root;
+}
 
       async function exportNodeToTransparentPng(node){
         const width = 1080;
