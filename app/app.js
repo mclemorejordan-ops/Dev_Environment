@@ -8288,7 +8288,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           };
         }
 
-        const pr = pickWeightliftingPR(items);
+                const pr = pickWeightliftingPR(items);
         if(pr && pr.weight){
           return {
             kind,
@@ -8297,6 +8297,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               routineName || "ROUTINE",
               "──────────────",
               "🔥 PR HIGHLIGHT",
+              String(pr?.name || "TOP LIFT").trim().toUpperCase(),
               `${fmtShareWeight(pr.weight)} LB`,
               pr.deltaText || "",
               "──────────────",
@@ -8365,7 +8366,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           if(pr?.weight){
             return [
               `${dayLabel} • ${routineName}`,
-              `PR Highlight: ${fmtShareWeight(pr.weight)} lb`,
+              `PR Highlight: ${String(pr?.name || "Top Lift").trim()} — ${fmtShareWeight(pr.weight)} lb`,
               pr.deltaText || "",
               `${exerciseCount} exercises • ${dayCount}`
             ].filter(Boolean).join("\n");
