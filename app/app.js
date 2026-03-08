@@ -6502,6 +6502,27 @@ root.appendChild(el("div", { class:"card" }, [
     const followerCount = isOwnHeaderProfile ? myFollowers.length : Number(cachedOtherCounts?.followers || 0);
     const isFollowingTarget = !isOwnHeaderProfile && myFollows.includes(String(profileTargetId || ""));
 
+    
+    // ─────────────────────────────
+// Profile Bio (2-line clamp)
+// UI-only, safe — no state/storage changes
+// ─────────────────────────────
+const profileBio = (profileData && profileData.bio)
+  ? el("div", {
+      style:[
+        "margin-top:6px",
+        "margin-bottom:10px",
+        "font-size:13px",
+        "line-height:1.35",
+        "opacity:.92",
+        "display:-webkit-box",
+        "-webkit-line-clamp:2",
+        "-webkit-box-orient:vertical",
+        "overflow:hidden"
+      ].join(";")
+    }, [String(profileData.bio)])
+  : null;
+    
     // Posts count (UI-only; no new storage keys)
     const postCount = (Social.getFeed ? Social.getFeed() : []).filter(ev =>
       String(ev?.actorId || "") === String(profileTargetId || "") &&
@@ -6855,9 +6876,29 @@ root.appendChild(el("div", { class:"card" }, [
       }, ["Continue with Google"]) : null
     ].filter(Boolean)) : null;
 
+    
+    const profileBio = profile?.bio
+  ? el("div", {
+      style:[
+        "margin-top:4px",
+        "margin-bottom:8px",
+        "font-size:13px",
+        "line-height:1.35",
+        "opacity:.92",
+        "display:-webkit-box",
+        "-webkit-line-clamp:2",
+        "-webkit-box-orient:vertical",
+        "overflow:hidden"
+      ].join(";")
+    }, [profile.bio])
+  : null;
+    
     return el("div", {}, [
       topRow,
 
+      // Bio (2-line clamp)
+      profileBio,
+      
       el("div", { style:"height:12px" }),
 
       !configured
