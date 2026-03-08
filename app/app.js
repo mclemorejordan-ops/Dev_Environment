@@ -8296,7 +8296,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               dayLabel || "WORKOUT",
               routineName || "ROUTINE",
               "──────────────",
-              "🔥 PR HIGHLIGHT",
+              "🔥 NEW PR",
               String(pr?.name || "TOP LIFT").trim().toUpperCase(),
               `${fmtShareWeight(pr.weight)} LB`,
               pr.deltaText || "",
