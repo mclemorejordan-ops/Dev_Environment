@@ -8017,108 +8017,68 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
-            function buildFeedSummary(ev){
+      // Builds the second line like:
+      // "Pull Day • 5 exercises • PRs: 2 • Vol 12,400"
+      // "Incline walk • 30:00 • 2.1 units • Pace 14:17 / unit"
+      function buildFeedSummary(ev){
         try{
           const p = ev.payload || {};
+          const bits = [];
 
           if(ev.type === "workout_completed"){
             const d = p.details || null;
             const h = p.highlights || {};
-            const bits = [];
 
-            const label = String(d?.dayLabel || "").trim();
-            if(label) bits.push(label);
+            if(d?.dayLabel) bits.push(String(d.dayLabel));
+            else bits.push("Workout");
 
-            if(Number.isFinite(Number(h.exerciseCount)) && Number(h.exerciseCount) > 0){
-              bits.push(`${Number(h.exerciseCount)} exercises`);
-            }
-
-            if(Number.isFinite(Number(h.totalVolume)) && Number(h.totalVolume) > 0){
-              bits.push(`Vol ${comma(h.totalVolume)}`);
-            }
-
-            if(Number.isFinite(Number(h.prCount)) && Number(h.prCount) > 0){
-              bits.push(`PRs ${Number(h.prCount)}`);
-            }
+            if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) bits.push(`${h.exerciseCount} exercises`);
+            if(Number.isFinite(h.prCount) && h.prCount > 0) bits.push(`PRs: ${h.prCount}`);
+            if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) bits.push(`Vol ${comma(h.totalVolume)}`);
 
             return bits.filter(Boolean).join(" • ");
           }
 
           if(ev.type === "exercise_logged"){
-            const bits = [];
-            const name = String(p.exerciseName || "Exercise");
-            bits.push(name);
+            const name = p.exerciseName || "Exercise";
+            bits.push(String(name));
 
             const type = String(p.workoutType || "");
             const s = p.summary || {};
 
             if(type === "cardio"){
-              if(Number.isFinite(Number(s.timeSec)) && Number(s.timeSec) > 0){
-                bits.push(formatTime(Number(s.timeSec)));
-              }
-              if(Number.isFinite(Number(s.distance)) && Number(s.distance) > 0){
-                bits.push(`${s.distance} units`);
-              }
-              if(Number.isFinite(Number(s.paceSecPerUnit)) && Number(s.paceSecPerUnit) > 0){
-                bits.push(`Pace ${formatPace(Number(s.paceSecPerUnit))} / unit`);
-              }
-              if(Number.isFinite(Number(p.prCount)) && Number(p.prCount) > 0){
-                bits.push(`PRs ${Number(p.prCount)}`);
-              }
+              if(Number.isFinite(s.timeSec) && s.timeSec > 0) bits.push(formatTime(s.timeSec));
+              if(Number.isFinite(s.distance) && s.distance > 0) bits.push(`${s.distance} units`);
+              if(Number.isFinite(s.paceSecPerUnit) && s.paceSecPerUnit > 0) bits.push(`Pace ${formatPace(s.paceSecPerUnit)} / unit`);
+              if(Number.isFinite(p.prCount) && p.prCount > 0) bits.push(`PRs: ${p.prCount}`);
               return bits.filter(Boolean).join(" • ");
             }
 
-            if(Number.isFinite(Number(s.bestWeight)) && Number(s.bestWeight) > 0){
-              bits.push(`Top ${Number(s.bestWeight)}`);
-            }
-            if(Number.isFinite(Number(s.totalVolume)) && Number(s.totalVolume) > 0){
-              bits.push(`Vol ${comma(s.totalVolume)}`);
-            }
-            if(Number.isFinite(Number(p.prCount)) && Number(p.prCount) > 0){
-              bits.push(`PRs ${Number(p.prCount)}`);
-            }
+            // weightlifting / core: keep it compact and useful
+            if(Number.isFinite(s.bestWeight) && s.bestWeight > 0) bits.push(`Top ${s.bestWeight}`);
+            if(Number.isFinite(s.totalVolume) && s.totalVolume > 0) bits.push(`Vol ${comma(s.totalVolume)}`);
+            if(Number.isFinite(p.prCount) && p.prCount > 0) bits.push(`PRs: ${p.prCount}`);
 
             return bits.filter(Boolean).join(" • ");
           }
 
+          // Fallback for any other event types
           return "";
         }catch(_){
           return "";
         }
       }
 
-            function buildFeedBadges(ev){
+      function buildFeedBadges(ev){
         try{
           const p = ev.payload || {};
           const badges = [];
 
-          if(ev.type === "workout_completed"){
-            const h = p.highlights || {};
-            const d = p.details || null;
-            const items = Array.isArray(d?.items) ? d.items : [];
+          // Always show a PR badge if PRs exist
+          const prCount = Number(p.prCount || p.highlights?.prCount || 0);
+          if(Number.isFinite(prCount) && prCount > 0) badges.push(`🏅 PR x${prCount}`);
 
-            const prCount = Number(h.prCount || 0);
-            const exCount = Number(h.exerciseCount || items.length || 0);
-
-            if(Number.isFinite(prCount) && prCount > 0) badges.push(`🏅 PR x${prCount}`);
-            if(Number.isFinite(exCount) && exCount > 0) badges.push(`💪 ${exCount} exercises`);
-
-            const top = (() => {
-              try{
-                const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
-                return withPR || items[0] || null;
-              }catch(_){
-                return null;
-              }
-            })();
-
-            const topText = String(top?.topText || "").trim();
-            if(topText) badges.push(topText);
-          }else{
-            const prCount = Number(p.prCount || p.highlights?.prCount || 0);
-            if(Number.isFinite(prCount) && prCount > 0) badges.push(`🏅 PR x${prCount}`);
-          }
-
+          // Future-proof: if you later add payload.badges (array of strings), it will render automatically
           if(Array.isArray(p.badges)){
             p.badges.forEach(b => {
               const t = String(b || "").trim();
@@ -8126,7 +8086,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
             });
           }
 
-          return badges.slice(0, 4);
+          return badges.slice(0, 6); // keep UI tight
         }catch(_){
           return [];
         }
@@ -8946,7 +8906,7 @@ if(prs.length){
   }catch(_){}
 }
 
-              function openFeedEventModal(ev, title, who, when){
+       function openFeedEventModal(ev, title, who, when){
   try{
     const p = ev.payload || {};
     const d = p.details || null;
@@ -8955,246 +8915,137 @@ if(prs.length){
     const isWorkout = (ev.type === "workout_completed");
     const dayLabel = (d && d.dayLabel) ? String(d.dayLabel) : (title || (isWorkout ? "Workout" : "Event"));
     const dateISO = (d && d.dateISO) ? String(d.dateISO) : (p.dateISO ? String(p.dateISO) : "");
+
     const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
 
+    // KPIs (best-effort; older events may not include highlights)
     const exCount = Number.isFinite(Number(h.exerciseCount)) ? Number(h.exerciseCount) : (items.length || 0);
     const prCount = Number.isFinite(Number(h.prCount)) ? Number(h.prCount) : 0;
     const vol = Number.isFinite(Number(h.totalVolume)) ? Number(h.totalVolume) : null;
 
+    // Choose a highlight exercise (prefer any with PR badges)
     const highlight = (() => {
       try{
         const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
         return withPR || items[0] || null;
-      }catch(_){
-        return null;
-      }
+      }catch(_){ return null; }
     })();
 
+    // Lifetime display (best-effort) — shared formatter
     function lifetimeLine(it){
       try{
         const L = it?.lifetime || null;
         if(!L) return "";
-
         if(it.type === "weightlifting"){
           const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
           const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
           const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
           return [bw, b1, bv].filter(Boolean).join(" • ");
         }
-
         if(it.type === "cardio"){
           const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
           const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
           return [bp, bd].filter(Boolean).join(" • ");
         }
-
         if(it.type === "core"){
           const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
           const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
           return [br, bt].filter(Boolean).join(" • ");
         }
-
         return "";
       }catch(_){
         return "";
       }
     }
 
-    const modalSubline = [when || "", who || ""].filter(Boolean).join(" • ");
-    const highlightMeta = [highlight?.topText || "", lifetimeLine(highlight) || ""].filter(Boolean).join(" • ");
-
-    const pills = el("div", {
-      class:"feedWkPills",
-      style:"display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;"
-    }, [
-      (exCount ? el("div", {
-        class:"feedWkPill accent",
-        style:"padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); display:inline-flex; align-items:center; gap:6px;"
-      }, [
+    const pills = el("div", { class:"feedWkPills" }, [
+      (exCount ? el("div", { class:"feedWkPill accent" }, [
         el("span", { class:"k", text:"Exercises" }),
         el("span", { class:"v", text:String(exCount) })
       ]) : null),
-
-      (prCount ? el("div", {
-        class:"feedWkPill good",
-        style:"padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); display:inline-flex; align-items:center; gap:6px;"
-      }, [
+      (prCount ? el("div", { class:"feedWkPill good" }, [
         el("span", { class:"k", text:"PRs" }),
         el("span", { class:"v", text:String(prCount) })
       ]) : null),
-
-      (vol != null ? el("div", {
-        class:"feedWkPill",
-        style:"padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); display:inline-flex; align-items:center; gap:6px;"
-      }, [
+      (vol != null ? el("div", { class:"feedWkPill" }, [
         el("span", { class:"k", text:"Volume" }),
         el("span", { class:"v", text:String(vol) })
       ]) : null)
     ].filter(Boolean));
 
-    const header = el("div", {
-      class:"feedWkHead",
-      style:"border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.04); border-radius:18px; padding:14px;"
-    }, [
-      el("div", {
-        class:"feedWkHeadTop",
-        style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px;"
-      }, [
-        el("div", {
-          class:"feedWkTitleRow",
-          style:"display:flex; align-items:flex-start; gap:12px; min-width:0; flex:1;"
-        }, [
-          el("div", {
-            class:"feedWkAvatar",
-            style:"width:40px; height:40px; border-radius:999px; display:grid; place-items:center; font-weight:900; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); flex:0 0 auto;",
-            text:(String(who || "U").trim()[0] || "U").toUpperCase()
-          }),
-          el("div", { class:"feedWkTitleBlock", style:"min-width:0; flex:1;" }, [
-            el("div", {
-              class:"feedWkTitle",
-              style:"font-weight:900; font-size:16px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-              text:dayLabel
-            }),
-            modalSubline ? el("div", {
-              class:"feedWkSub note",
-              style:"margin-top:4px; opacity:.86; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-              text:modalSubline
-            }) : null,
-            (dateISO ? el("div", {
-              class:"note",
-              style:"margin-top:4px; font-size:12px; opacity:.72;",
-              text:dateISO
-            }) : null)
-          ].filter(Boolean))
+    const header = el("div", { class:"feedWkHead" }, [
+      el("div", { class:"feedWkHeadTop" }, [
+        el("div", { class:"feedWkTitleRow" }, [
+          el("div", { class:"feedWkAvatar", text: (String(who || "U").trim()[0] || "U").toUpperCase() }),
+          el("div", { class:"feedWkTitleBlock" }, [
+            el("div", { class:"feedWkTitle", text: dayLabel }),
+            el("div", { class:"feedWkSub", text: (when ? `${when} • ${who}` : (who || "")) })
+          ])
         ])
       ]),
-
       pills,
 
-      (isWorkout && highlight) ? el("div", {
-        class:"feedWkHighlight",
-        style:"margin-top:12px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.04); border-radius:14px; padding:12px; display:flex; align-items:center; justify-content:space-between; gap:12px;"
-      }, [
-        el("div", { class:"l", style:"min-width:0; flex:1;" }, [
-          el("div", { class:"t", style:"font-size:12px; font-weight:800; opacity:.78;" }, [
-            el("span", { class:"spark", text:"✦ " }),
-            "Workout highlight"
-          ]),
-          el("div", {
-            class:"n",
-            style:"margin-top:4px; font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-            text:highlight.name || "Exercise"
-          }),
-          highlightMeta ? el("div", {
-            class:"m note",
-            style:"margin-top:6px; opacity:.9;",
-            text:highlightMeta
-          }) : null
-        ].filter(Boolean)),
-        (Array.isArray(highlight.prBadges) && highlight.prBadges.length)
-          ? el("div", {
-              class:"b",
-              style:"padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); font-size:12px; font-weight:800; white-space:nowrap;",
-              text:highlight.prBadges[0]
-            })
-          : el("div", {
-              class:"b",
-              style:"padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); font-size:12px; font-weight:800; white-space:nowrap;",
-              text:"Tap for history"
-            })
-      ]) : null
+      (isWorkout && highlight)
+        ? el("div", { class:"feedWkHighlight" }, [
+            el("div", { class:"l" }, [
+              el("div", { class:"t" }, [ el("span", { class:"spark" }), "Workout highlight" ]),
+              el("div", { class:"n", text: highlight.name || "Exercise" }),
+              el("div", { class:"m", text: [highlight.topText || "", lifetimeLine(highlight) || ""].filter(Boolean).join(" • ") })
+            ]),
+            (Array.isArray(highlight.prBadges) && highlight.prBadges.length)
+              ? el("div", { class:"b", text: highlight.prBadges[0] })
+              : el("div", { class:"b", text:"Tap for history" })
+          ])
+        : null
     ].filter(Boolean));
 
-    const list = el("div", { class:"feedWkList", style:"display:flex; flex-direction:column; gap:10px;" }, []);
-
+    const list = el("div", { class:"feedWkList" }, []);
     if(isWorkout && items.length){
       items.forEach(it => {
         const rightBadges = [];
         try{
           if(it.topText) rightBadges.push(it.topText);
           if(Array.isArray(it.prBadges) && it.prBadges.length) rightBadges.push(it.prBadges.join(" • "));
-        }catch(_){}
+        }catch(_){ }
 
         const life = lifetimeLine(it);
 
         list.appendChild(el("div", {
           class:"feedWkExCard",
-          style:"border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.04); border-radius:16px; padding:12px;",
-          onClick: () => openExerciseHistoryFromFeed(
-            it.type,
-            it.exerciseId,
-            it.name,
-            () => openFeedEventModal(ev, title, who, when)
-          )
-        }, [
-          el("div", {
-            class:"feedWkExTop",
-            style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px;"
-          }, [
-            el("div", { class:"feedWkExLeft", style:"min-width:0; flex:1;" }, [
-              el("div", {
-                class:"feedWkExName",
-                style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-                text:it.name || "Exercise"
-              }),
-              el("div", {
-                class:"feedWkExSub note",
-                style:"margin-top:6px; opacity:.9;",
-                text:[rightBadges[0] || "", life || ""].filter(Boolean).join(" • ")
-              })
+onClick: () => openExerciseHistoryFromFeed(
+  it.type,
+  it.exerciseId,
+  it.name,
+  () => openFeedEventModal(ev, title, who, when)
+)        }, [
+          el("div", { class:"feedWkExTop" }, [
+            el("div", { class:"feedWkExLeft" }, [
+              el("div", { class:"feedWkExName", text: it.name || "Exercise" }),
+              el("div", { class:"feedWkExSub", text: [rightBadges[0] || "", life || ""].filter(Boolean).join(" • ") })
             ]),
-            el("div", {
-              class:"feedWkMiniBadges",
-              style:"display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px;"
-            }, [
+            el("div", { class:"feedWkMiniBadges" }, [
               (Array.isArray(it.prBadges) && it.prBadges.length)
-                ? el("div", {
-                    class:"feedWkMiniBadge pr",
-                    style:"padding:4px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); font-size:12px; font-weight:800;",
-                    text:"PR"
-                  })
+                ? el("div", { class:"feedWkMiniBadge pr", text: "PR" })
                 : null,
-              el("div", {
-                class:"feedWkMiniBadge",
-                style:"padding:4px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); font-size:12px; font-weight:800;",
-                text:"History"
-              })
+              el("div", { class:"feedWkMiniBadge", text: "History" })
             ].filter(Boolean))
           ]),
-          el("div", {
-            class:"feedWkChev",
-            style:"margin-top:8px; font-size:12px; opacity:.78;",
-            text:"Tap to view history →"
-          })
+          el("div", { class:"feedWkChev", text:"Tap to view history →" })
         ]));
       });
     }else if(isWorkout){
-      list.appendChild(
-        el("div", {
-          class:"note",
-          text:"Details aren’t available for this event yet (older build). New events will include full workout details."
-        })
-      );
+      list.appendChild(el("div", { class:"note", text:"Details aren’t available for this event yet (older build). New events will include full workout details." }));
     }else{
-      list.appendChild(
-        el("div", { class:"note", text: modalSubline || (who || "") })
-      );
+      list.appendChild(el("div", { class:"note", text: when ? `${who} • ${when}` : (who || "") }));
     }
 
-    const body = el("div", {
-      class:"feedWkShell",
-      style:"display:flex; flex-direction:column; gap:12px;"
-    }, [
+    const body = el("div", { class:"feedWkShell" }, [
       header,
       el("div", { class:"feedWkScroll" }, [
-        isWorkout ? el("div", {
-          class:"feedWkSection",
-          style:"font-size:12px; font-weight:800; opacity:.75; text-transform:uppercase; letter-spacing:.08em;",
-          text:"Exercises"
-        }) : null,
+        isWorkout ? el("div", { class:"feedWkSection", text:"Exercises" }) : null,
         list,
         el("div", { style:"height:6px" })
-      ].filter(Boolean))
+      ].filter(Boolean)),
     ]);
 
     Modal.open({
@@ -9645,60 +9496,28 @@ const shareBtn = isOwnEvent ? el("button", {
 
 const feedLinkRow = el("div", {
   class:"setLink",
-  style:"width:100%; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.04); border-radius:18px; padding:14px;",
+  style:"width:100%;",
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
-  el("div", {
-    style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px;"
-  }, [
+  el("div", { class:"l", style:"min-width:0;" }, [
     el("div", { style:"min-width:0; flex:1;" }, [
       el("div", {
-        style:"display:flex; align-items:flex-start; gap:12px; min-width:0;"
-      }, [
-        el("div", {
-          style:"width:40px; height:40px; border-radius:999px; display:grid; place-items:center; font-weight:900; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); flex:0 0 auto;",
-          text:(String(who || "U").trim()[0] || "U").toUpperCase()
-        }),
-        el("div", { style:"min-width:0; flex:1;" }, [
-          el("div", {
-            style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-          }, [who]),
-          whoHandle ? el("div", {
-            class:"note",
-            style:"margin:3px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-          }, [whoHandle]) : null,
-          el("div", {
-            class:"note",
-            style:"margin:4px 0 0 0; font-size:12px; opacity:.74; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-          }, [whenLine])
-        ].filter(Boolean))
-      ]),
-
-      el("div", {
-        class:"a",
-        style:"margin-top:12px; font-weight:900; font-size:16px; line-height:1.2;"
-      }, [title]),
-
-      summaryLine ? el("div", {
+        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [who]),
+      whoHandle ? el("div", {
         class:"note",
-        style:"margin-top:8px; opacity:.92;"
-      }, [summaryLine]) : null,
-
-      (badges.length ? el("div", {
-        class:"pillrow",
-        style:"margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;"
-      }, badges.map(t => el("div", {
-        class:"pill",
-        style:"padding:6px 10px; font-size:12px; font-weight:800; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:999px;",
-        text:t
-      }))) : null)
+        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [whoHandle]) : null,
+      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
     ].filter(Boolean)),
 
-    el("div", {
-      class:"r",
-      style:"opacity:.72; font-size:18px; line-height:1; padding-top:2px; flex:0 0 auto;"
-    }, ["→"])
-  ])
+    el("div", { class:"a", style:"margin-top:8px;", text: title }),
+    summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
+    (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
+      badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+    ) : null)
+  ].filter(Boolean)),
+  el("div", { class:"r", style:"opacity:.85;" }, ["→"])
 ]);
 
 const row = el("div", {
