@@ -5716,11 +5716,6 @@ function openFollowerNotifsModal(){
     return;
   }
 
-  // Back-compat: bell button currently calls openNotificationsModal()
-  function openNotificationsModal(){
-  return openFollowerNotifsModal();
-}
-
   // Instagram-style shell
   const topRow = el("div", { class:"igNotifTop" }, []);
   const title = el("div", { class:"igNotifTitle", text:"Notifications" });
@@ -5950,6 +5945,9 @@ function openFollowerNotifsModal(){
   repaint();
 }
 
+     function openNotificationsModal(){
+  return openFollowerNotifsModal();
+}
 
 function openAddFriendModal(){
   const friendCodeInput = el("input", {
