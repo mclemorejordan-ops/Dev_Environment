@@ -8274,16 +8274,16 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               pr?.weight ? `${fmtShareWeight(pr.weight)} LB` : "",
               pr?.deltaText || "",
               "",
-              "DISTANCE",
+              "🏃 DISTANCE",
               c.distance ? `${fmtShareDistance(c.distance)} MI` : "—",
               "",
-              "PACE",
+              "⚡ PACE",
               c.pace ? fmtSharePace(c.pace) : "—",
               "",
-              "TIME",
+              "⏱ TIME",
               c.timeSec ? formatTime(c.timeSec) : "—",
               "──────────────",
-              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount} STREAK`
             ].filter(x => x !== null && x !== undefined)
           };
         }
@@ -8296,11 +8296,11 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               dayLabel || "WORKOUT",
               routineName || "ROUTINE",
               "──────────────",
-              "🔥 PR HIGHLIGHT",
+              "🔥 NEW PR",
               `${fmtShareWeight(pr.weight)} LB`,
               pr.deltaText || "",
               "──────────────",
-              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount} STREAK`
             ].filter(x => x !== null && x !== undefined)
           };
         }
@@ -8316,7 +8316,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               "TOP 3 LIFTS",
               ...top3.map(it => `${it.name} — ${fmtShareWeight(it.weight)} LB`),
               "──────────────",
-              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount} STREAK`
             ]
           };
         }
@@ -8381,7 +8381,8 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
-      function renderShareCardNode(lines){
+
+function renderShareCardNode(lines){
 
   const root = el("div", {
     style: [
@@ -8424,23 +8425,25 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
     /* HEADER (PUSH DAY / CARDIO SESSION) */
     else if(idx === 0){
       style.push(
-        "font-size:54px",
+        "font-size:44px",
         "font-weight:900",
         "letter-spacing:.12em",
         "text-transform:uppercase",
-        "line-height:1.05"
+        "line-height:1.05",
+        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
       );
     }
 
     /* ROUTINE NAME */
     else if(idx === 1){
       style.push(
-        "font-size:30px",
+        "font-size:28px",
         "font-weight:800",
         "letter-spacing:.08em",
         "text-transform:uppercase",
         "line-height:1.15",
-        "margin-top:14px"
+        "margin-top:14px",
+        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
       );
     }
 
@@ -8448,13 +8451,14 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
     else if(isDivider){
       style.push(
         "font-size:42px",
-        "color:rgba(255,255,255,.75)",
+        "color:rgba(255,255,255,.55)",
         "letter-spacing:.04em",
-        "margin:34px 0"
+        "margin:34px 0",
+        "text-shadow:0 2px 8px rgba(0,0,0,.45)"
       );
     }
 
-    /* HERO VALUES (205 LB / 3.10 MI / 8:32 /MI) */
+    /* HERO VALUES (225 LB / 3.10 MI / 8:32 /MI) */
     else if(
       /^\d+(\.\d+)? LB$/i.test(txt) ||
       /^\d+(\.\d+)? MI$/i.test(txt) ||
@@ -8462,10 +8466,11 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
       /^\d+:\d{2}$/.test(txt)
     ){
       style.push(
-        "font-size:110px",
+        "font-size:125px",
         "font-weight:900",
         "letter-spacing:.02em",
-        "line-height:1.05"
+        "line-height:1.02",
+        "text-shadow:0 3px 12px rgba(0,0,0,.65)"
       );
     }
 
@@ -8475,35 +8480,43 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
       /^DISTANCE$/i.test(txt) ||
       /^PACE$/i.test(txt) ||
       /^TIME$/i.test(txt) ||
-      /^🔥 PR HIGHLIGHT$/i.test(txt)
+      /^🔥 NEW PR$/i.test(txt) ||
+      /^🏋️ TOP 3 LIFTS$/i.test(txt) ||
+      /^🏃 DISTANCE$/i.test(txt) ||
+      /^⚡ PACE$/i.test(txt) ||
+      /^⏱ TIME$/i.test(txt)
     ){
       style.push(
-        "font-size:36px",
+        "font-size:32px",
         "font-weight:800",
         "letter-spacing:.06em",
         "text-transform:uppercase",
-        "line-height:1.2"
+        "line-height:1.2",
+        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
       );
     }
 
     /* PR DELTA */
     else if(/^\+\d+(\.\d+)? LB$/i.test(txt)){
       style.push(
-        "font-size:46px",
-        "font-weight:800",
+        "font-size:38px",
+        "font-weight:700",
         "letter-spacing:.04em",
-        "margin-top:6px"
+        "margin-top:6px",
+        "opacity:.85",
+        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
       );
     }
 
     /* FOOTER */
-    else if(/\| DAY \d+$/i.test(txt) || /FASTEST PACE PR/i.test(txt)){
+    else if(/\| DAY \d+ STREAK$/i.test(txt) || /FASTEST PACE PR/i.test(txt)){
       style.push(
         "font-size:28px",
         "font-weight:800",
         "letter-spacing:.06em",
         "text-transform:uppercase",
-        "margin-top:8px"
+        "margin-top:8px",
+        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
       );
     }
 
@@ -8513,17 +8526,18 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         "font-size:34px",
         "font-weight:800",
         "letter-spacing:.04em",
-        "text-transform:uppercase"
+        "text-transform:uppercase",
+        "text-shadow:0 2px 8px rgba(0,0,0,.6)"
       );
     }
 
     col.appendChild(
-  el("div", {
-    style: style.join(";"),
-    text: txt,
-    "data-share-line": "1"
-  })
-);
+      el("div", {
+        style: style.join(";"),
+        text: txt,
+        "data-share-line": "1"
+      })
+    );
 
   });
 
@@ -8532,6 +8546,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
   return root;
 }
 
+      
       async function exportNodeToTransparentPng(node){
         const width = 1080;
         const height = Math.max(1080, Math.ceil(node.scrollHeight || 1080));
