@@ -853,19 +853,20 @@ async function upsertMyProfile(){
 
   const bio = String(state?.profile?.bio || "").trim().slice(0, 160);
 
-const { error } = await sb.from("profiles").upsert({
-  id: _user.id,
-  display_name: displayName,
-  username,
-  bio,
-  updated_at: new Date().toISOString()
-});
+  try{
+    const { error } = await sb.from("profiles").upsert({
+      id: _user.id,
+      display_name: displayName,
+      username,
+      bio,
+      updated_at: new Date().toISOString()
+    });
 
     if(error) throw error;
 
     _names[_user.id] = displayName;
-_usernames[_user.id] = username;
-_usernameConflictWarned = false;
+    _usernames[_user.id] = username;
+    _usernameConflictWarned = false;
   }catch(e){
     if(String(e?.code || "") === "23505" && !_usernameConflictWarned){
       _usernameConflictWarned = true;
