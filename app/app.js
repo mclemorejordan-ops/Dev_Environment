@@ -9599,8 +9599,8 @@ const card = el("div", {
 timeline.appendChild(card);
         
 
-      return timeline;
-    })() : null
+        return timeline;
+    })()
   ].filter(Boolean)));
   // Auto-start polling when entering the view
   try{
