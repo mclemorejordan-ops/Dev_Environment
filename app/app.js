@@ -8518,11 +8518,12 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
     }
 
     col.appendChild(
-      el("div", {
-        style: style.join(";"),
-        text: txt
-      })
-    );
+  el("div", {
+    style: style.join(";"),
+    text: txt,
+    "data-share-line": "1"
+  })
+);
 
   });
 
@@ -8559,7 +8560,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         try{
           await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-          const blocks = Array.from(node.querySelectorAll("div"));
+          const blocks = Array.from(node.querySelectorAll('[data-share-line="1"]'));
           blocks.forEach((n) => {
             const text = String(n.textContent || "");
             if(!text) return;
