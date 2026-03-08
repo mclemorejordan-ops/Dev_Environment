@@ -7938,11 +7938,11 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         ])
       ]),
       el("div", { style:"height:12px" }),
-      el("div", {
+            el("div", {
         style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
       }, cards)
     ]);
-  })() : null;
+  })();
      
     if(profileHeaderCard){
       root.appendChild(profileHeaderCard);
