@@ -8813,14 +8813,115 @@ if(prs.length){
         const when = whenObj.full;
         const whenLine = whenObj.label;
 
-        const title = (ev.type === "exercise_logged")
-          ? `${who} logged ${p.exerciseName || "an exercise"}`
-          : (ev.type === "workout_completed")
-            ? `${who} completed a workout`
-            : `${who} posted an event`;
+        const workoutPreview = (() => {
+  try{
+    if(ev.type !== "workout_completed") return null;
 
-        const summaryLine = buildFeedSummary(ev);
-        const badges = buildFeedBadges(ev);
+    const d = p.details || null;
+    const h = p.highlights || {};
+    const items = (d && Array.isArray(d.items)) ? d.items : [];
+
+    const highlight = (() => {
+      try{
+        const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
+        return withPR || items[0] || null;
+      }catch(_){ return null; }
+    })();
+
+    const routineName =
+      (d && typeof d.routineName === "string" && d.routineName.trim())
+        ? d.routineName.trim()
+        : "";
+
+    const dayLabel =
+      (d && typeof d.dayLabel === "string" && d.dayLabel.trim())
+        ? d.dayLabel.trim()
+        : "Workout";
+
+    const contextLine = [dayLabel, routineName].filter(Boolean).join(" • ");
+
+    const headlineLine = (() => {
+      if(!highlight) return "";
+
+      const exName = String(
+        highlight.exerciseName ||
+        highlight.name ||
+        highlight.label ||
+        "Workout Highlight"
+      ).trim();
+
+      const type = String(highlight.type || "").toLowerCase();
+
+      if(type === "cardio"){
+        const bits = [exName];
+        if(Number.isFinite(Number(highlight.distance)) && Number(highlight.distance) > 0){
+          bits.push(`${Number(highlight.distance)} mi`);
+        }
+        if(Number.isFinite(Number(highlight.paceSecPerUnit)) && Number(highlight.paceSecPerUnit) > 0){
+          bits.push(`${formatPace(Number(highlight.paceSecPerUnit))}/mi`);
+        }else if(Number.isFinite(Number(highlight.timeSec)) && Number(highlight.timeSec) > 0){
+          bits.push(formatTime(Number(highlight.timeSec)));
+        }
+        return bits.filter(Boolean).join(" • ");
+      }
+
+      if(type === "core"){
+        const bits = [exName];
+        if(Number.isFinite(Number(highlight.reps)) && Number(highlight.reps) > 0){
+          bits.push(`${Number(highlight.reps)} reps`);
+        }else if(Number.isFinite(Number(highlight.timeSec)) && Number(highlight.timeSec) > 0){
+          bits.push(formatTime(Number(highlight.timeSec)));
+        }
+        return bits.filter(Boolean).join(" • ");
+      }
+
+      const topWeight = Number(
+        highlight.bestWeight ??
+        highlight.weight ??
+        highlight.topWeight ??
+        0
+      );
+
+      return topWeight > 0
+        ? `${exName} • ${topWeight} LB`
+        : exName;
+    })();
+
+    const supportBits = [];
+    const exerciseCount = Number(h.exerciseCount);
+    const prCount = Number(h.prCount);
+    const totalVolume = Number(h.totalVolume);
+
+    if(Number.isFinite(exerciseCount) && exerciseCount > 0){
+      supportBits.push(`${exerciseCount} ${exerciseCount === 1 ? "exercise" : "exercises"}`);
+    }
+    if(Number.isFinite(prCount) && prCount > 0){
+      supportBits.push(`PR x${prCount}`);
+    }
+    if(Number.isFinite(totalVolume) && totalVolume > 0){
+      supportBits.push(`Vol ${comma(totalVolume)}`);
+    }
+
+    return {
+      title: contextLine || "Workout",
+      summaryLine: [headlineLine, supportBits.join(" • ")].filter(Boolean).join(" • ")
+    };
+  }catch(_){
+    return null;
+  }
+})();
+
+const title = (ev.type === "exercise_logged")
+  ? `${who} logged ${p.exerciseName || "an exercise"}`
+  : (ev.type === "workout_completed")
+    ? ((workoutPreview && workoutPreview.title) || `${who} completed a workout`)
+    : `${who} posted an event`;
+
+const summaryLine = (ev.type === "workout_completed")
+  ? ((workoutPreview && workoutPreview.summaryLine) || buildFeedSummary(ev))
+  : buildFeedSummary(ev);
+
+const badges = buildFeedBadges(ev);
         
         function openExerciseHistoryFromFeed(type, exerciseId, exName, onBack){
   try{
