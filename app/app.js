@@ -733,6 +733,51 @@ async function fetchNotifications(){
     };
   }
 
+  async function fetchNames(ids){
+    const sb = await ensureClient();
+    if(!sb || !_user) return { names:_names, usernames:_usernames };
+
+    const uniq = Array.from(new Set((ids || [])
+      .map(x => String(x || ""))
+      .filter(Boolean)
+    ));
+
+    const missing = uniq.filter(id =>
+      !Object.prototype.hasOwnProperty.call(_names, String(id)) ||
+      !Object.prototype.hasOwnProperty.call(_usernames, String(id))
+    );
+
+    if(!missing.length) return { names:_names, usernames:_usernames };
+
+    try{
+      const { data, error } = await sb
+        .from("profiles")
+        .select("id, display_name, username")
+        .in("id", missing);
+
+      if(error) throw error;
+
+      (data || []).forEach(r => {
+        const id = String(r.id || "");
+        if(!id) return;
+
+        const dn = String(r.display_name || "").trim();
+        const un = normalizeUsername(r.username || "");
+
+        _names[id] = dn || "User";
+        _usernames[id] = un || "";
+      });
+
+      missing.forEach(id => {
+        const k = String(id || "");
+        if(!Object.prototype.hasOwnProperty.call(_names, k)) _names[k] = "User";
+        if(!Object.prototype.hasOwnProperty.call(_usernames, k)) _usernames[k] = "";
+      });
+    }catch(_){}
+
+    return { names:_names, usernames:_usernames };
+  }
+
     async function fetchNames(ids){
     const sb = await ensureClient();
     if(!sb || !_user) return { names:_names, usernames:_usernames };
@@ -752,7 +797,7 @@ async function fetchNotifications(){
     try{
       const { data, error } = await sb
         .from("profiles")
-        .select("id, display_name, username, bio")
+        .select("id, display_name, username")
         .in("id", missing);
 
       if(error) throw error;
@@ -766,7 +811,6 @@ async function fetchNotifications(){
 
         _names[id] = dn || "User";
         _usernames[id] = un || "";
-        _bios[id] = String(r.bio || "").trim();
       });
 
       missing.forEach(id => {
@@ -851,14 +895,11 @@ async function upsertMyProfile(){
       ? emailUsername
       : fallbackUsername;
 
-  const bio = String(state?.profile?.bio || "").trim().slice(0, 160);
-
   try{
     const { error } = await sb.from("profiles").upsert({
       id: _user.id,
       display_name: displayName,
       username,
-      bio,
       updated_at: new Date().toISOString()
     });
 
@@ -6461,97 +6502,6 @@ root.appendChild(el("div", { class:"card" }, [
     const followerCount = isOwnHeaderProfile ? myFollowers.length : Number(cachedOtherCounts?.followers || 0);
     const isFollowingTarget = !isOwnHeaderProfile && myFollows.includes(String(profileTargetId || ""));
 
-    
-// ─────────────────────────────
-// Profile Bio (2-line clamp) + Edit Bio
-// UI-only, additive, safe
-// ─────────────────────────────
-const headerBioText = (() => {
-  try{
-    if(!isOwnHeaderProfile) return "";
-    return String(state?.profile?.bio || "").trim();
-  }catch(_){
-    return "";
-  }
-})();
-
-function openEditBioModal(){
-  const bioInput = el("textarea", {
-    rows: 4,
-    maxlength: "160",
-    placeholder: "Tell friends a little about your training..."
-  }, [String(state?.profile?.bio || "")]);
-
-  const countNode = el("div", {
-    class:"note",
-    style:"margin-top:6px;"
-  }, [`${String(state?.profile?.bio || "").trim().length} / 160`]);
-
-  bioInput.addEventListener("input", () => {
-    const n = String(bioInput.value || "").length;
-    countNode.textContent = `${n} / 160`;
-  });
-
-  Modal.open({
-    title: "Edit Bio",
-    bodyNode: el("div", {}, [
-      bioInput,
-      countNode,
-      el("div", { style:"height:12px" }),
-      el("div", { class:"btnrow" }, [
-        el("button", {
-          class:"btn primary",
-          onClick: async () => {
-            try{
-              const nextBio = String(bioInput.value || "").trim().slice(0, 160);
-
-              state.profile = state.profile || {};
-              state.profile.bio = nextBio;
-              Storage.save(state);
-
-              try{ await Social.refreshUser?.(); }catch(_){}
-
-              Modal.close();
-              showToast("Bio saved");
-              renderView();
-            }catch(e){
-              showToast(e?.message || "Could not save bio");
-            }
-          }
-        }, ["Save"]),
-        el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
-      ])
-    ])
-  });
-}
-
-const profileBio = headerBioText
-  ? el("div", {
-      style:[
-        "margin-top:6px",
-        "margin-bottom:6px",
-        "font-size:13px",
-        "line-height:1.35",
-        "opacity:.92",
-        "display:-webkit-box",
-        "-webkit-line-clamp:2",
-        "-webkit-box-orient:vertical",
-        "overflow:hidden"
-      ].join(";")
-    }, [headerBioText])
-  : null;
-
-const editBioRow = isOwnHeaderProfile
-  ? el("div", {
-      style:"margin-bottom:10px;"
-    }, [
-      el("button", {
-        class:"btn sm",
-        onClick: () => openEditBioModal()
-      }, [headerBioText ? "Edit Bio" : "+ Add Bio"])
-    ])
-  : null;
-    
     // Posts count (UI-only; no new storage keys)
     const postCount = (Social.getFeed ? Social.getFeed() : []).filter(ev =>
       String(ev?.actorId || "") === String(profileTargetId || "") &&
@@ -6904,20 +6854,11 @@ const editBioRow = isOwnHeaderProfile
         }
       }, ["Continue with Google"]) : null
     ].filter(Boolean)) : null;
-    
+
     return el("div", {}, [
       topRow,
 
-      return el("div", {}, [
-  topRow,
-
-  // Bio (2-line clamp)
-  profileBio,
-
-  // Edit Bio action (own profile only)
-  editBioRow,
-
-  el("div", { style:"height:12px" }),
+      el("div", { style:"height:12px" }),
 
       !configured
         ? el("div", {
@@ -9152,10 +9093,9 @@ if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
   return;
 }
 
-state.profile = state.profile || {};
-state.profile.name = nextName;
-state.profile.username = nextUsername;
-state.profile.bio = String(state.profile.bio || "").trim().slice(0, 160);
+  state.profile = state.profile || {};
+  state.profile.name = nextName;
+  state.profile.username = nextUsername;
 
   if(trackProtein){
     state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
