@@ -6503,11 +6503,22 @@ root.appendChild(el("div", { class:"card" }, [
     const isFollowingTarget = !isOwnHeaderProfile && myFollows.includes(String(profileTargetId || ""));
 
     
-    // ─────────────────────────────
+// ─────────────────────────────
 // Profile Bio (2-line clamp)
 // UI-only, safe — no state/storage changes
+// NOTE: only own profile has local bio right now.
+// Other profiles need Supabase bio fetch before rendering.
 // ─────────────────────────────
-const profileBio = (profileData && profileData.bio)
+const headerBioText = (() => {
+  try{
+    if(!isOwnHeaderProfile) return "";
+    return String(state?.profile?.bio || "").trim();
+  }catch(_){
+    return "";
+  }
+})();
+
+const profileBio = headerBioText
   ? el("div", {
       style:[
         "margin-top:6px",
@@ -6520,7 +6531,7 @@ const profileBio = (profileData && profileData.bio)
         "-webkit-box-orient:vertical",
         "overflow:hidden"
       ].join(";")
-    }, [String(profileData.bio)])
+    }, [headerBioText])
   : null;
     
     // Posts count (UI-only; no new storage keys)
