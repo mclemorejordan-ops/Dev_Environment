@@ -733,51 +733,6 @@ async function fetchNotifications(){
     };
   }
 
-  async function fetchNames(ids){
-    const sb = await ensureClient();
-    if(!sb || !_user) return { names:_names, usernames:_usernames };
-
-    const uniq = Array.from(new Set((ids || [])
-      .map(x => String(x || ""))
-      .filter(Boolean)
-    ));
-
-    const missing = uniq.filter(id =>
-      !Object.prototype.hasOwnProperty.call(_names, String(id)) ||
-      !Object.prototype.hasOwnProperty.call(_usernames, String(id))
-    );
-
-    if(!missing.length) return { names:_names, usernames:_usernames };
-
-    try{
-      const { data, error } = await sb
-        .from("profiles")
-        .select("id, display_name, username")
-        .in("id", missing);
-
-      if(error) throw error;
-
-      (data || []).forEach(r => {
-        const id = String(r.id || "");
-        if(!id) return;
-
-        const dn = String(r.display_name || "").trim();
-        const un = normalizeUsername(r.username || "");
-
-        _names[id] = dn || "User";
-        _usernames[id] = un || "";
-      });
-
-      missing.forEach(id => {
-        const k = String(id || "");
-        if(!Object.prototype.hasOwnProperty.call(_names, k)) _names[k] = "User";
-        if(!Object.prototype.hasOwnProperty.call(_usernames, k)) _usernames[k] = "";
-      });
-    }catch(_){}
-
-    return { names:_names, usernames:_usernames };
-  }
-
     async function fetchNames(ids){
     const sb = await ensureClient();
     if(!sb || !_user) return { names:_names, usernames:_usernames };
