@@ -5628,7 +5628,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   ui.profileSharedById = ui.profileSharedById || {};
   ui.profileRoutineById = ui.profileRoutineById || {};
   ui.profileLoadById = ui.profileLoadById || {};
-  ui.expandedEventIds = ui.expandedEventIds || {};
 
   const root = el("div", { class:"grid" });
 
@@ -5716,6 +5715,11 @@ function openFollowerNotifsModal(){
     return;
   }
 
+  // Back-compat: bell button currently calls openNotificationsModal()
+  function openNotificationsModal(){
+  return openFollowerNotifsModal();
+}
+
   // Instagram-style shell
   const topRow = el("div", { class:"igNotifTop" }, []);
   const title = el("div", { class:"igNotifTitle", text:"Notifications" });
@@ -5774,31 +5778,23 @@ function openFollowerNotifsModal(){
     }catch(_){ return "Earlier"; }
   }
 
-    function openFromNotif(n){
+  function openFromNotif(n){
     const type = String(n?.type || "");
     const eventId = n?.eventId;
 
-    // Likes/comments → open the related workout/event inline in Feed
+    // Likes/comments → open the related workout/event modal (best-effort)
     if((type === "like" || type === "comment") && (eventId !== null && eventId !== undefined)){
       try{
         const feed = Social.getFeed ? Social.getFeed() : [];
         const ev = (feed || []).find(x => String(x?.id || "") === String(eventId));
-
         if(ev){
-          const id = String(ev.id || "");
-          if(id){
-            ui.view = "feed";
-            ui.friendId = "";
-            ui.expandedEventIds = {};
-            ui.expandedEventIds[id] = true;
-          }
-
-          try{ Modal.close(); }catch(_){}
-          renderView();
+          const who = (Social.nameFor && Social.nameFor(ev.actorId)) || "User";
+          const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
+          const title = (ev.payload?.details?.dayLabel) || (ev.type === "workout_completed" ? "Workout" : "Event");
+          openFeedEventModal(ev, title, who, when);
           return;
         }
       }catch(_){}
-
       showToast("Workout not found (refresh feed)");
       return;
     }
@@ -5945,9 +5941,6 @@ function openFollowerNotifsModal(){
   repaint();
 }
 
-     function openNotificationsModal(){
-  return openFollowerNotifsModal();
-}
 
 function openAddFriendModal(){
   const friendCodeInput = el("input", {
@@ -7938,11 +7931,11 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         ])
       ]),
       el("div", { style:"height:12px" }),
-            el("div", {
+      el("div", {
         style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;"
       }, cards)
     ]);
-  })();
+  })() : null;
      
     if(profileHeaderCard){
       root.appendChild(profileHeaderCard);
@@ -8913,41 +8906,7 @@ if(prs.length){
   }catch(_){}
 }
 
-             function isFeedEventExpanded(eventId){
-  try{
-    const k = String(eventId || "");
-    return !!ui.expandedEventIds?.[k];
-  }catch(_){
-    return false;
-  }
-}
-
-function setFeedEventExpanded(eventId, expanded){
-  try{
-    const k = String(eventId || "");
-    if(!k) return;
-
-    ui.expandedEventIds = ui.expandedEventIds || {};
-
-    if(expanded){
-      // Option B: only one expanded card at a time
-      ui.expandedEventIds = { [k]: true };
-    }else{
-      delete ui.expandedEventIds[k];
-    }
-  }catch(_){}
-}
-
-function toggleFeedEventExpanded(eventId){
-  const k = String(eventId || "");
-  if(!k) return;
-
-  const next = !isFeedEventExpanded(k);
-  setFeedEventExpanded(k, next);
-  renderView();
-}
-
-function buildFeedEventDetailNode(ev, title, who, when){
+       function openFeedEventModal(ev, title, who, when){
   try{
     const p = ev.payload || {};
     const d = p.details || null;
@@ -8955,45 +8914,44 @@ function buildFeedEventDetailNode(ev, title, who, when){
 
     const isWorkout = (ev.type === "workout_completed");
     const dayLabel = (d && d.dayLabel) ? String(d.dayLabel) : (title || (isWorkout ? "Workout" : "Event"));
+    const dateISO = (d && d.dateISO) ? String(d.dateISO) : (p.dateISO ? String(p.dateISO) : "");
+
     const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
 
+    // KPIs (best-effort; older events may not include highlights)
     const exCount = Number.isFinite(Number(h.exerciseCount)) ? Number(h.exerciseCount) : (items.length || 0);
     const prCount = Number.isFinite(Number(h.prCount)) ? Number(h.prCount) : 0;
     const vol = Number.isFinite(Number(h.totalVolume)) ? Number(h.totalVolume) : null;
 
+    // Choose a highlight exercise (prefer any with PR badges)
     const highlight = (() => {
       try{
         const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
         return withPR || items[0] || null;
-      }catch(_){
-        return null;
-      }
+      }catch(_){ return null; }
     })();
 
+    // Lifetime display (best-effort) — shared formatter
     function lifetimeLine(it){
       try{
         const L = it?.lifetime || null;
         if(!L) return "";
-
         if(it.type === "weightlifting"){
           const bw = (L.bestWeight != null) ? `Best W: ${L.bestWeight}` : "";
           const b1 = (L.best1RM != null) ? `Best 1RM: ${L.best1RM}` : "";
           const bv = (L.bestVolume != null) ? `Best Vol: ${L.bestVolume}` : "";
           return [bw, b1, bv].filter(Boolean).join(" • ");
         }
-
         if(it.type === "cardio"){
           const bp = (L.bestPace != null) ? `Best Pace: ${formatPace(L.bestPace)}` : "";
           const bd = (L.bestDistance != null) ? `Best Dist: ${L.bestDistance}` : "";
           return [bp, bd].filter(Boolean).join(" • ");
         }
-
         if(it.type === "core"){
           const br = (L.bestReps != null) ? `Best Reps: ${L.bestReps}` : "";
           const bt = (L.bestTimeSec != null) ? `Best Time: ${formatTime(L.bestTimeSec)}` : "";
           return [br, bt].filter(Boolean).join(" • ");
         }
-
         return "";
       }catch(_){
         return "";
@@ -9005,12 +8963,10 @@ function buildFeedEventDetailNode(ev, title, who, when){
         el("span", { class:"k", text:"Exercises" }),
         el("span", { class:"v", text:String(exCount) })
       ]) : null),
-
       (prCount ? el("div", { class:"feedWkPill good" }, [
         el("span", { class:"k", text:"PRs" }),
         el("span", { class:"v", text:String(prCount) })
       ]) : null),
-
       (vol != null ? el("div", { class:"feedWkPill" }, [
         el("span", { class:"k", text:"Volume" }),
         el("span", { class:"v", text:String(vol) })
@@ -9044,25 +9000,24 @@ function buildFeedEventDetailNode(ev, title, who, when){
     ].filter(Boolean));
 
     const list = el("div", { class:"feedWkList" }, []);
-
     if(isWorkout && items.length){
       items.forEach(it => {
         const rightBadges = [];
         try{
           if(it.topText) rightBadges.push(it.topText);
           if(Array.isArray(it.prBadges) && it.prBadges.length) rightBadges.push(it.prBadges.join(" • "));
-        }catch(_){}
+        }catch(_){ }
 
         const life = lifetimeLine(it);
 
         list.appendChild(el("div", {
           class:"feedWkExCard",
-          onClick: () => openExerciseHistoryFromFeed(
-            it.type,
-            it.exerciseId,
-            it.name
-          )
-        }, [
+onClick: () => openExerciseHistoryFromFeed(
+  it.type,
+  it.exerciseId,
+  it.name,
+  () => openFeedEventModal(ev, title, who, when)
+)        }, [
           el("div", { class:"feedWkExTop" }, [
             el("div", { class:"feedWkExLeft" }, [
               el("div", { class:"feedWkExName", text: it.name || "Exercise" }),
@@ -9084,20 +9039,20 @@ function buildFeedEventDetailNode(ev, title, who, when){
       list.appendChild(el("div", { class:"note", text: when ? `${who} • ${when}` : (who || "") }));
     }
 
-    return el("div", {
-      class:"feedWkShell",
-      style:"margin-top:10px;"
-    }, [
+    const body = el("div", { class:"feedWkShell" }, [
       header,
       el("div", { class:"feedWkScroll" }, [
         isWorkout ? el("div", { class:"feedWkSection", text:"Exercises" }) : null,
         list,
         el("div", { style:"height:6px" })
-      ].filter(Boolean))
+      ].filter(Boolean)),
     ]);
-  }catch(_){
-    return el("div", { class:"note", text:"Could not load workout details." });
-  }
+
+    Modal.open({
+      title: isWorkout ? "Workout" : "Event",
+      bodyNode: body
+    });
+  }catch(_){ }
 }
 
 
@@ -9539,68 +9494,46 @@ const shareBtn = isOwnEvent ? el("button", {
   }, [iconsRow, countsRow]);
 })();
 
-
-const eventId = String(ev.id || "");
-const expanded = isFeedEventExpanded(eventId);
-
-const cardHeader = el("div", {
+const feedLinkRow = el("div", {
   class:"setLink",
   style:"width:100%;",
-  onClick: () => toggleFeedEventExpanded(eventId)
+  onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
   el("div", { class:"l", style:"min-width:0;" }, [
     el("div", { style:"min-width:0; flex:1;" }, [
       el("div", {
         style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
       }, [who]),
-
       whoHandle ? el("div", {
         class:"note",
         style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
       }, [whoHandle]) : null,
-
       el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
     ].filter(Boolean)),
 
     el("div", { class:"a", style:"margin-top:8px;", text: title }),
     summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
-
-    (badges.length ? el("div", {
-      class:"pillrow",
-      style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;"
-    }, badges.map(t =>
-      el("div", {
-        class:"pill",
-        style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);",
-        text:t
-      })
-    )) : null)
+    (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
+      badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+    ) : null)
   ].filter(Boolean)),
-
-  el("div", { class:"r", style:"opacity:.85;" }, [expanded ? "▴" : "▾"])
+  el("div", { class:"r", style:"opacity:.85;" }, ["→"])
 ]);
 
-const card = el("div", {
-  class:"card",
-  style:"padding:12px;"
+const row = el("div", {
+  style:"display:flex; gap:10px; align-items:flex-start;"
 }, [
-  el("div", {
-    style:"display:flex; gap:10px; align-items:flex-start;"
-  }, [
-    avatar,
-    el("div", { style:"width:100%; display:flex; flex-direction:column;" }, [
-      cardHeader,
-      expanded ? buildFeedEventDetailNode(ev, title, who, when) : null,
-      interactionsNode
-    ])
+  avatar,
+  el("div", { style:"width:100%; display:flex; flex-direction:column;" }, [
+    feedLinkRow,
+    interactionsNode
   ])
 ]);
+        timeline.appendChild(row);
+      });
 
-timeline.appendChild(card);
-        
-
-        return timeline;
-    })()
+      return timeline;
+    })() : null
   ].filter(Boolean)));
   // Auto-start polling when entering the view
   try{
