@@ -8173,6 +8173,21 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         }
       }
 
+            function formatSharePrInline(pr){
+        const name = String(pr?.name || "TOP LIFT").trim().toUpperCase();
+        const weight = pr?.weight ? `${fmtShareWeight(pr.weight)} LB` : "";
+
+        let delta = String(pr?.deltaText || "").trim().toUpperCase();
+        if(delta){
+          const m = delta.match(/^\+?(\d+(\.\d+)?)\s*LB$/i);
+          if(m){
+            delta = `+${m[1]}LBs`;
+          }
+        }
+
+        return [name, weight, delta].filter(Boolean).join(" - ").replace(" - +", " +");
+      }
+
       function pickWeightliftingPR(items){
         const prs = pickWeightliftingPRs(items);
         return prs.length ? prs[0] : null;
@@ -8296,7 +8311,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           };
         }
 
-                const prs = pickWeightliftingPRs(items);
+      const prs = pickWeightliftingPRs(items);
         if(prs.length){
           return {
             kind,
@@ -8304,12 +8319,8 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               dayLabel || "WORKOUT",
               routineName || "ROUTINE",
               "──────────────",
-              prs.length === 1 ? "🔥 NEW PR" : "🔥 NEW PRS",
-              ...prs.flatMap((pr) => ([
-                String(pr?.name || "TOP LIFT").trim().toUpperCase(),
-                pr?.weight ? `${fmtShareWeight(pr.weight)} LB` : "",
-                pr?.deltaText || ""
-              ])),
+              prs.length === 1 ? "🔥 NEW PR" : "🔥 NEW PRs",
+              ...prs.map(pr => formatSharePrInline(pr)),
               "──────────────",
               `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount}`
             ].filter(x => x !== null && x !== undefined && x !== "")
@@ -8371,15 +8382,12 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
             ].filter(Boolean).join("\n");
           }
 
-                    const prs = pickWeightliftingPRs(items);
+          const prs = pickWeightliftingPRs(items);
           const top3 = pickTop3Lifts(items);
           if(prs.length){
             return [
               `${dayLabel} • ${routineName}`,
-              ...prs.map(pr => [
-                `New PR: ${String(pr?.name || "Top Lift").trim()}${pr?.weight ? ` — ${fmtShareWeight(pr.weight)} lb` : ""}`,
-                pr?.deltaText || ""
-              ].filter(Boolean).join("\n")),
+              ...prs.map(pr => formatSharePrInline(pr)),
               `${exerciseCount} ${Number(exerciseCount) === 1 ? "exercise" : "exercises"} • ${dayCount}`
             ].filter(Boolean).join("\n");
           }
