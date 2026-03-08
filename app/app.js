@@ -8259,7 +8259,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           };
         }
 
-        if(kind === "mixed"){
+                if(kind === "mixed"){
           const pr = pickWeightliftingPR(items);
           const c = pickCardioMetrics(items);
           if(!pr && !c.distance && !c.pace && !c.timeSec) return null;
@@ -8283,12 +8283,12 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               "TIME",
               c.timeSec ? formatTime(c.timeSec) : "—",
               "──────────────",
-              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount}`
             ].filter(x => x !== null && x !== undefined)
           };
         }
 
-                const pr = pickWeightliftingPR(items);
+        const pr = pickWeightliftingPR(items);
         if(pr && pr.weight){
           return {
             kind,
@@ -8301,12 +8301,12 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               `${fmtShareWeight(pr.weight)} LB`,
               pr.deltaText || "",
               "──────────────",
-              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount}`
             ].filter(x => x !== null && x !== undefined)
           };
         }
 
-        const top3 = pickTop3Lifts(items);
+                const top3 = pickTop3Lifts(items);
         if(top3.length){
           return {
             kind,
@@ -8317,7 +8317,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
               "TOP 3 LIFTS",
               ...top3.map(it => `${it.name} — ${fmtShareWeight(it.weight)} LB`),
               "──────────────",
-              `${fmtShareInt(exerciseCount)} EXERCISES | ${dayCount}`
+              `${fmtShareInt(exerciseCount)} ${Number(exerciseCount) === 1 ? "EXERCISE" : "EXERCISES"} | ${dayCount}`
             ]
           };
         }
