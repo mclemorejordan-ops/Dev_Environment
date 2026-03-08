@@ -8699,9 +8699,21 @@ if(prs.length){
       }
 
       async function openShareModal(ev, meta={}){
-        try{
-          const card = buildShareCardLines(ev);
-          const caption = buildShareCaption(ev, meta);
+  try{
+
+    // 🔒 Prevent sharing other users' events
+    try{
+      const currentUserId = Social?.getUser?.()?.id || null;
+      if(!ev || !currentUserId || String(ev.actorId) !== String(currentUserId)){
+        showToast("You can only share your own workouts.");
+        return;
+      }
+    }catch(_){
+      return;
+    }
+
+    const card = buildShareCardLines(ev);
+    const caption = buildShareCaption(ev, meta);
 
           const preview = card
             ? renderShareCardNode(card.lines)
