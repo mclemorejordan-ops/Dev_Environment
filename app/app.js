@@ -797,7 +797,7 @@ async function fetchNotifications(){
     try{
       const { data, error } = await sb
         .from("profiles")
-        .select("id, display_name, username")
+        .select("id, display_name, username, bio")
         .in("id", missing);
 
       if(error) throw error;
@@ -811,6 +811,7 @@ async function fetchNotifications(){
 
         _names[id] = dn || "User";
         _usernames[id] = un || "";
+        _bios[id] = String(r.bio || "").trim();
       });
 
       missing.forEach(id => {
