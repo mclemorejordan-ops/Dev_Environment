@@ -895,19 +895,21 @@ async function upsertMyProfile(){
       ? emailUsername
       : fallbackUsername;
 
-  try{
-    const { error } = await sb.from("profiles").upsert({
-      id: _user.id,
-      display_name: displayName,
-      username,
-      updated_at: new Date().toISOString()
-    });
+  const bio = String(state?.profile?.bio || "").trim().slice(0, 160);
+
+const { error } = await sb.from("profiles").upsert({
+  id: _user.id,
+  display_name: displayName,
+  username,
+  bio,
+  updated_at: new Date().toISOString()
+});
 
     if(error) throw error;
 
     _names[_user.id] = displayName;
-    _usernames[_user.id] = username;
-    _usernameConflictWarned = false;
+_usernames[_user.id] = username;
+_usernameConflictWarned = false;
   }catch(e){
     if(String(e?.code || "") === "23505" && !_usernameConflictWarned){
       _usernameConflictWarned = true;
@@ -6504,10 +6506,8 @@ root.appendChild(el("div", { class:"card" }, [
 
     
 // ─────────────────────────────
-// Profile Bio (2-line clamp)
-// UI-only, safe — no state/storage changes
-// NOTE: only own profile has local bio right now.
-// Other profiles need Supabase bio fetch before rendering.
+// Profile Bio (2-line clamp) + Edit Bio
+// UI-only, additive, safe
 // ─────────────────────────────
 const headerBioText = (() => {
   try{
@@ -6518,11 +6518,61 @@ const headerBioText = (() => {
   }
 })();
 
+function openEditBioModal(){
+  const bioInput = el("textarea", {
+    rows: 4,
+    maxlength: "160",
+    placeholder: "Tell friends a little about your training..."
+  }, [String(state?.profile?.bio || "")]);
+
+  const countNode = el("div", {
+    class:"note",
+    style:"margin-top:6px;"
+  }, [`${String(state?.profile?.bio || "").trim().length} / 160`]);
+
+  bioInput.addEventListener("input", () => {
+    const n = String(bioInput.value || "").length;
+    countNode.textContent = `${n} / 160`;
+  });
+
+  Modal.open({
+    title: "Edit Bio",
+    bodyNode: el("div", {}, [
+      bioInput,
+      countNode,
+      el("div", { style:"height:12px" }),
+      el("div", { class:"btnrow" }, [
+        el("button", {
+          class:"btn primary",
+          onClick: async () => {
+            try{
+              const nextBio = String(bioInput.value || "").trim().slice(0, 160);
+
+              state.profile = state.profile || {};
+              state.profile.bio = nextBio;
+              Storage.save(state);
+
+              try{ await Social.refreshUser?.(); }catch(_){}
+
+              Modal.close();
+              showToast("Bio saved");
+              renderView();
+            }catch(e){
+              showToast(e?.message || "Could not save bio");
+            }
+          }
+        }, ["Save"]),
+        el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
+      ])
+    ])
+  });
+}
+
 const profileBio = headerBioText
   ? el("div", {
       style:[
         "margin-top:6px",
-        "margin-bottom:10px",
+        "margin-bottom:6px",
         "font-size:13px",
         "line-height:1.35",
         "opacity:.92",
@@ -6532,6 +6582,17 @@ const profileBio = headerBioText
         "overflow:hidden"
       ].join(";")
     }, [headerBioText])
+  : null;
+
+const editBioRow = isOwnHeaderProfile
+  ? el("div", {
+      style:"margin-bottom:10px;"
+    }, [
+      el("button", {
+        class:"btn sm",
+        onClick: () => openEditBioModal()
+      }, [headerBioText ? "Edit Bio" : "+ Add Bio"])
+    ])
   : null;
     
     // Posts count (UI-only; no new storage keys)
@@ -6890,10 +6951,16 @@ const profileBio = headerBioText
     return el("div", {}, [
       topRow,
 
-      // Bio (2-line clamp)
-      profileBio,
-      
-      el("div", { style:"height:12px" }),
+      return el("div", {}, [
+  topRow,
+
+  // Bio (2-line clamp)
+  profileBio,
+
+  // Edit Bio action (own profile only)
+  editBioRow,
+
+  el("div", { style:"height:12px" }),
 
       !configured
         ? el("div", {
@@ -9128,9 +9195,10 @@ if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
   return;
 }
 
-  state.profile = state.profile || {};
-  state.profile.name = nextName;
-  state.profile.username = nextUsername;
+state.profile = state.profile || {};
+state.profile.name = nextName;
+state.profile.username = nextUsername;
+state.profile.bio = String(state.profile.bio || "").trim().slice(0, 160);
 
   if(trackProtein){
     state.profile.proteinGoal = Math.max(0, Number(proteinInput.value || 0));
