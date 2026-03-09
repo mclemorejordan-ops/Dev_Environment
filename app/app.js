@@ -9503,8 +9503,9 @@ if(prs.length){
 (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
   badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
 ) : null),
-  ].filter(Boolean)),
-  el("div", { class:"r", style:"opacity:.85;" }, ["→"])
+
+].filter(Boolean)),
+el("div", { class:"r", style:"opacity:.85;" }, ["→"])
 ]);
         
         function openExerciseHistoryFromFeed(type, exerciseId, exName, onBack){
