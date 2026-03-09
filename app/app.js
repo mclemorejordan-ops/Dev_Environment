@@ -10185,11 +10185,6 @@ const feedLinkRow = el("div", {
   style:"width:100%;",
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
- const feedLinkRow = el("div", {
-  class:"setLink",
-  style:"width:100%;",
-  onClick: () => openFeedEventModal(ev, title, who, when)
-}, [
   el("div", { class:"l", style:"min-width:0;" }, [
     el("div", {
       style:"min-width:0; flex:1; display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
