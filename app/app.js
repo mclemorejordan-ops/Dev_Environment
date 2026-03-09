@@ -8534,33 +8534,52 @@ function buildWorkoutHighlightPills(ev){
     }
 
     function buildLine(it){
-      try{
-        const name = String(it?.name || it?.exerciseName || "Exercise").trim();
-        const type = String(it?.type || "");
-        const s = it?.summary || {};
-        const bits = [name];
+  try{
+    const name = String(
+      it?.name ||
+      it?.exerciseName ||
+      it?.nameSnap ||
+      "Exercise"
+    ).trim();
 
-        if(type === "weightlifting"){
-          const weight = fmtWeight(s.bestWeight);
-          if(weight) bits.push(weight);
-          return bits.filter(Boolean).join(" - ");
-        }
+    const type = String(it?.type || "");
+    const s = it?.summary || {};
 
-        if(type === "cardio"){
-          const dist = fmtDistance(s.distance);
-          const time = fmtTime(s.timeSec);
-          const pace = fmtPace(s.paceSecPerUnit);
-          if(dist) bits.push(dist);
-          if(time) bits.push(time);
-          if(pace) bits.push(pace);
-          return bits.filter(Boolean).join(" - ");
-        }
+    if(type === "weightlifting"){
+      const weight = fmtWeight(
+        s?.bestWeight ??
+        it?.bestWeight ??
+        it?.weight ??
+        it?.topWeight
+      );
 
-        return bits.filter(Boolean).join(" - ");
-      }catch(_){
-        return "";
-      }
+      return [name, weight].filter(Boolean).join(" - ");
     }
+
+    if(type === "cardio"){
+      const dist = fmtDistance(
+        s?.distance ??
+        it?.distance
+      );
+
+      const time = fmtTime(
+        s?.timeSec ??
+        it?.timeSec
+      );
+
+      const pace = fmtPace(
+        s?.paceSecPerUnit ??
+        it?.paceSecPerUnit
+      );
+
+      return [name, dist, time, pace].filter(Boolean).join(" - ");
+    }
+
+    return name;
+  }catch(_){
+    return "";
+  }
+}
 
     const groups = new Map();
     items.forEach(it => {
@@ -10025,11 +10044,10 @@ const feedLinkRow = el("div", {
 
 (ev.type === "workout_completed" && highlightPills.length
   ? el("div", {
-      class:"pillrow",
-      style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;"
+      style:"margin-top:8px; display:flex; flex-direction:column; gap:8px; align-items:flex-start;"
     }, highlightPills.map(t => el("div", {
       class:"pill",
-      style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);",
+      style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); display:inline-flex; max-width:100%;",
       text:t
     })))
   : null),
