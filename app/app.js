@@ -8020,77 +8020,146 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
       // Builds the second line like:
       // "Pull Day • 5 exercises • PRs: 2 • Vol 12,400"
       // "Incline walk • 30:00 • 2.1 units • Pace 14:17 / unit"
+
+
       function buildFeedSummary(ev){
+  try{
+    const p = ev.payload || {};
+    const bits = [];
+
+    if(ev.type === "workout_completed"){
+      const d = p.details || null;
+      const h = p.highlights || {};
+      const items = Array.isArray(d?.items) ? d.items : [];
+
+      const exCount = Number.isFinite(Number(h.exerciseCount))
+        ? Number(h.exerciseCount)
+        : items.length;
+
+      const prCount = Number.isFinite(Number(h.prCount))
+        ? Number(h.prCount)
+        : 0;
+
+      const vol = Number.isFinite(Number(h.totalVolume))
+        ? Number(h.totalVolume)
+        : null;
+
+      const highlight = (() => {
         try{
-          const p = ev.payload || {};
-          const bits = [];
-
-          if(ev.type === "workout_completed"){
-            const d = p.details || null;
-            const h = p.highlights || {};
-
-            if(d?.dayLabel) bits.push(String(d.dayLabel));
-            else bits.push("Workout");
-
-            if(Number.isFinite(h.exerciseCount) && h.exerciseCount > 0) bits.push(`${h.exerciseCount} exercises`);
-            if(Number.isFinite(h.prCount) && h.prCount > 0) bits.push(`PRs: ${h.prCount}`);
-            if(Number.isFinite(h.totalVolume) && h.totalVolume > 0) bits.push(`Vol ${comma(h.totalVolume)}`);
-
-            return bits.filter(Boolean).join(" • ");
-          }
-
-          if(ev.type === "exercise_logged"){
-            const name = p.exerciseName || "Exercise";
-            bits.push(String(name));
-
-            const type = String(p.workoutType || "");
-            const s = p.summary || {};
-
-            if(type === "cardio"){
-              if(Number.isFinite(s.timeSec) && s.timeSec > 0) bits.push(formatTime(s.timeSec));
-              if(Number.isFinite(s.distance) && s.distance > 0) bits.push(`${s.distance} units`);
-              if(Number.isFinite(s.paceSecPerUnit) && s.paceSecPerUnit > 0) bits.push(`Pace ${formatPace(s.paceSecPerUnit)} / unit`);
-              if(Number.isFinite(p.prCount) && p.prCount > 0) bits.push(`PRs: ${p.prCount}`);
-              return bits.filter(Boolean).join(" • ");
-            }
-
-            // weightlifting / core: keep it compact and useful
-            if(Number.isFinite(s.bestWeight) && s.bestWeight > 0) bits.push(`Top ${s.bestWeight}`);
-            if(Number.isFinite(s.totalVolume) && s.totalVolume > 0) bits.push(`Vol ${comma(s.totalVolume)}`);
-            if(Number.isFinite(p.prCount) && p.prCount > 0) bits.push(`PRs: ${p.prCount}`);
-
-            return bits.filter(Boolean).join(" • ");
-          }
-
-          // Fallback for any other event types
-          return "";
+          if(!items.length) return null;
+          const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
+          return withPR || items[0] || null;
         }catch(_){
-          return "";
+          return null;
         }
+      })();
+
+      if(d?.dayLabel) bits.push(String(d.dayLabel));
+      else bits.push("Workout");
+
+      if(highlight?.name) bits.push(String(highlight.name));
+      else if(exCount > 0) bits.push(`${exCount} ${exCount === 1 ? "exercise" : "exercises"}`);
+
+      if(prCount > 0) bits.push(`${prCount} ${prCount === 1 ? "PR" : "PRs"}`);
+      else if(vol != null && vol > 0) bits.push(`Vol ${comma(vol)}`);
+
+      return bits.filter(Boolean).join(" • ");
+    }
+
+    if(ev.type === "exercise_logged"){
+      const name = p.exerciseName || "Exercise";
+      bits.push(String(name));
+
+      const type = String(p.workoutType || "");
+      const s = p.summary || {};
+      const prCount = Number(p.prCount || 0);
+
+      if(type === "cardio"){
+        if(Number.isFinite(s.timeSec) && s.timeSec > 0) bits.push(formatTime(s.timeSec));
+        if(Number.isFinite(s.distance) && s.distance > 0) bits.push(`${s.distance} units`);
+        if(Number.isFinite(s.paceSecPerUnit) && s.paceSecPerUnit > 0) bits.push(`Pace ${formatPace(s.paceSecPerUnit)} / unit`);
+        else if(Number.isFinite(prCount) && prCount > 0) bits.push(`${prCount} ${prCount === 1 ? "PR" : "PRs"}`);
+        return bits.filter(Boolean).join(" • ");
       }
 
+      if(Number.isFinite(s.bestWeight) && s.bestWeight > 0) bits.push(`Top ${s.bestWeight}`);
+      if(Number.isFinite(s.totalVolume) && s.totalVolume > 0) bits.push(`Vol ${comma(s.totalVolume)}`);
+      else if(Number.isFinite(prCount) && prCount > 0) bits.push(`${prCount} ${prCount === 1 ? "PR" : "PRs"}`);
+
+      return bits.filter(Boolean).join(" • ");
+    }
+
+    return "";
+  }catch(_){
+    return "";
+  }
+}
+
+      
       function buildFeedBadges(ev){
+  try{
+    const p = ev.payload || {};
+    const badges = [];
+
+    if(ev.type === "workout_completed"){
+      const d = p.details || null;
+      const h = p.highlights || {};
+      const items = Array.isArray(d?.items) ? d.items : [];
+
+      const exCount = Number.isFinite(Number(h.exerciseCount))
+        ? Number(h.exerciseCount)
+        : items.length;
+
+      const prCount = Number.isFinite(Number(h.prCount))
+        ? Number(h.prCount)
+        : 0;
+
+      const vol = Number.isFinite(Number(h.totalVolume))
+        ? Number(h.totalVolume)
+        : null;
+
+      const firstPR = (() => {
         try{
-          const p = ev.payload || {};
-          const badges = [];
-
-          // Always show a PR badge if PRs exist
-          const prCount = Number(p.prCount || p.highlights?.prCount || 0);
-          if(Number.isFinite(prCount) && prCount > 0) badges.push(`🏅 PR x${prCount}`);
-
-          // Future-proof: if you later add payload.badges (array of strings), it will render automatically
-          if(Array.isArray(p.badges)){
-            p.badges.forEach(b => {
-              const t = String(b || "").trim();
-              if(t) badges.push(t);
-            });
-          }
-
-          return badges.slice(0, 6); // keep UI tight
+          const hit = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
+          return hit?.prBadges?.[0] || "";
         }catch(_){
-          return [];
+          return "";
         }
+      })();
+
+      if(prCount > 0) badges.push(`PR x${prCount}`);
+      if(firstPR) badges.push(firstPR);
+      if(exCount > 0) badges.push(`${exCount} ${exCount === 1 ? "exercise" : "exercises"}`);
+      if(vol != null && vol > 0) badges.push(`Vol ${comma(vol)}`);
+    }else if(ev.type === "exercise_logged"){
+      const type = String(p.workoutType || "");
+      const s = p.summary || {};
+      const prCount = Number(p.prCount || 0);
+
+      if(Number.isFinite(prCount) && prCount > 0) badges.push(`PR x${prCount}`);
+
+      if(type === "cardio"){
+        if(Number.isFinite(s.distance) && s.distance > 0) badges.push(`${s.distance} units`);
+      }else{
+        if(Number.isFinite(s.bestWeight) && s.bestWeight > 0) badges.push(`Top ${s.bestWeight}`);
       }
+    }else{
+      const prCount = Number(p.prCount || p.highlights?.prCount || 0);
+      if(Number.isFinite(prCount) && prCount > 0) badges.push(`PR x${prCount}`);
+    }
+
+    if(Array.isArray(p.badges)){
+      p.badges.forEach(b => {
+        const t = String(b || "").trim();
+        if(t) badges.push(t);
+      });
+    }
+
+    return badges.filter(Boolean).slice(0, 4);
+  }catch(_){
+    return [];
+  }
+}
 
 
       function fmtShareInt(n){
