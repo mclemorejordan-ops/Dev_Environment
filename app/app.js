@@ -8453,6 +8453,146 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
       }
 
 
+function buildWorkoutCardTitle(ev){
+  try{
+    if(ev?.type !== "workout_completed") return "";
+
+    const p = ev.payload || {};
+    const d = p.details || {};
+
+    const routineName = String(
+      d?.routineName ||
+      p?.routineName ||
+      ""
+    ).trim();
+
+    const dayLabel = String(
+      d?.dayLabel ||
+      p?.dayLabel ||
+      ""
+    ).trim();
+
+    if(routineName && dayLabel) return `${routineName} | ${dayLabel}`;
+    if(routineName) return routineName;
+    if(dayLabel) return dayLabel;
+    return "Workout";
+  }catch(_){
+    return "Workout";
+  }
+}
+
+function buildWorkoutHighlightPills(ev){
+  try{
+    if(ev?.type !== "workout_completed") return [];
+
+    const p = ev.payload || {};
+    const d = p.details || {};
+    const items = Array.isArray(d?.items) ? d.items : [];
+    if(!items.length) return [];
+
+    function cleanNum(v){
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmtWeight(v){
+      const n = cleanNum(v);
+      if(n === null || n <= 0) return "";
+      return (Math.round(n * 10) % 10 === 0) ? `${Math.round(n)} LB` : `${n.toFixed(1)} LB`;
+    }
+
+    function fmtDistance(v){
+      const n = cleanNum(v);
+      if(n === null || n <= 0) return "";
+      return String(n);
+    }
+
+    function fmtTime(sec){
+      const n = cleanNum(sec);
+      if(n === null || n <= 0) return "";
+      return formatTime(n);
+    }
+
+    function fmtPace(sec){
+      const n = cleanNum(sec);
+      if(n === null || n <= 0) return "";
+      const raw = formatPace(n);
+      return String(raw || "").replace(/\s*\/\s*unit/i, "/mi");
+    }
+
+    function topScore(it){
+      try{
+        const s = it?.summary || {};
+        const type = String(it?.type || "");
+        if(type === "weightlifting") return cleanNum(s.bestWeight) || 0;
+        if(type === "cardio") return cleanNum(s.distance) || cleanNum(s.timeSec) || 0;
+        if(type === "core") return cleanNum(s.totalVolume) || cleanNum(s.timeSec) || cleanNum(s.reps) || 0;
+        return cleanNum(s.bestWeight) || cleanNum(s.totalVolume) || cleanNum(s.distance) || 0;
+      }catch(_){
+        return 0;
+      }
+    }
+
+    function buildLine(it){
+      try{
+        const name = String(it?.name || it?.exerciseName || "Exercise").trim();
+        const type = String(it?.type || "");
+        const s = it?.summary || {};
+        const bits = [name];
+
+        if(type === "weightlifting"){
+          const weight = fmtWeight(s.bestWeight);
+          if(weight) bits.push(weight);
+          return bits.filter(Boolean).join(" - ");
+        }
+
+        if(type === "cardio"){
+          const dist = fmtDistance(s.distance);
+          const time = fmtTime(s.timeSec);
+          const pace = fmtPace(s.paceSecPerUnit);
+          if(dist) bits.push(dist);
+          if(time) bits.push(time);
+          if(pace) bits.push(pace);
+          return bits.filter(Boolean).join(" - ");
+        }
+
+        return bits.filter(Boolean).join(" - ");
+      }catch(_){
+        return "";
+      }
+    }
+
+    const groups = new Map();
+    items.forEach(it => {
+      const key = String(it?.type || "other");
+      if(!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(it);
+    });
+
+    const groupEntries = Array.from(groups.entries()).map(([type, arr]) => ({
+      type,
+      items: [...arr].sort((a, b) => topScore(b) - topScore(a))
+    }));
+
+    let chosen = [];
+
+    if(groupEntries.length <= 1){
+      chosen = (groupEntries[0]?.items || []).slice(0, 2);
+    }else if(groupEntries.length === 2){
+      chosen = groupEntries.map(g => g.items[0]).filter(Boolean);
+    }else{
+      chosen = groupEntries.map(g => g.items[0]).filter(Boolean);
+    }
+
+    return chosen
+      .map(buildLine)
+      .filter(Boolean);
+  }catch(_){
+    return [];
+  }
+}
+      
+
       function fmtShareInt(n){
         const x = Number(n);
         if(!Number.isFinite(x)) return "0";
@@ -9174,13 +9314,14 @@ if(prs.length){
         const whenLine = whenObj.label;
 
         const title = (ev.type === "exercise_logged")
-          ? `${who} logged ${p.exerciseName || "an exercise"}`
-          : (ev.type === "workout_completed")
-            ? `${who} completed a workout`
-            : `${who} posted an event`;
+  ? `${who} logged ${p.exerciseName || "an exercise"}`
+  : (ev.type === "workout_completed")
+    ? buildWorkoutCardTitle(ev)
+    : `${who} posted an event`;
 
         const summaryLine = buildFeedSummary(ev);
         const badges = buildFeedBadges(ev);
+        const highlightPills = buildWorkoutHighlightPills(ev);
         
         function openExerciseHistoryFromFeed(type, exerciseId, exName, onBack){
   try{
@@ -9881,10 +10022,23 @@ const feedLinkRow = el("div", {
 ].filter(Boolean)),
 
     el("div", { class:"a", style:"margin-top:8px;", text: title }),
-    summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
-    (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
-      badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-    ) : null)
+
+(ev.type === "workout_completed" && highlightPills.length
+  ? el("div", {
+      class:"pillrow",
+      style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;"
+    }, highlightPills.map(t => el("div", {
+      class:"pill",
+      style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);",
+      text:t
+    })))
+  : null),
+
+summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
+
+(badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
+  badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+) : null)
   ].filter(Boolean)),
   el("div", { class:"r", style:"opacity:.85;" }, ["→"])
 ]);
