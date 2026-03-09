@@ -2295,11 +2295,12 @@ const ProteinUI = initProteinUI({
 const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
 
 
-
 /********************
      * 7) Views
 ********************/
- const Views = {   
+let openExerciseLoggerRef = null;
+ 
+const Views = {   
     Onboarding(){
   let hideRestDays = true;
   let selectedTpl = "ppl";
@@ -2688,7 +2689,14 @@ const openProteinModal = (dateISO = todayISO) => {
       el("button", {
         type:"button",
         class:"item",
-        onClick: () => openExerciseLogger(rx, day, todayISO),
+
+        onClick: () => {
+  if(typeof openExerciseLoggerRef === "function"){
+    openExerciseLoggerRef(rx, day, todayISO);
+    return;
+  }
+  navigate("routine");
+},
         style:[
           "width:100%",
           "display:flex",
@@ -3988,6 +3996,7 @@ shell.appendChild(
   
   // Phase 3: Per-exercise Workout Execution (logger)
 function openExerciseLogger(rx, day, defaultDateISO){
+    openExerciseLoggerRef = openExerciseLogger;
   ExerciseLibrary.ensureSeeded();
   LogEngine.ensure();
 
