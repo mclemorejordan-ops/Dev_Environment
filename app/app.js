@@ -2566,7 +2566,11 @@ const openProteinModal = (dateISO = todayISO) => {
           : `${(day.exercises || []).length} exercises planned`));
 
         const workoutExercises = (day?.isRest || !day) ? []
-          : (day.exercises || []).map(rx => resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap));
+      : (day.exercises || []).slice(0, 6).map(rx => ({
+          rx,
+          exName: resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap),
+          logged: hasRoutineExerciseLog(todayISO, rx.id)
+        }));
 
         const ring = el("div", {
           class:"ringWrap",
@@ -2675,17 +2679,52 @@ const openProteinModal = (dateISO = todayISO) => {
       el("div", { style:"height:10px" }),
 
       /* Planned exercises */
-      (workoutExercises.length === 0)
-        ? el("div", {
-            class:"note",
-            text: day?.isRest ? "Rest day is enabled." : "Add exercises in Routine Editor."
+(workoutExercises.length === 0)
+  ? el("div", {
+      class:"note",
+      text: day?.isRest ? "Rest day is enabled." : "Add exercises in Routine Editor."
+    })
+  : el("div", { class:"list" }, workoutExercises.map(({ rx, exName, logged }) =>
+      el("button", {
+        type:"button",
+        class:"item",
+        onClick: () => openExerciseLogger(rx, day, todayISO),
+        style:[
+          "width:100%",
+          "display:flex",
+          "align-items:center",
+          "justify-content:space-between",
+          "gap:12px",
+          "text-align:left",
+          "background:rgba(255,255,255,.03)",
+          "border:1px solid rgba(255,255,255,.08)",
+          "cursor:pointer"
+        ].join(";")
+      }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: exName }),
+          el("div", { class:"meta", text:"Tap to log sets" })
+        ]),
+        el("div", { class:"actions" }, [
+          el("div", {
+            style: [
+              "display:inline-flex",
+              "align-items:center",
+              "justify-content:center",
+              "min-width:84px",
+              "padding:6px 10px",
+              "border-radius:999px",
+              "font-size:12px",
+              "font-weight:800",
+              logged
+                ? "background:rgba(46,204,113,.14); border:1px solid rgba(46,204,113,.28); color:rgba(46,204,113,.98);"
+                : "background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); color:rgba(255,255,255,.72);"
+            ].join(";"),
+            text: logged ? "✓ Logged" : "Planned"
           })
-        : el("div", { class:"list" }, workoutExercises.slice(0,6).map(n =>
-            el("div", { class:"item" }, [
-              el("div", { class:"left" }, [ el("div", { class:"name", text: n }) ]),
-              el("div", { class:"actions" }, [ el("div", { class:"meta", text:"Planned" }) ])
-            ])
-          ))
+        ])
+      ])
+    ))
     ]);
   })()
 ]),
