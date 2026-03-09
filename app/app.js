@@ -11696,7 +11696,7 @@ Views.RoutineEditor = function(){
       usernameInput.value = normalizeUsername(usernameInput.value);
     });
 
-    const meta = buildRoutineSnapshotMeta(buildPublicRoutineSnapshot(routine));
+    const meta = buildRoutineSnapshotMeta(routine);
 
     async function doSend(){
       const uname = normalizeUsername(usernameInput.value || "");
