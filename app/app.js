@@ -9955,6 +9955,7 @@ const feedLinkRow = (() => {
     }, [extraBadges]) : null
   ].filter(Boolean))
 ].filter(Boolean));
+})();
 
 const row = el("div", {
   style:"display:flex; gap:10px; align-items:flex-start;"
