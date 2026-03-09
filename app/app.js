@@ -4262,7 +4262,7 @@ function buildWorkoutEventData(dateISO, routineId, day){
   try{
     const items = [];
 
-    for(const [key, group] of byRx.entries()){
+    for(const [, group] of byRx.entries()){
       const sorted = group.slice().sort(compareEntries);
       const bestEntry = sorted[0] || group[0];
       if(!bestEntry) continue;
