@@ -10185,60 +10185,114 @@ const feedLinkRow = el("div", {
   style:"width:100%;",
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
-  el("div", { class:"l", style:"min-width:0;" }, [
-   el("div", {
-  style:"min-width:0; flex:1; display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
+ const feedLinkRow = el("div", {
+  class:"setLink",
+  style:"width:100%;",
+  onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
-  el("div", { style:"min-width:0; flex:1;" }, [
+  el("div", { class:"l", style:"min-width:0;" }, [
     el("div", {
-      style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
+      style:"min-width:0; flex:1; display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
     }, [
-      el("div", {
-        style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
-      }, [who]),
+      el("div", { style:"min-width:0; flex:1;" }, [
+        el("div", {
+          style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
+        }, [
+          el("div", {
+            style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+          }, [who]),
 
-      whoHandle ? el("div", {
-        style:"opacity:.65; flex:0 0 auto;"
-      }, ["|"]) : null,
+          whoHandle ? el("div", {
+            style:"opacity:.65; flex:0 0 auto;"
+          }, ["|"]) : null,
 
-      whoHandle ? el("div", {
-        style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
-      }, [whoHandle]) : null
-    ].filter(Boolean)),
+          whoHandle ? el("div", {
+            style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+          }, [whoHandle]) : null
+        ].filter(Boolean)),
 
-    el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
-  ].filter(Boolean)),
+        el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine]),
 
-  null
-].filter(Boolean)),
+        el("div", { class:"a", style:"margin-top:8px;", text: title }),
 
-    el("div", { class:"a", style:"margin-top:8px;", text: title }),
+        (ev.type === "workout_completed"
+          ? el("div", {
+              class:"note",
+              style:"margin-top:4px; font-size:12px; font-weight:800; letter-spacing:.2px; opacity:.82;"
+            }, ["Workout Highlight"])
+          : null),
 
-(ev.type === "workout_completed"
-  ? el("div", {
-      class:"note",
-      style:"margin-top:4px; font-size:12px; font-weight:800; letter-spacing:.2px; opacity:.82;"
-    }, ["Workout Highlight"])
-  : null),
+        (ev.type === "workout_completed" && workoutHero?.hero
+          ? el("div", {
+              style:[
+                "margin-top:10px",
+                "padding:14px",
+                "border-radius:18px",
+                "background:linear-gradient(135deg, rgba(88,214,141,.14), rgba(127,178,255,.08))",
+                "border:1px solid rgba(88,214,141,.22)"
+              ].join(";")
+            }, [
+              el("div", {
+                style:"font-size:11px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; color:rgba(88,214,141,.95); margin-bottom:8px;"
+              }, [workoutHero.hero.isPR ? "PR Highlight" : "Top Highlight"]),
 
-(ev.type === "workout_completed" && highlightPills.length
-  ? el("div", {
-      style:"margin-top:8px; display:flex; flex-direction:column; gap:8px; align-items:flex-start;"
-    }, highlightPills.map(t => el("div", {
-      class:"pill",
-      style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); display:inline-flex; max-width:100%;",
-      text:t
-    })))
-  : null),
+              el("div", {
+                style:"font-size:19px; font-weight:900; line-height:1.12; letter-spacing:-.02em;"
+              }, [workoutHero.hero.name]),
 
-(ev.type !== "workout_completed" && summaryLine)
-  ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine })
-  : null,
+              workoutHero.hero.value
+                ? el("div", {
+                    style:"margin-top:6px; font-size:13px; font-weight:700; color:rgba(235,243,255,.92);"
+                  }, [workoutHero.hero.value])
+                : null
+            ].filter(Boolean))
+          : null),
 
-(badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
-  badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-) : null)
-  ].filter(Boolean)),
+        (ev.type === "workout_completed" && workoutHero?.support?.length
+          ? el("div", {
+              style:"margin-top:10px; display:flex; flex-direction:column; gap:10px;"
+            }, workoutHero.support.map(item => el("div", {
+              style:[
+                "display:flex",
+                "align-items:center",
+                "justify-content:space-between",
+                "gap:12px",
+                "padding:10px 12px",
+                "border-radius:14px",
+                "background:rgba(255,255,255,.035)",
+                "border:1px solid rgba(255,255,255,.06)"
+              ].join(";")
+            }, [
+              el("div", {
+                style:"font-size:14px; font-weight:780; line-height:1.2; min-width:0;"
+              }, [item.name]),
+
+              item.value
+                ? el("div", {
+                    style:"font-size:13px; font-weight:800; color:rgba(220,231,255,.96); white-space:nowrap; flex:0 0 auto;"
+                  }, [item.value])
+                : null
+            ].filter(Boolean))))
+          : null),
+
+        (ev.type !== "workout_completed" && summaryLine)
+          ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine })
+          : null,
+
+        (badges.length
+          ? el("div", {
+              class:"pillrow",
+              style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;"
+            }, badges.map(t => el("div", {
+              class:"pill",
+              style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);",
+              text:t
+            })))
+          : null)
+      ].filter(Boolean))
+    ].filter(Boolean))
+  ]),
+
   el("div", { class:"r", style:"opacity:.85;" }, ["→"])
 ]);
 
