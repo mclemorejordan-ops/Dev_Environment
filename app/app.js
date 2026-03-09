@@ -2693,9 +2693,7 @@ const openProteinModal = (dateISO = todayISO) => {
         onClick: () => {
   if(typeof openExerciseLoggerRef === "function"){
     openExerciseLoggerRef(rx, day, todayISO);
-    return;
   }
-  navigate("routine");
 },
         style:[
         "width:100%",
