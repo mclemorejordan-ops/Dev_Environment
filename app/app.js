@@ -4048,78 +4048,252 @@ function buildWorkoutEventData(dateISO, routineId, day){
   let totalVolume = 0;
   let prCount = 0;
 
-  for(const e of entries){
-    if(e?.routineExerciseId) exSet.add(String(e.routineExerciseId));
-    if(Number.isFinite(Number(e?.summary?.totalVolume))) totalVolume += Number(e.summary.totalVolume) || 0;
+  function hasAnyPR(pr){
+    try{
+      return !!(
+        pr?.isPRWeight ||
+        pr?.isPR1RM ||
+        pr?.isPRVolume ||
+        pr?.isPRPace
+      );
+    }catch(_){
+      return false;
+    }
+  }
 
-    const pr = e?.pr || {};
-    prCount += ["isPRWeight","isPR1RM","isPRVolume","isPRPace"].filter(k => pr?.[k]).length;
+  function num(v){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function bestWeightFromEntry(e){
+    try{
+      const sets = Array.isArray(e?.sets) ? e.sets : [];
+      let best = 0;
+      for(const s of sets){
+        const w = num(s?.weight);
+        if(w > best) best = w;
+      }
+      if(best > 0) return best;
+      return num(e?.summary?.bestWeight);
+    }catch(_){
+      return 0;
+    }
+  }
+
+  function bestRepsAtBestWeightFromEntry(e){
+    try{
+      const sets = Array.isArray(e?.sets) ? e.sets : [];
+      let bestWeight = -1;
+      let bestReps = 0;
+
+      for(const s of sets){
+        const w = num(s?.weight);
+        const r = num(s?.reps);
+        if(w > bestWeight){
+          bestWeight = w;
+          bestReps = r;
+        }else if(w === bestWeight && r > bestReps){
+          bestReps = r;
+        }
+      }
+
+      return bestReps;
+    }catch(_){
+      return 0;
+    }
+  }
+
+  function cardioScore(entry){
+    try{
+      const s = entry?.summary || {};
+      const distance = num(s?.distance);
+      const timeSec = num(s?.timeSec);
+      const pace = num(s?.paceSecPerUnit);
+
+      return {
+        hasPR: hasAnyPR(entry?.pr),
+        paceScore: (pace > 0) ? (999999 - pace) : 0,
+        distance,
+        timeSec
+      };
+    }catch(_){
+      return { hasPR:false, paceScore:0, distance:0, timeSec:0 };
+    }
+  }
+
+  function coreScore(entry){
+    try{
+      const s = entry?.summary || {};
+      return {
+        hasPR: hasAnyPR(entry?.pr),
+        totalVolume: num(s?.totalVolume),
+        timeSec: num(s?.timeSec),
+        reps: num(s?.reps),
+        weight: num(s?.weight)
+      };
+    }catch(_){
+      return { hasPR:false, totalVolume:0, timeSec:0, reps:0, weight:0 };
+    }
+  }
+
+  function compareEntries(a, b){
+    const typeA = String(a?.type || "");
+    const typeB = String(b?.type || "");
+
+    const aPR = hasAnyPR(a?.pr);
+    const bPR = hasAnyPR(b?.pr);
+    if(aPR !== bPR) return aPR ? -1 : 1;
+
+    if(typeA === "weightlifting" && typeB === "weightlifting"){
+      const aW = bestWeightFromEntry(a);
+      const bW = bestWeightFromEntry(b);
+      if(bW !== aW) return bW - aW;
+
+      const aR = bestRepsAtBestWeightFromEntry(a);
+      const bR = bestRepsAtBestWeightFromEntry(b);
+      if(bR !== aR) return bR - aR;
+
+      const aVol = num(a?.summary?.totalVolume);
+      const bVol = num(b?.summary?.totalVolume);
+      if(bVol !== aVol) return bVol - aVol;
+
+      return 0;
+    }
+
+    if(typeA === "cardio" && typeB === "cardio"){
+      const A = cardioScore(a);
+      const B = cardioScore(b);
+
+      if(B.paceScore !== A.paceScore) return B.paceScore - A.paceScore;
+      if(B.distance !== A.distance) return B.distance - A.distance;
+      if(B.timeSec !== A.timeSec) return B.timeSec - A.timeSec;
+
+      return 0;
+    }
+
+    if(typeA === "core" && typeB === "core"){
+      const A = coreScore(a);
+      const B = coreScore(b);
+
+      if(B.totalVolume !== A.totalVolume) return B.totalVolume - A.totalVolume;
+      if(B.reps !== A.reps) return B.reps - A.reps;
+      if(B.timeSec !== A.timeSec) return B.timeSec - A.timeSec;
+      if(B.weight !== A.weight) return B.weight - A.weight;
+
+      return 0;
+    }
+
+    const aVol = num(a?.summary?.totalVolume);
+    const bVol = num(b?.summary?.totalVolume);
+    if(bVol !== aVol) return bVol - aVol;
+
+    return 0;
+  }
+
+  function buildTopTextFromEntry(e){
+    try{
+      const type = String(e?.type || "");
+
+      if(type === "weightlifting"){
+        const sets = Array.isArray(e?.sets) ? e.sets : [];
+        let best = null;
+
+        for(const s of sets){
+          const w = num(s?.weight);
+          const r = num(s?.reps);
+          if(!best || w > best.w || (w === best.w && r > best.r)){
+            best = { w, r };
+          }
+        }
+
+        if(best && best.w > 0) return `${best.w}×${best.r}`;
+        if(num(e?.summary?.bestWeight) > 0) return `${num(e.summary.bestWeight)} (top)`;
+        return "";
+      }
+
+      if(type === "cardio"){
+        const d = e?.summary?.distance;
+        const t = e?.summary?.timeSec;
+        const p = e?.summary?.paceSecPerUnit;
+        const dist = (d == null) ? "" : `Dist ${d}`;
+        const time = (t == null) ? "" : `Time ${formatTime(num(t) || 0)}`;
+        const pace = (p == null) ? "" : `Pace ${formatPace(p)}`;
+        return [dist, time, pace].filter(Boolean).join(" • ");
+      }
+
+      if(type === "core"){
+        const t = e?.summary?.timeSec;
+        const reps = e?.summary?.reps;
+        const sets = e?.summary?.sets;
+        const w = e?.summary?.weight;
+        const parts = [];
+        if(Number.isFinite(Number(sets))) parts.push(`${Number(sets)} sets`);
+        if(Number.isFinite(Number(reps))) parts.push(`${Number(reps)} reps`);
+        if(Number.isFinite(Number(t))) parts.push(`${formatTime(Number(t) || 0)}`);
+        if(Number.isFinite(Number(w)) && Number(w) > 0) parts.push(`${Number(w)} lb`);
+        return parts.join(" • ");
+      }
+
+      return "";
+    }catch(_){
+      return "";
+    }
+  }
+
+  const byRx = new Map();
+
+  for(const e of entries){
+    const key = String(e?.routineExerciseId || e?.exerciseId || "");
+    if(!key) continue;
+
+    exSet.add(key);
+
+    if(Number.isFinite(Number(e?.summary?.totalVolume))){
+      totalVolume += Number(e.summary.totalVolume) || 0;
+    }
+
+    if(!byRx.has(key)) byRx.set(key, []);
+    byRx.get(key).push(e);
   }
 
   let details = null;
-  try{
-    const byRx = new Map();
-    for(const e of entries){
-      const k = String(e?.routineExerciseId || e?.exerciseId || "");
-      if(!k) continue;
-      if(!byRx.has(k)) byRx.set(k, e);
-    }
 
+  try{
     const items = [];
-    for(const e of byRx.values()){
-      const type = String(e?.type || "");
-      const exerciseId = e?.exerciseId || null;
+
+    for(const [key, group] of byRx.entries()){
+      const sorted = group.slice().sort(compareEntries);
+      const bestEntry = sorted[0] || group[0];
+      if(!bestEntry) continue;
+
+      const type = String(bestEntry?.type || "");
+      const exerciseId = bestEntry?.exerciseId || null;
 
       const exName = (() => {
         try{
           const lib = state?.exerciseLibrary?.[type] || [];
-          const found = lib.find(x => String(x.id||"") === String(exerciseId||""));
-          return found?.name || e?.nameSnap || "Exercise";
+          const found = lib.find(x => String(x.id || "") === String(exerciseId || ""));
+          return found?.name || bestEntry?.nameSnap || "Exercise";
         }catch(_){
-          return e?.nameSnap || "Exercise";
+          return bestEntry?.nameSnap || "Exercise";
         }
       })();
 
-      let topText = "";
+      const mergedPRBadges = [];
       try{
-        if(type === "weightlifting"){
-          const sets = Array.isArray(e?.sets) ? e.sets : [];
-          let best = null;
-          for(const s of sets){
-            const w = Number(s?.weight) || 0;
-            const r = Number(s?.reps) || 0;
-            if(!best || w > best.w) best = { w, r };
-          }
-          if(best) topText = `${best.w}×${best.r}`;
-          else if(Number.isFinite(Number(e?.summary?.bestWeight))) topText = `${Number(e.summary.bestWeight)} (top)`;
-        }else if(type === "cardio"){
-          const d = e?.summary?.distance;
-          const t = e?.summary?.timeSec;
-          const p = e?.summary?.paceSecPerUnit;
-          const dist = (d == null) ? "" : `Dist ${d}`;
-          const time = (t == null) ? "" : `Time ${formatTime(Number(t) || 0)}`;
-          const pace = (p == null) ? "" : `Pace ${formatPace(p)}`;
-          topText = [dist, time, pace].filter(Boolean).join(" • ");
-        }else if(type === "core"){
-          const t = e?.summary?.timeSec;
-          const reps = e?.summary?.reps;
-          const sets = e?.summary?.sets;
-          const w = e?.summary?.weight;
-          const parts = [];
-          if(Number.isFinite(Number(sets))) parts.push(`${Number(sets)} sets`);
-          if(Number.isFinite(Number(reps))) parts.push(`${Number(reps)} reps`);
-          if(Number.isFinite(Number(t))) parts.push(`${formatTime(Number(t) || 0)}`);
-          if(Number.isFinite(Number(w)) && Number(w) > 0) parts.push(`${Number(w)} lb`);
-          topText = parts.join(" • ");
-        }
+        const anyWeight = group.some(x => x?.pr?.isPRWeight);
+        const any1RM = group.some(x => x?.pr?.isPR1RM);
+        const anyVol = group.some(x => x?.pr?.isPRVolume);
+        const anyPace = group.some(x => x?.pr?.isPRPace);
+
+        if(anyWeight) mergedPRBadges.push("PR W");
+        if(any1RM) mergedPRBadges.push("PR 1RM");
+        if(anyVol) mergedPRBadges.push("PR Vol");
+        if(anyPace) mergedPRBadges.push("PR Pace");
       }catch(_){}
 
-      const pr = e?.pr || {};
-      const prBadges = [];
-      if(pr?.isPRWeight) prBadges.push("PR W");
-      if(pr?.isPR1RM) prBadges.push("PR 1RM");
-      if(pr?.isPRVolume) prBadges.push("PR Vol");
-      if(pr?.isPRPace) prBadges.push("PR Pace");
+      if(mergedPRBadges.length) prCount += 1;
 
       let lifetime = null;
       try{
@@ -4132,8 +4306,8 @@ function buildWorkoutEventData(dateISO, routineId, day){
         type,
         exerciseId,
         name: exName,
-        topText: topText || "",
-        prBadges,
+        topText: buildTopTextFromEntry(bestEntry),
+        prBadges: mergedPRBadges,
         lifetime
       });
     }
@@ -4143,7 +4317,9 @@ function buildWorkoutEventData(dateISO, routineId, day){
       dateISO: dateISO || null,
       items
     };
-  }catch(_){}
+  }catch(_){
+    details = null;
+  }
 
   return {
     highlights: {
