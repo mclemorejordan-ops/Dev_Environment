@@ -9885,7 +9885,7 @@ const feedLinkRow = (() => {
   style:[
     "width:100%",
     "padding:14px",
-    "border-radius:20px",
+    "border-radius:22px",
     "border:1px solid rgba(255,255,255,.10)",
     "background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03))",
     "box-shadow:0 8px 24px rgba(0,0,0,.18)"
@@ -9893,64 +9893,76 @@ const feedLinkRow = (() => {
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
   el("div", {
-    style:"min-width:0;"
+    style:"display:grid; gap:12px;"
   }, [
     el("div", {
-      style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-    }, [who]),
+      style:"min-width:0;"
+    }, [
+      el("div", {
+        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [who]),
+      whoHandle ? el("div", {
+        class:"note",
+        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [whoHandle]) : null,
+      previewSub ? el("div", {
+        class:"note",
+        style:"margin:4px 0 0 0; font-size:12px; opacity:.74;"
+      }, [previewSub]) : null
+    ].filter(Boolean)),
 
-    whoHandle ? el("div", {
-      class:"note",
-      style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-    }, [whoHandle]) : null,
-
-    previewSub ? el("div", {
-      class:"note",
-      style:"margin:4px 0 0 0; font-size:12px; opacity:.74;"
-    }, [previewSub]) : null
-  ].filter(Boolean)),
-
-  el("div", {
-    style:"margin-top:12px; font-size:22px; font-weight:950; line-height:1.02; letter-spacing:-.03em;"
-  }, [previewTitle]),
-
-  (isWorkout && highlight) ? el("div", {
-    style:[
-      "margin-top:12px",
-      "padding:13px",
-      "border-radius:18px",
-      "border:1px solid rgba(255,255,255,.10)",
-      "background:rgba(255,255,255,.04)"
-    ].join(";")
-  }, [
     el("div", {
-      style:"font-size:11px; font-weight:900; letter-spacing:.5px; text-transform:uppercase; opacity:.68;"
-    }, ["Workout highlight"]),
-    el("div", {
-      style:"margin-top:6px; font-size:18px; font-weight:950; line-height:1.1;"
-    }, [highlight.name || "Exercise"]),
-    highlightMetric ? el("div", {
+      style:"font-size:22px; font-weight:950; line-height:1.02; letter-spacing:-.03em;"
+    }, [previewTitle]),
+
+    (isWorkout && highlight) ? el("div", {
+      style:[
+        "padding:14px",
+        "border-radius:18px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background:rgba(255,255,255,.04)",
+        "display:flex",
+        "align-items:flex-start",
+        "justify-content:space-between",
+        "gap:12px"
+      ].join(";")
+    }, [
+      el("div", { style:"min-width:0; flex:1;" }, [
+        el("div", {
+          style:"font-size:11px; font-weight:900; letter-spacing:.5px; text-transform:uppercase; opacity:.66;"
+        }, ["Workout highlight"]),
+        el("div", {
+          style:"margin-top:7px; font-size:18px; font-weight:950; line-height:1.1;"
+        }, [highlight.name || "Exercise"]),
+        highlightMetric ? el("div", {
+          class:"note",
+          style:"margin-top:6px; font-size:12px; opacity:.86; line-height:1.35;"
+        }, [highlightMetric]) : null
+      ].filter(Boolean)),
+      (Array.isArray(highlight.prBadges) && highlight.prBadges.length)
+        ? el("div", {
+            style:"padding:7px 10px; border-radius:999px; font-size:11px; font-weight:900; white-space:nowrap; border:1px solid rgba(80,200,120,.20); background:rgba(80,200,120,.12);"
+          }, [highlight.prBadges[0]])
+        : null
+    ].filter(Boolean)) : null,
+
+    statPills ? el("div", {
+      style:"margin-top:-2px;"
+    }, [statPills]) : null,
+
+    (isWorkout && previewList) ? el("div", {
+      style:"display:grid; gap:8px;"
+    }, [previewList]) : null,
+
+    (!isWorkout && summaryLine) ? el("div", {
       class:"note",
-      style:"margin-top:5px; font-size:12px; opacity:.88; line-height:1.35;"
-    }, [highlightMetric]) : null
-  ].filter(Boolean)) : null,
+      style:"line-height:1.4; opacity:.92;"
+    }, [summaryLine]) : null,
 
-  statPills ? el("div", {
-    style:"margin-top:10px;"
-  }, [statPills]) : null,
-
-  (isWorkout && previewList) ? el("div", {
-    style:"margin-top:10px;"
-  }, [previewList]) : null,
-
-  (!isWorkout && summaryLine) ? el("div", {
-    class:"note",
-    style:"margin-top:10px; opacity:.92; line-height:1.4;"
-  }, [summaryLine]) : null,
-
-  (!isWorkout && extraBadges) ? el("div", {
-    style:"margin-top:10px;"
-  }, [extraBadges]) : null
+    (!isWorkout && extraBadges) ? el("div", {
+      style:"margin-top:-2px;"
+    }, [extraBadges]) : null
+  ].filter(Boolean))
 ].filter(Boolean));
 })();
 
