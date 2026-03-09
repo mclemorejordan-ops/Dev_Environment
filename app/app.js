@@ -7158,9 +7158,9 @@ root.appendChild(el("div", { class:"card" }, [
     });
   }
 
-  const routineSharesInbox = (Social.getRoutineSharesInbox ? Social.getRoutineSharesInbox() : []).filter(Boolean);
+    const routineSharesInbox = (Social.getRoutineSharesInbox ? Social.getRoutineSharesInbox() : []).filter(Boolean);
 
-  if(configured && user && isOwnProfile){
+  if(configured && user && isOwnProfile && routineSharesInbox.length){
     root.appendChild(el("div", { class:"card" }, [
       el("div", { class:"homeRow" }, [
         el("div", {}, [
@@ -7169,9 +7169,7 @@ root.appendChild(el("div", { class:"card" }, [
             class:"note",
             text: ui._routineSharesLoading
               ? "Checking for new routine shares..."
-              : (routineSharesInbox.length
-                  ? `${routineSharesInbox.length} pending`
-                  : "No pending routine shares")
+              : `${routineSharesInbox.length} pending`
           })
         ]),
         el("button", {
@@ -7193,8 +7191,7 @@ root.appendChild(el("div", { class:"card" }, [
 
       el("div", { style:"height:10px" }),
 
-      routineSharesInbox.length
-        ? el("div", { style:"display:grid; gap:10px;" }, routineSharesInbox.map(share => {
+      el("div", { style:"display:grid; gap:10px;" }, routineSharesInbox.map(share => {
             const snap = share?.routinePayload || {};
             const meta = buildRoutineSnapshotMeta(snap);
             const senderName = (Social.nameFor && Social.nameFor(share?.senderId)) || "User";
