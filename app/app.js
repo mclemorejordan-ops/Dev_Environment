@@ -9861,15 +9861,26 @@ const feedLinkRow = el("div", {
 }, [
   el("div", { class:"l", style:"min-width:0;" }, [
     el("div", { style:"min-width:0; flex:1;" }, [
-      el("div", {
-        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [who]),
-      whoHandle ? el("div", {
-        class:"note",
-        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [whoHandle]) : null,
-      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
-    ].filter(Boolean)),
+  el("div", {
+    style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
+  }, [
+    el("div", {
+      style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+    }, [who]),
+
+    whoHandle ? el("div", {
+      class:"note",
+      style:"opacity:.65; flex:0 0 auto;"
+    }, ["|"]) : null,
+
+    whoHandle ? el("div", {
+      class:"note",
+      style:"font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+    }, [whoHandle]) : null
+  ].filter(Boolean)),
+
+  el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
+].filter(Boolean)),
 
     el("div", { class:"a", style:"margin-top:8px;", text: title }),
     summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
