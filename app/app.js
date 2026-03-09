@@ -10037,27 +10037,45 @@ const feedLinkRow = el("div", {
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
   el("div", { class:"l", style:"min-width:0;" }, [
-    el("div", { style:"min-width:0; flex:1;" }, [
-  el("div", {
-  style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
+    el("div", {
+  style:"min-width:0; flex:1; display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
 }, [
-  el("div", {
-    style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
-  }, [who]),
+  el("div", { style:"min-width:0; flex:1;" }, [
+    el("div", {
+      style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
+    }, [
+      el("div", {
+        style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+      }, [who]),
 
-  whoHandle ? el("div", {
-    style:"opacity:.65; flex:0 0 auto;"
-  }, ["|"]) : null,
+      whoHandle ? el("div", {
+        style:"opacity:.65; flex:0 0 auto;"
+      }, ["|"]) : null,
 
-  whoHandle ? el("div", {
-    style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
-  }, [whoHandle]) : null
-].filter(Boolean)),
+      whoHandle ? el("div", {
+        style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+      }, [whoHandle]) : null
+    ].filter(Boolean)),
 
-  el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
+    el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
+  ].filter(Boolean)),
+
+  (ev.type === "workout_completed" && summaryLine)
+    ? el("div", {
+        class:"note",
+        style:"margin:0; text-align:right; white-space:nowrap; flex:0 0 auto; font-size:12px; opacity:.86; align-self:flex-start;"
+      }, [summaryLine])
+    : null
 ].filter(Boolean)),
 
     el("div", { class:"a", style:"margin-top:8px;", text: title }),
+
+(ev.type === "workout_completed"
+  ? el("div", {
+      class:"note",
+      style:"margin-top:4px; font-size:12px; font-weight:800; letter-spacing:.2px; opacity:.82;"
+    }, ["Workout Highlight"])
+  : null),
 
 (ev.type === "workout_completed" && highlightPills.length
   ? el("div", {
@@ -10069,7 +10087,9 @@ const feedLinkRow = el("div", {
     })))
   : null),
 
-summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
+(ev.type !== "workout_completed" && summaryLine)
+  ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine })
+  : null,
 
 (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
   badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
