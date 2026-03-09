@@ -3992,14 +3992,8 @@ shell.appendChild(
   PopoverOpen(anchorBtn, shell);
 }
   
-  
-  // Phase 3: Per-exercise Workout Execution (logger)
+ // Phase 3: Per-exercise Workout Execution (logger)
 function openExerciseLogger(rx, day, defaultDateISO){
-  // keep your full existing modal code exactly as it already is
-}
-
-openExerciseLoggerRef = openExerciseLogger;
-  
   ExerciseLibrary.ensureSeeded();
   LogEngine.ensure();
 
