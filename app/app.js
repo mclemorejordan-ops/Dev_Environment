@@ -4075,7 +4075,16 @@ if(type === "weightlifting"){
 
     async function afterSave(savedDateISO, wasComplete=false){
     Modal.close();
-    repaint();
+
+    const currentRoute = (typeof getCurrentRoute === "function")
+      ? getCurrentRoute()
+      : "";
+
+    if(currentRoute === "home"){
+      renderView();
+    }else{
+      repaint();
+    }
 
     const nowComplete = isDayComplete(savedDateISO, day);
 
