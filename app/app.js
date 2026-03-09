@@ -10092,12 +10092,6 @@ const feedLinkRow = el("div", {
 
     el("div", { class:"a", style:"margin-top:8px;", text: title }),
 
-(ev.type === "workout_completed"
-  ? el("div", {
-      class:"note",
-      style:"margin-top:4px; font-size:12px; font-weight:800; letter-spacing:.2px; opacity:.82;"
-    }, ["Workout Highlight"])
-  : null),
 
 (ev.type === "workout_completed" && highlightPills.length
   ? el("div", {
