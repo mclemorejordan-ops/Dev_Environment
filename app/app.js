@@ -1965,6 +1965,10 @@ async function processPendingWorkoutShare(){
     }
 
     await syncWorkoutCompletedEventForDay(pending.dateISO, routine.id, day);
+
+    // hard refresh feed after successful publish so user sees it immediately
+    try{ await Social.fetchFeed?.(); }catch(_){}
+
     clearPendingWorkoutShare();
     showToast("Workout shared");
     return true;
