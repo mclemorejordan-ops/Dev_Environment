@@ -9494,31 +9494,196 @@ const shareBtn = isOwnEvent ? el("button", {
   }, [iconsRow, countsRow]);
 })();
 
-const feedLinkRow = el("div", {
-  class:"setLink",
-  style:"width:100%;",
-  onClick: () => openFeedEventModal(ev, title, who, when)
-}, [
-  el("div", { class:"l", style:"min-width:0;" }, [
-    el("div", { style:"min-width:0; flex:1;" }, [
-      el("div", {
-        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [who]),
-      whoHandle ? el("div", {
-        class:"note",
-        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [whoHandle]) : null,
-      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
-    ].filter(Boolean)),
+const feedLinkRow = (() => {
+  const isWorkout = (ev.type === "workout_completed");
+  const d = p.details || null;
+  const h = p.highlights || {};
+  const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
 
-    el("div", { class:"a", style:"margin-top:8px;", text: title }),
-    summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
-    (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
-      badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-    ) : null)
-  ].filter(Boolean)),
-  el("div", { class:"r", style:"opacity:.85;" }, ["→"])
-]);
+  const exCount = Number.isFinite(Number(h.exerciseCount))
+    ? Number(h.exerciseCount)
+    : (items.length || 0);
+
+  const prCount = Number.isFinite(Number(h.prCount))
+    ? Number(h.prCount)
+    : 0;
+
+  const vol = Number.isFinite(Number(h.totalVolume))
+    ? Number(h.totalVolume)
+    : null;
+
+  const previewTitle = isWorkout
+    ? String((d && d.dayLabel) || "Workout")
+    : String(title || "Event");
+
+  const previewSub = isWorkout
+    ? [whenLine || "", who || ""].filter(Boolean).join(" • ")
+    : [whoHandle || "", whenLine || ""].filter(Boolean).join(" • ");
+
+  const highlight = (() => {
+    try{
+      if(!isWorkout || !items.length) return null;
+      const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
+      return withPR || items[0] || null;
+    }catch(_){
+      return null;
+    }
+  })();
+
+  const highlightMetric = (() => {
+    try{
+      if(!highlight) return "";
+      const bits = [];
+      if(highlight.topText) bits.push(String(highlight.topText));
+      if(Array.isArray(highlight.prBadges) && highlight.prBadges.length){
+        bits.push(String(highlight.prBadges[0]));
+      }
+      return bits.filter(Boolean).join(" • ");
+    }catch(_){
+      return "";
+    }
+  })();
+
+  const statPills = isWorkout ? el("div", {
+    style:"display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;"
+  }, [
+    (exCount > 0) ? el("div", {
+      class:"pill",
+      style:"padding:6px 10px; font-size:12px; background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12);"
+    }, [
+      el("span", { style:"opacity:.72; margin-right:6px;", text:"Exercises" }),
+      el("span", { style:"font-weight:900;", text:String(exCount) })
+    ]) : null,
+
+    (prCount > 0) ? el("div", {
+      class:"pill",
+      style:"padding:6px 10px; font-size:12px; background:rgba(80,200,120,.12); border-color:rgba(80,200,120,.22);"
+    }, [
+      el("span", { style:"opacity:.82; margin-right:6px;", text:"PRs" }),
+      el("span", { style:"font-weight:900;", text:String(prCount) })
+    ]) : null,
+
+    (vol != null && vol > 0) ? el("div", {
+      class:"pill",
+      style:"padding:6px 10px; font-size:12px; background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12);"
+    }, [
+      el("span", { style:"opacity:.72; margin-right:6px;", text:"Volume" }),
+      el("span", { style:"font-weight:900;", text:String(vol) })
+    ]) : null
+  ].filter(Boolean)) : null;
+
+  const highlightNode = (isWorkout && highlight) ? el("div", {
+    style:[
+      "margin-top:12px",
+      "padding:12px",
+      "border-radius:16px",
+      "border:1px solid rgba(255,255,255,.10)",
+      "background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03))"
+    ].join(";")
+  }, [
+    el("div", {
+      style:"font-size:11px; font-weight:900; letter-spacing:.5px; text-transform:uppercase; opacity:.68;"
+    }, ["Workout highlight"]),
+    el("div", {
+      style:"margin-top:6px; font-size:16px; font-weight:900; line-height:1.2;"
+    }, [highlight.name || "Exercise"]),
+    highlightMetric ? el("div", {
+      class:"note",
+      style:"margin-top:5px; opacity:.9;"
+    }, [highlightMetric]) : null
+  ].filter(Boolean)) : null;
+
+  const previewList = (isWorkout && items.length) ? el("div", {
+    style:"margin-top:12px; display:grid; gap:8px;"
+  }, items.slice(0, 3).map((it, idx) => {
+    const rowBits = [];
+    if(it && it.topText) rowBits.push(String(it.topText));
+    if(Array.isArray(it?.prBadges) && it.prBadges.length){
+      rowBits.push(it.prBadges[0]);
+    }
+
+    return el("div", {
+      style:[
+        "display:flex",
+        "align-items:flex-start",
+        "justify-content:space-between",
+        "gap:10px",
+        "padding:10px 12px",
+        "border-radius:14px",
+        "border:1px solid rgba(255,255,255,.08)",
+        "background:rgba(255,255,255,.035)"
+      ].join(";")
+    }, [
+      el("div", { style:"min-width:0; flex:1;" }, [
+        el("div", {
+          style:"font-size:13px; font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [`${idx + 1}. ${it?.name || "Exercise"}`]),
+        rowBits.length ? el("div", {
+          class:"note",
+          style:"margin-top:4px; font-size:12px; opacity:.84; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [rowBits.join(" • ")]) : null
+      ].filter(Boolean)),
+      el("div", {
+        style:"font-size:12px; font-weight:900; opacity:.55; flex:0 0 auto;"
+      }, ["›"])
+    ]);
+  })) : null;
+
+  const extraBadges = (!isWorkout && badges.length) ? el("div", {
+    class:"pillrow",
+    style:"margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;"
+  }, badges.map(t => el("div", {
+    class:"pill",
+    style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);",
+    text:t
+  }))) : null;
+
+  return el("div", {
+    class:"setLink",
+    style:[
+      "width:100%",
+      "padding:14px",
+      "border-radius:20px",
+      "border:1px solid rgba(255,255,255,.10)",
+      "background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03))",
+      "box-shadow:0 8px 24px rgba(0,0,0,.18)"
+    ].join(";"),
+    onClick: () => openFeedEventModal(ev, title, who, when)
+  }, [
+    el("div", { style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px;" }, [
+      el("div", { style:"min-width:0; flex:1;" }, [
+        el("div", {
+          style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [who]),
+        whoHandle ? el("div", {
+          class:"note",
+          style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [whoHandle]) : null,
+        previewSub ? el("div", {
+          class:"note",
+          style:"margin:4px 0 0 0; font-size:12px; opacity:.74;"
+        }, [previewSub]) : null
+      ].filter(Boolean)),
+      el("div", {
+        style:"font-size:12px; font-weight:900; opacity:.52; flex:0 0 auto; padding-top:2px;"
+      }, ["Tap"])
+    ]),
+
+    el("div", {
+      style:"margin-top:12px; font-size:18px; font-weight:900; line-height:1.15;"
+    }, [previewTitle]),
+
+    (!isWorkout && summaryLine) ? el("div", {
+      class:"note",
+      style:"margin-top:8px; opacity:.92;"
+    }, [summaryLine]) : null,
+
+    statPills,
+    highlightNode,
+    previewList,
+    extraBadges
+  ].filter(Boolean));
+})();
 
 const row = el("div", {
   style:"display:flex; gap:10px; align-items:flex-start;"
