@@ -1046,7 +1046,9 @@ async function signInWithOAuth(provider){
   }
 }
 
-    let _myProfileRoutineEnabled = false;
+
+        let _myProfileRoutineEnabled = false;
+    let _routineSharesInbox = [];
 
   function buildPublicRoutineSnapshot(routine){
     const s = stateRef ? stateRef() : null;
@@ -1085,6 +1087,129 @@ async function signInWithOAuth(provider){
       days
     };
   }
+
+  function getRoutineSharesInbox(){
+    return (_routineSharesInbox || []).slice();
+  }
+
+  async function shareRoutineWithUser(recipientId, routine){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+
+    const targetId = String(recipientId || "").trim();
+    if(!targetId) throw new Error("Recipient is required");
+    if(targetId === String(_user.id || "")) throw new Error("You can't send a routine to yourself");
+    if(!routine) throw new Error("Routine not found");
+
+    const snap = buildPublicRoutineSnapshot(routine);
+    if(!snap) throw new Error("Routine couldn't be shared");
+
+    const row = {
+      sender_id: _user.id,
+      recipient_id: targetId,
+      routine_name: snap.name || routine?.name || "Routine",
+      routine_payload: snap,
+      status: "pending"
+    };
+
+    const { error } = await sb.from("routine_shares").insert(row);
+    if(error) throw error;
+
+    return row;
+  }
+
+  async function shareRoutineWithUsername(username, routine){
+    const targetId = await resolveFollowTarget(username);
+    return await shareRoutineWithUser(targetId, routine);
+  }
+
+  async function fetchRoutineSharesInbox(){
+    const sb = await ensureClient();
+    if(!sb || !_user){
+      _routineSharesInbox = [];
+      notify();
+      return [];
+    }
+
+    try{
+      const { data, error } = await sb
+        .from("routine_shares")
+        .select("id, sender_id, recipient_id, routine_name, routine_payload, created_at, status")
+        .eq("recipient_id", _user.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(25);
+
+      if(error) throw error;
+
+      const rows = (data || []).map(r => ({
+        id: r.id,
+        senderId: String(r.sender_id || ""),
+        recipientId: String(r.recipient_id || ""),
+        routineName: String(r.routine_name || r?.routine_payload?.name || "Routine"),
+        routinePayload: r.routine_payload || null,
+        createdAt: r.created_at || null,
+        status: String(r.status || "pending")
+      }));
+
+      try{
+        const senderIds = rows.map(r => r.senderId).filter(Boolean);
+        if(senderIds.length && fetchNames) await fetchNames(senderIds);
+      }catch(_){}
+
+      _routineSharesInbox = rows;
+    }catch(_){
+      // keep last known values if query fails
+    }
+
+    notify();
+    return getRoutineSharesInbox();
+  }
+
+  async function dismissRoutineShare(shareId){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+
+    const id = shareId;
+    if(id == null) return;
+
+    const { error } = await sb
+      .from("routine_shares")
+      .update({
+        status: "dismissed",
+        dismissed_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .eq("recipient_id", _user.id);
+
+    if(error) throw error;
+
+    _routineSharesInbox = (_routineSharesInbox || []).filter(x => String(x?.id) !== String(id));
+    notify();
+  }
+
+  async function markRoutineShareSaved(shareId){
+    const sb = await ensureClient();
+    if(!sb || !_user) throw new Error("Not signed in");
+
+    const id = shareId;
+    if(id == null) return;
+
+    const { error } = await sb
+      .from("routine_shares")
+      .update({
+        status: "saved",
+        saved_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .eq("recipient_id", _user.id);
+
+    if(error) throw error;
+
+    _routineSharesInbox = (_routineSharesInbox || []).filter(x => String(x?.id) !== String(id));
+    notify();
+  }
+  
 
   async function fetchMyProfileRoutineSetting(){
     const sb = await ensureClient();
@@ -1655,6 +1780,16 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     identityFor,
     fetchFollows,
     fetchFollowers,
+
+    // routine sharing
+    getRoutineSharesInbox,
+    fetchRoutineSharesInbox,
+    shareRoutineWithUser,
+    shareRoutineWithUsername,
+    dismissRoutineShare,
+    markRoutineShareSaved,
+
+    // profile routine
     fetchMyProfileRoutineSetting,
     isProfileRoutineEnabled,
     setPublicRoutineEnabled,
@@ -1662,6 +1797,8 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     fetchProfileRoutine,
     fetchProfileFollowCounts,
     fetchProfileWorkoutHighlights,
+    
+    // feed
     getFeed,
     startFeed,
     stopFeed,
@@ -1910,6 +2047,91 @@ async function addRoutineFromTemplateAndSync(templateKey, nameOverride){
   const routine = Routines.addFromTemplate(templateKey, nameOverride);
   await syncPublicRoutineAfterActiveChange();
   return routine;
+}
+
+function buildRoutineSnapshotMeta(snapshot){
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  let exerciseCount = 0;
+
+  days.forEach(day => {
+    exerciseCount += Array.isArray(day?.exercises) ? day.exercises.length : 0;
+  });
+
+  return {
+    dayCount: days.length,
+    exerciseCount
+  };
+}
+
+function getUniqueSharedRoutineName(baseName){
+  const rawBase = String(baseName || "Routine").trim() || "Routine";
+  const all = Array.isArray(state?.routines) ? state.routines : [];
+  const used = new Set(
+    all.map(r => String(r?.name || "").trim().toLowerCase()).filter(Boolean)
+  );
+
+  if(!used.has(rawBase.toLowerCase())) return rawBase;
+
+  const firstAlt = `${rawBase} (Shared)`;
+  if(!used.has(firstAlt.toLowerCase())) return firstAlt;
+
+  let i = 2;
+  while(used.has(`${rawBase} (Shared ${i})`.toLowerCase())) i++;
+  return `${rawBase} (Shared ${i})`;
+}
+
+function importSharedRoutinePayload(sharedPayload, opts = {}){
+  const snapshot = sharedPayload?.routinePayload
+    ? sharedPayload.routinePayload
+    : sharedPayload;
+
+  if(!snapshot || typeof snapshot !== "object"){
+    throw new Error("Shared routine is invalid.");
+  }
+
+  if(!Array.isArray(snapshot.days) || snapshot.days.length === 0){
+    throw new Error("Shared routine has no days.");
+  }
+
+  state.routines = Array.isArray(state.routines) ? state.routines : [];
+
+  const sortedDays = snapshot.days
+    .slice()
+    .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0));
+
+  const routineId = uid("rt");
+  const now = Date.now();
+
+  const nextRoutine = {
+    id: routineId,
+    name: getUniqueSharedRoutineName(snapshot.name || "Routine"),
+    createdAt: now,
+    templateKey: null,
+    days: sortedDays.map((day, dayIdx) => ({
+      id: uid("day"),
+      order: Number.isFinite(Number(day?.order)) ? Number(day.order) : dayIdx,
+      label: String(day?.label || `Day ${dayIdx + 1}`),
+      isRest: !!day?.isRest,
+      exercises: (Array.isArray(day?.exercises) ? day.exercises : []).map((rx, exIdx) => ({
+        id: uid("rx"),
+        exerciseId: rx?.exerciseId || null,
+        type: String(rx?.type || ""),
+        nameSnap: String(rx?.name || rx?.nameSnap || "Exercise"),
+        plan: rx?.plan || null,
+        notes: String(rx?.notes || ""),
+        createdAt: now + exIdx
+      }))
+    }))
+  };
+
+  state.routines.push(nextRoutine);
+
+  if(opts && opts.setActive){
+    state.activeRoutineId = nextRoutine.id;
+  }
+
+  Storage.save(state);
+  return nextRoutine;
 }
 
 /********************
@@ -6890,6 +7112,144 @@ root.appendChild(el("div", { class:"card" }, [
     ? (feedAll || []).filter(ev => String(ev?.actorId || "") === String(profileUserId || ""))
     : (feedAll || []);
 
+      if(configured && user && isOwnProfile && !ui._routineSharesLoading &&
+    (!ui._routineSharesLoadedAt || (Date.now() - ui._routineSharesLoadedAt) > 15000)){
+    ui._routineSharesLoading = true;
+
+    setTimeout(async () => {
+      try{
+        await Social.fetchRoutineSharesInbox?.();
+      }catch(_){
+        // keep UI resilient
+      }finally{
+        ui._routineSharesLoadedAt = Date.now();
+        ui._routineSharesLoading = false;
+        try{ renderView(); }catch(_){}
+      }
+    }, 0);
+  }
+
+  function openRoutineSharePreview(share){
+    const snap = share?.routinePayload || null;
+    const days = Array.isArray(snap?.days) ? snap.days.slice().sort((a,b) => Number(a?.order||0) - Number(b?.order||0)) : [];
+    const senderName = (Social.nameFor && Social.nameFor(share?.senderId)) || "User";
+
+    const list = el("div", { class:"list" });
+
+    days.forEach(day => {
+      const exCount = Array.isArray(day?.exercises) ? day.exercises.length : 0;
+      list.appendChild(el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: String(day?.label || "Day") }),
+          el("div", { class:"meta", text: day?.isRest ? "Rest day" : `${exCount} exercises` })
+        ])
+      ]));
+    });
+
+    Modal.open({
+      title:"Shared Routine",
+      bodyNode: el("div", {}, [
+        el("div", { class:"note", text:`From ${senderName}` }),
+        el("div", { style:"height:6px" }),
+        el("div", { style:"font-weight:900;", text: share?.routineName || snap?.name || "Routine" }),
+        el("div", { style:"height:12px" }),
+        days.length ? list : el("div", { class:"note", text:"No preview available." })
+      ])
+    });
+  }
+
+  const routineSharesInbox = (Social.getRoutineSharesInbox ? Social.getRoutineSharesInbox() : []).filter(Boolean);
+
+  if(configured && user && isOwnProfile){
+    root.appendChild(el("div", { class:"card" }, [
+      el("div", { class:"homeRow" }, [
+        el("div", {}, [
+          el("h2", { text:"Routine Shares" }),
+          el("div", {
+            class:"note",
+            text: ui._routineSharesLoading
+              ? "Checking for new routine shares..."
+              : (routineSharesInbox.length
+                  ? `${routineSharesInbox.length} pending`
+                  : "No pending routine shares")
+          })
+        ]),
+        el("button", {
+          class:"btn",
+          onClick: async () => {
+            try{
+              ui._routineSharesLoading = true;
+              renderView();
+              await Social.fetchRoutineSharesInbox?.();
+            }catch(_){
+            }finally{
+              ui._routineSharesLoading = false;
+              ui._routineSharesLoadedAt = Date.now();
+              renderView();
+            }
+          }
+        }, ["Refresh"])
+      ]),
+
+      el("div", { style:"height:10px" }),
+
+      routineSharesInbox.length
+        ? el("div", { style:"display:grid; gap:10px;" }, routineSharesInbox.map(share => {
+            const snap = share?.routinePayload || {};
+            const meta = buildRoutineSnapshotMeta(snap);
+            const senderName = (Social.nameFor && Social.nameFor(share?.senderId)) || "User";
+            const senderHandle = usernameToHandle((Social.usernameFor && Social.usernameFor(share?.senderId)) || "");
+
+            return el("div", {
+              style:"border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); border-radius:16px; padding:12px;"
+            }, [
+              el("div", { style:"font-weight:900;", text: share?.routineName || snap?.name || "Routine" }),
+              el("div", {
+                class:"note",
+                text:`From ${senderName}${senderHandle ? ` • ${senderHandle}` : ""}`
+              }),
+              el("div", {
+                class:"note",
+                text:`${meta.dayCount} days • ${meta.exerciseCount} exercises`
+              }),
+              el("div", { style:"height:10px" }),
+              el("div", { class:"btnrow" }, [
+                el("button", {
+                  class:"btn",
+                  onClick: () => openRoutineSharePreview(share)
+                }, ["Preview"]),
+                el("button", {
+                  class:"btn primary",
+                  onClick: async () => {
+                    try{
+                      importSharedRoutinePayload(share?.routinePayload);
+                      await Social.markRoutineShareSaved?.(share?.id);
+                      showToast("Saved to Your Routines");
+                      renderView();
+                    }catch(e){
+                      showToast(e?.message || "Couldn't save shared routine");
+                    }
+                  }
+                }, ["Save"]),
+                el("button", {
+                  class:"btn danger",
+                  onClick: async () => {
+                    try{
+                      await Social.dismissRoutineShare?.(share?.id);
+                      showToast("Dismissed");
+                      renderView();
+                    }catch(e){
+                      showToast(e?.message || "Couldn't dismiss");
+                    }
+                  }
+                }, ["Dismiss"])
+              ])
+            ]);
+          }))
+        : el("div", { class:"note", text:"No one has shared a routine with you yet." })
+    ]));
+  }
+
     if(viewBody === "profile" && profileUserId && !isOwnProfile && configured && user){
     const cacheId = String(profileUserId || "");
     const hasCounts = !!ui.profileCountsById?.[cacheId];
@@ -11307,6 +11667,77 @@ Views.RoutineEditor = function(){
     return root;
   }
 
+    function openShareRoutineModal(routine){
+    if(!routine){
+      showToast("Routine not found");
+      return;
+    }
+
+    if(!(Social.isConfigured && Social.isConfigured())){
+      showToast("Friends is not configured");
+      return;
+    }
+
+    if(!(Social.getUser && Social.getUser())){
+      showToast("Sign in to share routines");
+      return;
+    }
+
+    const usernameInput = el("input", {
+      class:"connCodeInput",
+      type:"text",
+      placeholder:"@username",
+      autocapitalize:"off",
+      autocorrect:"off",
+      spellcheck:"false"
+    });
+
+    usernameInput.addEventListener("input", () => {
+      usernameInput.value = normalizeUsername(usernameInput.value);
+    });
+
+    const meta = buildRoutineSnapshotMeta(buildPublicRoutineSnapshot(routine));
+
+    async function doSend(){
+      const uname = normalizeUsername(usernameInput.value || "");
+      if(!uname){
+        showToast("Enter a username");
+        return;
+      }
+
+      try{
+        await Social.shareRoutineWithUsername(uname, routine);
+        Modal.close();
+        showToast("Routine sent");
+      }catch(e){
+        showToast(e?.message || "Couldn't share routine");
+      }
+    }
+
+    Modal.open({
+      title:"Share Routine",
+      bodyNode: el("div", { class:"connAddFriendModal" }, [
+        el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text: routine?.name || "Routine" }),
+            el("div", {
+              class:"meta",
+              text:`Send this routine directly to another user • ${meta.dayCount} days • ${meta.exerciseCount} exercises`
+            })
+          ]),
+          el("div", { class:"connCodeRight" }, [
+            usernameInput,
+            el("button", {
+              class:"btn primary sm",
+              onClick: doSend
+            }, ["Send"])
+          ])
+        ]),
+        el("div", { class:"note", text:"The recipient can preview it and save a copy into Your Routines." })
+      ])
+    });
+  }
+
   const header = el("div", { class:"card" }, [
     el("h2", { text:"Routine Editor" }),
     el("div", { class:"note", text:`Editing: ${active.name}` }),
@@ -11316,6 +11747,10 @@ Views.RoutineEditor = function(){
         class:"btn",
         onClick: () => navigate("routine")
       }, ["Back to Routine"]),
+      el("button", {
+        class:"btn",
+        onClick: () => openShareRoutineModal(active)
+      }, ["Share"]),
       el("button", {
         class:"btn",
         onClick: (e) => renameRoutine(e.currentTarget, active.id)
@@ -11330,6 +11765,8 @@ Views.RoutineEditor = function(){
       }, ["Delete"])
     ])
   ]);
+
+  
   // ────────────────────────────
   // Templates (same 5 as Onboarding)
   // ────────────────────────────
