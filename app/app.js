@@ -10101,7 +10101,7 @@ const feedLinkRow = el("div", {
 
 (ev.type === "workout_completed" && highlightPills.length
   ? el("div", {
-      style:"margin-top:10px; padding:12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; gap:10px; width:100%; box-sizing:border-box; align-self:stretch;"
+      style:"margin-top:10px; padding:12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-left:4px solid #3ddc84; display:flex; flex-direction:column; gap:10px; width:100%; box-sizing:border-box; align-self:stretch;"
     }, [
 
       el("div", {
