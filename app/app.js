@@ -9893,67 +9893,64 @@ const feedLinkRow = (() => {
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
   el("div", {
-    style:"display:flex; align-items:flex-start; justify-content:space-between; gap:12px;"
-  }, [
-    el("div", { style:"min-width:0; flex:1;" }, [
-      el("div", {
-        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [who]),
-      whoHandle ? el("div", {
-        class:"note",
-        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-      }, [whoHandle]) : null,
-      previewSub ? el("div", {
-        class:"note",
-        style:"margin:4px 0 0 0; font-size:12px; opacity:.74;"
-      }, [previewSub]) : null
-    ].filter(Boolean))
-  ]),
-
-  el("div", {
-    style:"margin-top:12px; display:grid; gap:10px;"
+    style:"min-width:0;"
   }, [
     el("div", {
-      style:"font-size:22px; font-weight:950; line-height:1.02; letter-spacing:-.03em;"
-    }, [previewTitle]),
+      style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+    }, [who]),
 
-    (isWorkout && highlight) ? el("div", {
-      style:[
-        "padding:13px",
-        "border-radius:18px",
-        "border:1px solid rgba(255,255,255,.10)",
-        "background:rgba(255,255,255,.04)"
-      ].join(";")
-    }, [
-      el("div", {
-        style:"font-size:11px; font-weight:900; letter-spacing:.5px; text-transform:uppercase; opacity:.68;"
-      }, ["Workout highlight"]),
-      el("div", {
-        style:"margin-top:6px; font-size:18px; font-weight:950; line-height:1.1;"
-      }, [highlight.name || "Exercise"]),
-      highlightMetric ? el("div", {
-        class:"note",
-        style:"margin-top:5px; font-size:12px; opacity:.88; line-height:1.35;"
-      }, [highlightMetric]) : null
-    ].filter(Boolean)) : null,
-
-    statPills ? el("div", {
-      style:"margin-top:2px;"
-    }, [statPills]) : null,
-
-    (isWorkout && previewList) ? el("div", {
-      style:"margin-top:2px;"
-    }, [previewList]) : null,
-
-    (!isWorkout && summaryLine) ? el("div", {
+    whoHandle ? el("div", {
       class:"note",
-      style:"opacity:.92; line-height:1.4;"
-    }, [summaryLine]) : null,
+      style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+    }, [whoHandle]) : null,
 
-    (!isWorkout && extraBadges) ? el("div", {
-      style:"margin-top:2px;"
-    }, [extraBadges]) : null
-  ].filter(Boolean))
+    previewSub ? el("div", {
+      class:"note",
+      style:"margin:4px 0 0 0; font-size:12px; opacity:.74;"
+    }, [previewSub]) : null
+  ].filter(Boolean)),
+
+  el("div", {
+    style:"margin-top:12px; font-size:22px; font-weight:950; line-height:1.02; letter-spacing:-.03em;"
+  }, [previewTitle]),
+
+  (isWorkout && highlight) ? el("div", {
+    style:[
+      "margin-top:12px",
+      "padding:13px",
+      "border-radius:18px",
+      "border:1px solid rgba(255,255,255,.10)",
+      "background:rgba(255,255,255,.04)"
+    ].join(";")
+  }, [
+    el("div", {
+      style:"font-size:11px; font-weight:900; letter-spacing:.5px; text-transform:uppercase; opacity:.68;"
+    }, ["Workout highlight"]),
+    el("div", {
+      style:"margin-top:6px; font-size:18px; font-weight:950; line-height:1.1;"
+    }, [highlight.name || "Exercise"]),
+    highlightMetric ? el("div", {
+      class:"note",
+      style:"margin-top:5px; font-size:12px; opacity:.88; line-height:1.35;"
+    }, [highlightMetric]) : null
+  ].filter(Boolean)) : null,
+
+  statPills ? el("div", {
+    style:"margin-top:10px;"
+  }, [statPills]) : null,
+
+  (isWorkout && previewList) ? el("div", {
+    style:"margin-top:10px;"
+  }, [previewList]) : null,
+
+  (!isWorkout && summaryLine) ? el("div", {
+    class:"note",
+    style:"margin-top:10px; opacity:.92; line-height:1.4;"
+  }, [summaryLine]) : null,
+
+  (!isWorkout && extraBadges) ? el("div", {
+    style:"margin-top:10px;"
+  }, [extraBadges]) : null
 ].filter(Boolean));
 })();
 
