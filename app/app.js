@@ -10101,7 +10101,7 @@ const feedLinkRow = el("div", {
 
 (ev.type === "workout_completed" && highlightPills.length
   ? el("div", {
-      style:"margin-top:10px; padding:14px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; justify-content:center; gap:10px; min-height:110px;"
+      style:"margin-top:10px; padding:12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; gap:10px; width:100%; box-sizing:border-box; align-self:stretch;"
     }, [
 
       el("div", {
@@ -10109,11 +10109,9 @@ const feedLinkRow = el("div", {
         style:"font-size:12px; font-weight:800; letter-spacing:.25px; opacity:.85;"
       }, ["Workout Highlight"]),
 
-      ...highlightPills.map((t, i) => el("div", {
-  style: i === 0
-    ? "font-size:16px; font-weight:800; line-height:1.25;"
-    : "font-size:14px; font-weight:600; line-height:1.3; opacity:.9;"
-}, [t]))
+      ...highlightPills.map(t => el("div", {
+        style:"font-size:14px; font-weight:700; line-height:1.3;"
+      }, [t]))
 
     ])
   : null),
