@@ -8813,115 +8813,14 @@ if(prs.length){
         const when = whenObj.full;
         const whenLine = whenObj.label;
 
-        const workoutPreview = (() => {
-  try{
-    if(ev.type !== "workout_completed") return null;
+        const title = (ev.type === "exercise_logged")
+          ? `${who} logged ${p.exerciseName || "an exercise"}`
+          : (ev.type === "workout_completed")
+            ? `${who} completed a workout`
+            : `${who} posted an event`;
 
-    const d = p.details || null;
-    const h = p.highlights || {};
-    const items = (d && Array.isArray(d.items)) ? d.items : [];
-
-    const highlight = (() => {
-      try{
-        const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
-        return withPR || items[0] || null;
-      }catch(_){ return null; }
-    })();
-
-    const routineName =
-      (d && typeof d.routineName === "string" && d.routineName.trim())
-        ? d.routineName.trim()
-        : "";
-
-    const dayLabel =
-      (d && typeof d.dayLabel === "string" && d.dayLabel.trim())
-        ? d.dayLabel.trim()
-        : "Workout";
-
-    const contextLine = [dayLabel, routineName].filter(Boolean).join(" • ");
-
-    const headlineLine = (() => {
-      if(!highlight) return "";
-
-      const exName = String(
-        highlight.exerciseName ||
-        highlight.name ||
-        highlight.label ||
-        "Workout Highlight"
-      ).trim();
-
-      const type = String(highlight.type || "").toLowerCase();
-
-      if(type === "cardio"){
-        const bits = [exName];
-        if(Number.isFinite(Number(highlight.distance)) && Number(highlight.distance) > 0){
-          bits.push(`${Number(highlight.distance)} mi`);
-        }
-        if(Number.isFinite(Number(highlight.paceSecPerUnit)) && Number(highlight.paceSecPerUnit) > 0){
-          bits.push(`${formatPace(Number(highlight.paceSecPerUnit))}/mi`);
-        }else if(Number.isFinite(Number(highlight.timeSec)) && Number(highlight.timeSec) > 0){
-          bits.push(formatTime(Number(highlight.timeSec)));
-        }
-        return bits.filter(Boolean).join(" • ");
-      }
-
-      if(type === "core"){
-        const bits = [exName];
-        if(Number.isFinite(Number(highlight.reps)) && Number(highlight.reps) > 0){
-          bits.push(`${Number(highlight.reps)} reps`);
-        }else if(Number.isFinite(Number(highlight.timeSec)) && Number(highlight.timeSec) > 0){
-          bits.push(formatTime(Number(highlight.timeSec)));
-        }
-        return bits.filter(Boolean).join(" • ");
-      }
-
-      const topWeight = Number(
-        highlight.bestWeight ??
-        highlight.weight ??
-        highlight.topWeight ??
-        0
-      );
-
-      return topWeight > 0
-        ? `${exName} • ${topWeight} LB`
-        : exName;
-    })();
-
-    const supportBits = [];
-    const exerciseCount = Number(h.exerciseCount);
-    const prCount = Number(h.prCount);
-    const totalVolume = Number(h.totalVolume);
-
-    if(Number.isFinite(exerciseCount) && exerciseCount > 0){
-      supportBits.push(`${exerciseCount} ${exerciseCount === 1 ? "exercise" : "exercises"}`);
-    }
-    if(Number.isFinite(prCount) && prCount > 0){
-      supportBits.push(`PR x${prCount}`);
-    }
-    if(Number.isFinite(totalVolume) && totalVolume > 0){
-      supportBits.push(`Vol ${comma(totalVolume)}`);
-    }
-
-    return {
-      title: contextLine || "Workout",
-      summaryLine: [headlineLine, supportBits.join(" • ")].filter(Boolean).join(" • ")
-    };
-  }catch(_){
-    return null;
-  }
-})();
-
-const title = (ev.type === "exercise_logged")
-  ? `${who} logged ${p.exerciseName || "an exercise"}`
-  : (ev.type === "workout_completed")
-    ? ((workoutPreview && workoutPreview.title) || `${who} completed a workout`)
-    : `${who} posted an event`;
-
-const summaryLine = (ev.type === "workout_completed")
-  ? ((workoutPreview && workoutPreview.summaryLine) || buildFeedSummary(ev))
-  : buildFeedSummary(ev);
-
-const badges = buildFeedBadges(ev);
+        const summaryLine = buildFeedSummary(ev);
+        const badges = buildFeedBadges(ev);
         
         function openExerciseHistoryFromFeed(type, exerciseId, exName, onBack){
   try{
@@ -9600,173 +9499,25 @@ const feedLinkRow = el("div", {
   style:"width:100%;",
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
-  el("div", { class:"l", style:"min-width:0; width:100%;" }, [
-    (() => {
-      const isWorkoutCard = (ev.type === "workout_completed");
-      const p = ev.payload || {};
-      const d = p.details || {};
-      const h = p.highlights || {};
-      const items = (d && Array.isArray(d.items)) ? d.items : [];
+  el("div", { class:"l", style:"min-width:0;" }, [
+    el("div", { style:"min-width:0; flex:1;" }, [
+      el("div", {
+        style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [who]),
+      whoHandle ? el("div", {
+        class:"note",
+        style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [whoHandle]) : null,
+      el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
+    ].filter(Boolean)),
 
-      const routineName = String(d.routineName || d.routine || "").trim();
-      const dayLabel = String(d.dayLabel || "").trim();
-
-      const pickPRHighlight = () => {
-        try{
-          return items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length) || null;
-        }catch(_){
-          return null;
-        }
-      };
-
-      const pickTopLift = () => {
-        try{
-          return items
-            .filter(it => String(it?.type || "").toLowerCase() === "weightlifting")
-            .map(it => ({
-              item: it,
-              weight: Number(it.bestWeight ?? it.weight ?? it.topWeight ?? 0)
-            }))
-            .filter(x => Number.isFinite(x.weight) && x.weight > 0)
-            .sort((a, b) => b.weight - a.weight)[0]?.item || null;
-        }catch(_){
-          return null;
-        }
-      };
-
-      const pickTopCardio = () => {
-        try{
-          return items.find(it => String(it?.type || "").toLowerCase() === "cardio") || null;
-        }catch(_){
-          return null;
-        }
-      };
-
-      const prItem = pickPRHighlight();
-      const topLift = pickTopLift();
-      const topCardio = pickTopCardio();
-      const mainHighlight = prItem || topLift || topCardio || null;
-
-      function formatLiftLine(it){
-        try{
-          if(!it) return "";
-          const exName = String(it.exerciseName || it.name || it.label || "Top Lift").trim();
-          const weight = Number(it.bestWeight ?? it.weight ?? it.topWeight ?? 0);
-          const deltaText = String(it.deltaText || "").trim();
-          const bits = [`${exName} - ${weight > 0 ? `${fmtShareWeight(weight)} LB` : ""}`.trim()];
-          if(deltaText) bits.push(deltaText);
-          else if(Array.isArray(it.prBadges) && it.prBadges.length) bits.push("PR");
-          return bits.filter(Boolean).join(" ");
-        }catch(_){
-          return "";
-        }
-      }
-
-      function formatCardioLine(it){
-        try{
-          if(!it) return "";
-          const exName = String(it.exerciseName || it.name || it.label || "Top Cardio").trim();
-          const distance = Number(it.distance ?? it.summary?.distance ?? 0);
-          const pace = Number(it.paceSecPerUnit ?? it.summary?.paceSecPerUnit ?? 0);
-          const timeSec = Number(it.timeSec ?? it.summary?.timeSec ?? 0);
-
-          const bits = [exName];
-          if(distance > 0) bits.push(`${fmtShareDistance(distance)} MI`);
-          if(pace > 0) bits.push(fmtSharePace(pace));
-          else if(timeSec > 0) bits.push(formatTime(timeSec));
-
-          return bits.filter(Boolean).join(" - ");
-        }catch(_){
-          return "";
-        }
-      }
-
-      const identityLine = [who, whoHandle].filter(Boolean).join(" ");
-      const contextLine = [routineName, dayLabel].filter(Boolean).join(" | ");
-
-      const mainHighlightLine = (() => {
-        if(!mainHighlight) return summaryLine || "";
-        const kind = String(mainHighlight.type || "").toLowerCase();
-        return (kind === "cardio")
-          ? formatCardioLine(mainHighlight)
-          : formatLiftLine(mainHighlight);
-      })();
-
-      const cardioLine = (() => {
-        if(!topCardio) return "";
-        if(mainHighlight === topCardio) return "";
-        return formatCardioLine(topCardio);
-      })();
-
-      const exerciseCount = Number(h.exerciseCount || items.length || 0);
-      const totalVolume = Number(h.totalVolume || 0);
-      const prCount = Number(h.prCount || 0);
-
-      const footerBits = [];
-      if(Number.isFinite(exerciseCount) && exerciseCount > 0){
-        footerBits.push(`${exerciseCount} ${exerciseCount === 1 ? "Exercise" : "Exercises"}`);
-      }
-      if(Number.isFinite(totalVolume) && totalVolume > 0){
-        footerBits.push(`${comma(totalVolume)} Volume`);
-      }
-      if(Number.isFinite(prCount) && prCount > 0){
-        footerBits.push(`🏅 PR x${prCount}`);
-      }
-
-      if(!isWorkoutCard){
-        return el("div", { style:"min-width:0; flex:1;" }, [
-          el("div", {
-            style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-          }, [who]),
-          whoHandle ? el("div", {
-            class:"note",
-            style:"margin:2px 0 0 0; font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-          }, [whoHandle]) : null,
-          el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine]),
-          el("div", { class:"a", style:"margin-top:8px;", text: title }),
-          summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
-          (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
-            badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
-          ) : null)
-        ].filter(Boolean));
-      }
-
-      return el("div", { style:"min-width:0; flex:1; display:flex; flex-direction:column; gap:6px;" }, [
-        el("div", {
-          style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-        }, [identityLine]),
-
-        el("div", {
-          class:"note",
-          style:"font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-        }, [whenLine]),
-
-        contextLine ? el("div", {
-          class:"a",
-          style:"margin-top:2px; font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-          text: contextLine
-        }) : null,
-
-        mainHighlightLine ? el("div", {
-          style:"font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-          text: mainHighlightLine
-        }) : null,
-
-        cardioLine ? el("div", {
-          class:"note",
-          style:"opacity:.92; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-          text: cardioLine
-        }) : null,
-
-        footerBits.length ? el("div", {
-          class:"note",
-          style:"margin-top:2px; font-size:12px; opacity:.9; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;",
-          text: footerBits.join("   ")
-        }) : null
-      ].filter(Boolean));
-    })()
-  ]),
-  el("div", { class:"r", style:"opacity:.55; padding-left:8px;" }, ["→"])
+    el("div", { class:"a", style:"margin-top:8px;", text: title }),
+    summaryLine ? el("div", { class:"note", style:"margin-top:6px; opacity:.92;", text: summaryLine }) : null,
+    (badges.length ? el("div", { class:"pillrow", style:"margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;" },
+      badges.map(t => el("div", { class:"pill", style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12);", text:t }))
+    ) : null)
+  ].filter(Boolean)),
+  el("div", { class:"r", style:"opacity:.85;" }, ["→"])
 ]);
 
 const row = el("div", {
