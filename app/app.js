@@ -8430,27 +8430,54 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
       }
 
       function buildFeedBadges(ev){
-        try{
-          const p = ev.payload || {};
-          const badges = [];
+  try{
+    const p = ev.payload || {};
+    const badges = [];
 
-          // Always show a PR badge if PRs exist
-          const prCount = Number(p.prCount || p.highlights?.prCount || 0);
-          if(Number.isFinite(prCount) && prCount > 0) badges.push(`🏅 PR x${prCount}`);
+    if(ev.type === "workout_completed"){
+      const d = p.details || {};
+      const items = Array.isArray(d.items) ? d.items : [];
 
-          // Future-proof: if you later add payload.badges (array of strings), it will render automatically
-          if(Array.isArray(p.badges)){
-            p.badges.forEach(b => {
-              const t = String(b || "").trim();
-              if(t) badges.push(t);
-            });
-          }
+      const exercisePrBadges = Array.from(new Set(
+        items
+          .filter(it => {
+            const prBadges = Array.isArray(it?.prBadges) ? it.prBadges : [];
+            return prBadges.length > 0;
+          })
+          .map(it => {
+            const name = String(it?.name || it?.exerciseName || "").trim();
+            return name ? `${name} PR` : "";
+          })
+          .filter(Boolean)
+      ));
 
-          return badges.slice(0, 6); // keep UI tight
-        }catch(_){
-          return [];
+      if(exercisePrBadges.length){
+        badges.push(...exercisePrBadges);
+      }else{
+        const prCount = Number(p.prCount || p.highlights?.prCount || 0);
+        if(Number.isFinite(prCount) && prCount > 0){
+          badges.push(`🏅 ${prCount} PR${prCount === 1 ? "" : "s"}`);
         }
       }
+    }else{
+      const prCount = Number(p.prCount || p.highlights?.prCount || 0);
+      if(Number.isFinite(prCount) && prCount > 0){
+        badges.push(`🏅 ${prCount} PR${prCount === 1 ? "" : "s"}`);
+      }
+    }
+
+    if(Array.isArray(p.badges)){
+      p.badges.forEach(b => {
+        const t = String(b || "").trim();
+        if(t) badges.push(t);
+      });
+    }
+
+    return Array.from(new Set(badges)).slice(0, 6);
+  }catch(_){
+    return [];
+  }
+}
 
 
 function buildWorkoutCardTitle(ev){
