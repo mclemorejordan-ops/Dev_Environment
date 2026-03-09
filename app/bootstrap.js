@@ -49,11 +49,12 @@ export function initBootstrap({
     
     // ✅ Friends/Social: rehydrate OAuth session after redirect without requiring user to click "Save"
     // Keep this AFTER first render to avoid any perceived blank/slow boot.
-    try{
+        try{
       if(Social && typeof Social.isConfigured === "function" && Social.isConfigured()){
         await Social.refreshUser?.();
         if(Social.getUser?.()){
           try{ Social.startFeed?.(); }catch(_){ }
+          try{ await processPendingWorkoutShare?.(); }catch(_){ }
         }
       }
     }catch(_){ }
