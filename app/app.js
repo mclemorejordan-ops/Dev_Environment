@@ -8705,7 +8705,7 @@ function buildWorkoutHighlightPills(ev){
         }
       }
 
-            function pickWeightliftingPRs(items){
+                        function pickWeightliftingPRs(items){
         try{
           return (items || [])
             .filter(it => String(it?.type || "") === "weightlifting")
@@ -8727,10 +8727,17 @@ function buildWorkoutHighlightPills(ev){
               return {
                 name: String(it?.name || "TOP LIFT").trim().toUpperCase(),
                 weight: topWeight,
-                deltaText
+                deltaText,
+                sourceItem: it
               };
             })
-            .filter(pr => pr.name || pr.weight || pr.deltaText);
+            .filter(pr => pr.name || pr.weight || pr.deltaText)
+            .sort((a, b) => {
+              const aw = Number(a?.weight || 0);
+              const bw = Number(b?.weight || 0);
+              if(bw !== aw) return bw - aw;
+              return String(a?.name || "").localeCompare(String(b?.name || ""));
+            });
         }catch(_){
           return [];
         }
@@ -8758,7 +8765,7 @@ function buildWorkoutHighlightPills(ev){
         return prs.length ? prs[0] : null;
       }
 
-      function pickTop3Lifts(items){
+            function pickTop3Lifts(items){
         try{
           const wl = (items || [])
             .filter(it => String(it?.type || "") === "weightlifting")
@@ -8767,7 +8774,8 @@ function buildWorkoutHighlightPills(ev){
               const m = topText.match(/(\d+(\.\d+)?)/);
               return {
                 name: String(it?.name || "LIFT").trim().toUpperCase(),
-                weight: m ? Number(m[1]) : 0
+                weight: m ? Number(m[1]) : 0,
+                sourceItem: it
               };
             })
             .filter(it => it.weight > 0)
@@ -8780,7 +8788,7 @@ function buildWorkoutHighlightPills(ev){
         }
       }
 
-      function pickCardioMetrics(items){
+            function pickCardioMetrics(items){
         try{
           const cardio = (items || []).find(it => String(it?.type || "") === "cardio");
           const s = cardio?.summary || cardio || {};
@@ -8795,6 +8803,47 @@ function buildWorkoutHighlightPills(ev){
           };
         }catch(_){
           return { pace:null, distance:null, timeSec:null };
+        }
+      }
+
+      function pickPrimaryWorkoutHighlightItem(items, kindOverride=null){
+        try{
+          const list = Array.isArray(items) ? items : [];
+          if(!list.length) return null;
+
+          const hasW = list.some(it => String(it?.type || "") === "weightlifting");
+          const hasC = list.some(it => String(it?.type || "") === "cardio");
+          const kind = String(
+            kindOverride ||
+            (hasW && hasC ? "mixed" : (hasC ? "cardio" : "weightlifting"))
+          );
+
+          if(kind === "cardio"){
+            return list.find(it => String(it?.type || "") === "cardio") || list[0] || null;
+          }
+
+          if(kind === "mixed"){
+            const pr = pickWeightliftingPR(list);
+            if(pr?.sourceItem) return pr.sourceItem;
+
+            const cardio = list.find(it => String(it?.type || "") === "cardio");
+            if(cardio) return cardio;
+
+            const topLift = pickTop3Lifts(list)[0];
+            if(topLift?.sourceItem) return topLift.sourceItem;
+
+            return list[0] || null;
+          }
+
+          const pr = pickWeightliftingPR(list);
+          if(pr?.sourceItem) return pr.sourceItem;
+
+          const topLift = pickTop3Lifts(list)[0];
+          if(topLift?.sourceItem) return topLift.sourceItem;
+
+          return list[0] || null;
+        }catch(_){
+          return Array.isArray(items) ? (items[0] || null) : null;
         }
       }
 
@@ -9480,20 +9529,16 @@ if(prs.length){
     const dayLabel = (d && d.dayLabel) ? String(d.dayLabel) : (title || (isWorkout ? "Workout" : "Event"));
     const dateISO = (d && d.dateISO) ? String(d.dateISO) : (p.dateISO ? String(p.dateISO) : "");
 
-    const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
+        const items = (isWorkout && d && Array.isArray(d.items)) ? d.items : [];
+    const shareKind = isWorkout ? classifyShareCard(ev) : "weightlifting";
 
     // KPIs (best-effort; older events may not include highlights)
     const exCount = Number.isFinite(Number(h.exerciseCount)) ? Number(h.exerciseCount) : (items.length || 0);
     const prCount = Number.isFinite(Number(h.prCount)) ? Number(h.prCount) : 0;
     const vol = Number.isFinite(Number(h.totalVolume)) ? Number(h.totalVolume) : null;
 
-    // Choose a highlight exercise (prefer any with PR badges)
-    const highlight = (() => {
-      try{
-        const withPR = items.find(it => Array.isArray(it?.prBadges) && it.prBadges.length);
-        return withPR || items[0] || null;
-      }catch(_){ return null; }
-    })();
+    // Use the same priority stack as the share card so both surfaces match
+    const highlight = isWorkout ? pickPrimaryWorkoutHighlightItem(items, shareKind) : null;
 
     // Lifetime display (best-effort) — shared formatter
     function lifetimeLine(it){
