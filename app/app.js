@@ -2698,16 +2698,17 @@ const openProteinModal = (dateISO = todayISO) => {
   navigate("routine");
 },
         style:[
-          "width:100%",
-          "display:flex",
-          "align-items:center",
-          "justify-content:space-between",
-          "gap:12px",
-          "text-align:left",
-          "background:rgba(255,255,255,.03)",
-          "border:1px solid rgba(255,255,255,.08)",
-          "cursor:pointer"
-        ].join(";")
+        "width:100%",
+        "display:flex",
+        "align-items:center",
+        "justify-content:space-between",
+        "gap:12px",
+        "text-align:left",
+        "background:rgba(255,255,255,.03)",
+        "border:1px solid rgba(255,255,255,.08)",
+        "cursor:pointer",
+        "color:#fff"
+      ].join(";")
       }, [
         el("div", { class:"left" }, [
           el("div", { class:"name", text: exName }),
