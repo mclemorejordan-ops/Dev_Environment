@@ -10060,12 +10060,7 @@ const feedLinkRow = el("div", {
     el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
   ].filter(Boolean)),
 
-  (ev.type === "workout_completed" && summaryLine)
-    ? el("div", {
-        class:"note",
-        style:"margin:0; text-align:right; flex:0 0 auto; font-size:12px; opacity:.86; line-height:1.2; align-self:flex-start;"
-      }, [summaryLine])
-    : null
+  null
 ].filter(Boolean)),
 
     el("div", { class:"a", style:"margin-top:8px;", text: title }),
