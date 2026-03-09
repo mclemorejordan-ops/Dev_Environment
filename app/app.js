@@ -10101,12 +10101,19 @@ const feedLinkRow = el("div", {
 
 (ev.type === "workout_completed" && highlightPills.length
   ? el("div", {
-      style:"margin-top:8px; display:flex; flex-direction:column; gap:8px; align-items:flex-start;"
-    }, highlightPills.map(t => el("div", {
-      class:"pill",
-      style:"padding:4px 8px; font-size:12px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); display:inline-flex; max-width:100%;",
-      text:t
-    })))
+      style:"margin-top:10px; padding:12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; gap:10px;"
+    }, [
+
+      el("div", {
+        class:"note",
+        style:"font-size:12px; font-weight:800; letter-spacing:.25px; opacity:.85;"
+      }, ["Workout Highlight"]),
+
+      ...highlightPills.map(t => el("div", {
+        style:"font-size:14px; font-weight:700; line-height:1.3;"
+      }, [t]))
+
+    ])
   : null),
 
 (ev.type !== "workout_completed" && summaryLine)
