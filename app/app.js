@@ -9862,22 +9862,20 @@ const feedLinkRow = el("div", {
   el("div", { class:"l", style:"min-width:0;" }, [
     el("div", { style:"min-width:0; flex:1;" }, [
   el("div", {
-    style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
-  }, [
-    el("div", {
-      style:"font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
-    }, [who]),
+  style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
+}, [
+  el("div", {
+    style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+  }, [who]),
 
-    whoHandle ? el("div", {
-      class:"note",
-      style:"opacity:.65; flex:0 0 auto;"
-    }, ["|"]) : null,
+  whoHandle ? el("div", {
+    style:"opacity:.65; flex:0 0 auto;"
+  }, ["|"]) : null,
 
-    whoHandle ? el("div", {
-      class:"note",
-      style:"font-size:12px; opacity:.82; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
-    }, [whoHandle]) : null
-  ].filter(Boolean)),
+  whoHandle ? el("div", {
+    style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+  }, [whoHandle]) : null
+].filter(Boolean)),
 
   el("div", { class:"note", style:"margin:4px 0 0 0;" }, [whenLine])
 ].filter(Boolean)),
