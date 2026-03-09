@@ -2693,7 +2693,9 @@ const openProteinModal = (dateISO = todayISO) => {
         onClick: () => {
   if(typeof openExerciseLoggerRef === "function"){
     openExerciseLoggerRef(rx, day, todayISO);
+    return;
   }
+  navigate("routine");
 },
         style:[
         "width:100%",
@@ -3992,8 +3994,10 @@ shell.appendChild(
   PopoverOpen(anchorBtn, shell);
 }
   
- // Phase 3: Per-exercise Workout Execution (logger)
+  
+  // Phase 3: Per-exercise Workout Execution (logger)
 function openExerciseLogger(rx, day, defaultDateISO){
+    openExerciseLoggerRef = openExerciseLogger;
   ExerciseLibrary.ensureSeeded();
   LogEngine.ensure();
 
