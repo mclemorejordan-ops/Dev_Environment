@@ -84,6 +84,55 @@ let state = Storage.load();
  ********************/
 const SOCIAL_CFG_KEY = "pc.social.supabase.v1";
 const SOCIAL_OUTBOX_KEY = "pc.social.outbox.v1";
+const SOCIAL_PENDING_WORKOUT_SHARE_KEY = "pc.social.pendingWorkoutShare.v1";
+
+function readPendingWorkoutShare(){
+  try{
+    const raw = localStorage.getItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY);
+    if(!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if(!parsed || typeof parsed !== "object") return null;
+
+    const dateISO = String(parsed.dateISO || "").trim();
+    const routineId = String(parsed.routineId || "").trim();
+    const dayId = String(parsed.dayId || "").trim();
+
+    if(!dateISO || !routineId || !dayId) return null;
+
+    return { dateISO, routineId, dayId };
+  }catch(_){
+    return null;
+  }
+}
+
+function writePendingWorkoutShare(payload){
+  try{
+    if(!payload){
+      localStorage.removeItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY);
+      return;
+    }
+
+    const dateISO = String(payload.dateISO || "").trim();
+    const routineId = String(payload.routineId || "").trim();
+    const dayId = String(payload.dayId || "").trim();
+
+    if(!dateISO || !routineId || !dayId){
+      localStorage.removeItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY);
+      return;
+    }
+
+    localStorage.setItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY, JSON.stringify({
+      dateISO,
+      routineId,
+      dayId
+    }));
+  }catch(_){}
+}
+
+function clearPendingWorkoutShare(){
+  try{ localStorage.removeItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY); }catch(_){}
+}
 
 // ─────────────────────────────
 // Friends (Option B): baked-in Supabase config
@@ -1833,6 +1882,115 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
 
 const Social = initSocial();
 Social.bindStateGetter(() => state);
+
+let __pendingWorkoutShareBusy = false;
+
+function openShareLastWorkoutPrompt({ dateISO, routineId, day } = {}){
+  const safeDateISO = String(dateISO || "").trim();
+  const safeRoutineId = String(routineId || "").trim();
+  const safeDayId = String(day?.id || "").trim();
+
+  if(!safeDateISO || !safeRoutineId || !safeDayId) return;
+
+  const dayLabel = String(day?.label || "Workout").trim() || "Workout";
+
+  Modal.open({
+    title: "Share your last workout?",
+    bodyNode: el("div", { class:"grid" }, [
+      el("div", {
+        class:"note",
+        text: `${dayLabel} was completed on ${safeDateISO}.`
+      }),
+      el("div", {
+        class:"note",
+        text: "Share will open Google sign-in, then post this completed workout to Friends."
+      }),
+      el("div", { style:"height:10px" }),
+      el("div", { class:"btnrow" }, [
+        el("button", {
+          class:"btn primary",
+          onClick: async () => {
+            try{
+              writePendingWorkoutShare({
+                dateISO: safeDateISO,
+                routineId: safeRoutineId,
+                dayId: safeDayId
+              });
+
+              Modal.close();
+              await Social.signInWithOAuth("google");
+            }catch(e){
+              showToast(e?.message || "Google sign-in failed");
+            }
+          }
+        }, ["Share"]),
+        el("button", {
+          class:"btn",
+          onClick: () => {
+            clearPendingWorkoutShare();
+            Modal.close();
+          }
+        }, ["Skip"])
+      ])
+    ])
+  });
+}
+
+async function processPendingWorkoutShare(){
+  if(__pendingWorkoutShareBusy) return false;
+
+  const pending = readPendingWorkoutShare();
+  if(!pending) return false;
+
+  const socialUser = (Social && typeof Social.getUser === "function")
+    ? Social.getUser()
+    : null;
+
+  if(!socialUser) return false;
+
+  __pendingWorkoutShareBusy = true;
+
+  try{
+    const routine = (state?.routines || []).find(r =>
+      String(r?.id || "") === String(pending.routineId || "")
+    ) || null;
+
+    const day = (routine?.days || []).find(d =>
+      String(d?.id || "") === String(pending.dayId || "")
+    ) || null;
+
+    if(!routine || !day){
+      clearPendingWorkoutShare();
+      return false;
+    }
+
+    await syncWorkoutCompletedEventForDay(pending.dateISO, routine.id, day);
+    clearPendingWorkoutShare();
+    showToast("Workout shared");
+    return true;
+  }catch(_){
+    return false;
+  }finally{
+    __pendingWorkoutShareBusy = false;
+  }
+}
+
+if(Social && typeof Social.onChange === "function"){
+  Social.onChange(() => {
+    try{
+      const pending = readPendingWorkoutShare();
+      if(!pending) return;
+
+      const socialUser = (Social && typeof Social.getUser === "function")
+        ? Social.getUser()
+        : null;
+
+      if(!socialUser) return;
+
+      processPendingWorkoutShare();
+    }catch(_){}
+  });
+}
 
 
 // 1) Init Backup FIRST so we have the functions
@@ -4073,27 +4231,47 @@ if(type === "weightlifting"){
     err.textContent = "";
   }
 
-    async function afterSave(savedDateISO, wasComplete=false){
-    Modal.close();
+   async function afterSave(savedDateISO, wasComplete=false){
+  Modal.close();
 
-    const currentRoute = (typeof getCurrentRoute === "function")
-      ? getCurrentRoute()
-      : "";
+  const currentRoute = (typeof getCurrentRoute === "function")
+    ? getCurrentRoute()
+    : "";
 
-    if(currentRoute === "home"){
-      renderView();
-    }else{
-      repaint();
-    }
+  if(currentRoute === "home"){
+    renderView();
+  }else{
+    repaint();
+  }
 
-    const nowComplete = isDayComplete(savedDateISO, day);
+  const nowComplete = isDayComplete(savedDateISO, day);
 
-    if(nowComplete){
-      attendanceAdd(savedDateISO);
-      if(!wasComplete) showToast("Day completed ✅");
+  if(nowComplete){
+    attendanceAdd(savedDateISO);
+    if(!wasComplete) showToast("Day completed ✅");
+
+    const socialConfigured = !!(
+      Social &&
+      typeof Social.isConfigured === "function" &&
+      Social.isConfigured()
+    );
+
+    const socialUser = (
+      Social &&
+      typeof Social.getUser === "function"
+    ) ? Social.getUser() : null;
+
+    if(socialUser){
       await syncWorkoutCompletedEventForDay(savedDateISO, routine?.id || null, day);
+    }else if(!wasComplete && socialConfigured){
+      openShareLastWorkoutPrompt({
+        dateISO: savedDateISO,
+        routineId: routine?.id || null,
+        day
+      });
     }
-  }  
+  }
+} 
 
 function buildWorkoutEventData(dateISO, routineId, day){
   const entries = (state?.logs?.workouts || []).filter(e =>
