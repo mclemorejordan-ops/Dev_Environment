@@ -11307,6 +11307,103 @@ Views.RoutineEditor = function(){
     return root;
   }
 
+    async function openShareRoutineModal(){
+    const routine = Routines.getActive();
+    if(!routine){
+      showToast("No active routine to share");
+      return;
+    }
+
+    const isConfigured = !!(Social && typeof Social.isConfigured === "function" && Social.isConfigured());
+    const signedIn = !!(Social && typeof Social.getUser === "function" && Social.getUser());
+
+    if(!isConfigured || !signedIn){
+      Modal.open({
+        title:"Share routine",
+        bodyNode: el("div", {}, [
+          el("div", {
+            class:"note",
+            text:"To share routines with other users, connect and sign in to Friends first."
+          }),
+          el("div", { style:"height:12px" }),
+          el("div", { class:"btnrow" }, [
+            el("button", {
+              class:"btn primary",
+              onClick: () => {
+                Modal.close();
+                navigate("settings");
+              }
+            }, ["Open Settings"]),
+            el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+          ])
+        ])
+      });
+      return;
+    }
+
+    const handle = usernameToHandle(state?.profile?.username || "");
+    const displayName = String(state?.profile?.name || "A friend").trim() || "A friend";
+    const exerciseCount = (routine?.days || []).reduce((sum, day) => {
+      return sum + ((day?.exercises || []).length || 0);
+    }, 0);
+    const dayCount = Array.isArray(routine?.days) ? routine.days.length : 0;
+
+    const shareText = [
+      `${handle || displayName} shared a workout routine: ${routine?.name || "Routine"}`,
+      `${exerciseCount} exercises • ${dayCount} days`,
+      "Open Friends → their profile → Workout Routine to view or save it."
+    ].filter(Boolean).join("\n");
+
+    const copyShareText = async () => {
+      try{
+        if(navigator?.clipboard?.writeText){
+          await navigator.clipboard.writeText(shareText);
+          showToast("Share text copied");
+        }else{
+          throw new Error("Clipboard unavailable");
+        }
+      }catch(_){
+        Modal.open({
+          title:"Copy share text",
+          bodyNode: el("div", {}, [
+            el("div", { class:"note", text:"Copy the text below manually." }),
+            el("div", { style:"height:10px" }),
+            el("textarea", {
+              readonly:"readonly",
+              style:"width:100%; min-height:120px;",
+            }, [shareText]),
+            el("div", { style:"height:12px" }),
+            el("div", { class:"btnrow" }, [
+              el("button", { class:"btn", onClick: Modal.close }, ["Close"])
+            ])
+          ])
+        });
+      }
+    };
+
+    try{
+      await Social.publishProfileRoutine?.(routine);
+    }catch(e){
+      showToast(e?.message || "Couldn't publish routine");
+      return;
+    }
+
+    if(typeof navigator?.share === "function"){
+      try{
+        await navigator.share({
+          title: `${routine?.name || "Routine"} Routine`,
+          text: shareText
+        });
+        showToast("Routine shared");
+        return;
+      }catch(e){
+        if(String(e?.name || "") === "AbortError") return;
+      }
+    }
+
+    await copyShareText();
+  }
+
   const header = el("div", { class:"card" }, [
     el("h2", { text:"Routine Editor" }),
     el("div", { class:"note", text:`Editing: ${active.name}` }),
@@ -11316,6 +11413,10 @@ Views.RoutineEditor = function(){
         class:"btn",
         onClick: () => navigate("routine")
       }, ["Back to Routine"]),
+      el("button", {
+        class:"btn primary",
+        onClick: () => { openShareRoutineModal(); }
+      }, ["Share"]),
       el("button", {
         class:"btn",
         onClick: (e) => renameRoutine(e.currentTarget, active.id)
@@ -11330,6 +11431,7 @@ Views.RoutineEditor = function(){
       }, ["Delete"])
     ])
   ]);
+  
   // ────────────────────────────
   // Templates (same 5 as Onboarding)
   // ────────────────────────────
