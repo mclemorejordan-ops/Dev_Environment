@@ -10104,6 +10104,11 @@ const feedLinkRow = el("div", {
       style:"margin-top:10px; padding:12px; border-radius:14px; background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.08); border-left:4px solid #3ddc84; display:flex; flex-direction:column; gap:10px; width:100%; box-sizing:border-box; align-self:stretch;"
     }, [
 
+    el("div", {
+  class:"note",
+  style:"font-size:12px; font-weight:800; letter-spacing:.25px; opacity:.85;"
+}, ["Workout Highlight"]),
+
       ...highlightPills.map(t => el("div", {
         style:"font-size:14px; font-weight:700; line-height:1.3;"
       }, [t]))
