@@ -8446,7 +8446,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
           })
           .map(it => {
             const name = String(it?.name || it?.exerciseName || "").trim();
-            return name ? `${name} PR` : "";
+            return name ? `🏅 ${name} PR` : "";
           })
           .filter(Boolean)
       ));
