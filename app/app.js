@@ -8022,7 +8022,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
       // "Incline walk • 30:00 • 2.1 units • Pace 14:17 / unit"
 
 
-      function buildFeedSummary(ev){
+function buildFeedSummary(ev){
   try{
     const p = ev.payload || {};
     const bits = [];
@@ -8094,9 +8094,9 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
     return "";
   }
 }
-
       
-      function buildFeedBadges(ev){
+      
+function buildFeedBadges(ev){
   try{
     const p = ev.payload || {};
     const badges = [];
@@ -8160,7 +8160,7 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
     return [];
   }
 }
-
+      
 
       function fmtShareInt(n){
         const x = Number(n);
