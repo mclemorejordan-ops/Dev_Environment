@@ -13193,6 +13193,8 @@ const Bootstrap = initBootstrap({
   checkForUpdates,
   registerServiceWorker,
 
+  processPendingWorkoutShare,
+
   fatal: __fatal
 });
 
