@@ -8533,7 +8533,7 @@ function buildWorkoutHighlightPills(ev){
       }
     }
 
-    function buildLine(it){
+   function buildLine(it){
   try{
     const name = String(
       it?.name ||
@@ -8544,8 +8544,12 @@ function buildWorkoutHighlightPills(ev){
 
     const type = String(it?.type || "");
     const s = it?.summary || {};
+    const topText = String(it?.topText || "").trim();
 
     if(type === "weightlifting"){
+      // workout_completed items currently persist topText, not summary.bestWeight
+      if(topText) return [name, topText].filter(Boolean).join(" - ");
+
       const weight = fmtWeight(
         s?.bestWeight ??
         it?.bestWeight ??
@@ -8557,6 +8561,17 @@ function buildWorkoutHighlightPills(ev){
     }
 
     if(type === "cardio"){
+      // prefer the already-built event text first
+      if(topText){
+        const cleaned = topText
+          .replace(/^Dist\s+/i, "")
+          .replace(/\s*•\s*Time\s+/i, " - ")
+          .replace(/\s*•\s*Pace\s+/i, " - ")
+          .trim();
+
+        return [name, cleaned].filter(Boolean).join(" - ");
+      }
+
       const dist = fmtDistance(
         s?.distance ??
         it?.distance
@@ -8575,6 +8590,8 @@ function buildWorkoutHighlightPills(ev){
       return [name, dist, time, pace].filter(Boolean).join(" - ");
     }
 
+    // core / other groups
+    if(topText) return [name, topText].filter(Boolean).join(" - ");
     return name;
   }catch(_){
     return "";
