@@ -10037,7 +10037,7 @@ const feedLinkRow = el("div", {
   onClick: () => openFeedEventModal(ev, title, who, when)
 }, [
   el("div", { class:"l", style:"min-width:0;" }, [
-    el("div", {
+   el("div", {
   style:"min-width:0; flex:1; display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
 }, [
   el("div", { style:"min-width:0; flex:1;" }, [
@@ -10063,7 +10063,7 @@ const feedLinkRow = el("div", {
   (ev.type === "workout_completed" && summaryLine)
     ? el("div", {
         class:"note",
-        style:"margin:0; text-align:right; white-space:nowrap; flex:0 0 auto; font-size:12px; opacity:.86; align-self:flex-start;"
+        style:"margin:0; text-align:right; flex:0 0 auto; font-size:12px; opacity:.86; line-height:1.2; align-self:flex-start;"
       }, [summaryLine])
     : null
 ].filter(Boolean)),
