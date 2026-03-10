@@ -4146,6 +4146,7 @@ function openExerciseLogger(rx, day, defaultDateISO){
   const exName = resolveExerciseName(type, exerciseId, rx.nameSnap);
 
   const initialDateISO = String(defaultDateISO || Dates.todayISO());
+  const routineId = String(existingEntry?.routineId || state.activeRoutineId || "");
 
   // Manual override date (defaults to the day you're viewing in the carousel)
   const dateInput = el("input", { type:"date", value: initialDateISO });
@@ -4213,7 +4214,7 @@ if(type === "weightlifting"){
     err.textContent = "";
   }
 
-    async function afterSave(savedDateISO, wasComplete=false){
+       async function afterSave(savedDateISO, wasComplete=false){
     Modal.close();
 
     const currentRoute = (typeof getCurrentRoute === "function")
@@ -4230,8 +4231,18 @@ if(type === "weightlifting"){
 
     if(nowComplete){
       attendanceAdd(savedDateISO);
-      if(!wasComplete) showToast("Day completed ✅");
-      await syncWorkoutCompletedEventForDay(savedDateISO, routine?.id || null, day);
+
+      if(!wasComplete){
+        showToast("Day completed ✅");
+      }
+
+      await syncWorkoutCompletedEventForDay(savedDateISO, routineId || null, day);
+
+      // If the workout just became complete and the user is not signed in,
+      // offer a quick route to Friends so they can sign in and share.
+      if(!wasComplete){
+        await maybePromptWorkoutFeedShare(savedDateISO, routineId || null, day);
+      }
     }
   }  
 
@@ -4530,6 +4541,58 @@ function buildWorkoutEventData(dateISO, routineId, day){
   };
 }
 
+async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
+  try{
+    if(!Social) return;
+    if(!Social.isConfigured?.()) return;
+    if(Social.getUser?.()) return;
+    if(!isDayComplete(dateISO, day)) return;
+
+    // Keep the prompt honest: workout-complete feed posts are same-day only.
+    if(String(dateISO || "") !== String(Dates.todayISO())) return;
+
+    const routineName = (() => {
+      try{
+        return ((state.routines || []).find(r =>
+          String(r?.id || "") === String(routineId || "")
+        )?.name || "this workout");
+      }catch(_){
+        return "this workout";
+      }
+    })();
+
+    Modal.open({
+      title: "Share to Feed?",
+      size: "sm",
+      bodyNode: el("div", { class:"grid" }, [
+        el("div", {
+          style:"font-weight:900; font-size:14px;",
+          text:"Would you like to share it to the feed?"
+        }),
+        el("div", {
+          class:"note",
+          text:`You’ll go to Friends to sign in first, then you can share ${routineName}.`
+        }),
+        el("div", { style:"height:8px" }),
+        el("div", { class:"btnrow" }, [
+          el("button", {
+            class:"btn",
+            onClick: () => Modal.close()
+          }, ["No"]),
+          el("button", {
+            class:"btn primary",
+            onClick: () => {
+              Modal.close();
+              navigate("friends");
+              showToast("Continue with Google to share your workout");
+            }
+          }, ["Yes"])
+        ])
+      ])
+    });
+  }catch(_){}
+}
+  
 async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
   try{
     if(!Social) return;
@@ -4627,7 +4690,7 @@ function buildWeightliftingForm(){
     if(last?.wInput) last.wInput.focus();
   }}, ["+ Add Set"]);
 
-  const saveBtn = el("button", {
+    const saveBtn = el("button", {
     class:"btn primary",
     onClick: () => {
       clearErr();
@@ -4662,7 +4725,7 @@ function buildWeightliftingForm(){
         type,
         exerciseId,
         routineExerciseId: rx.id,
-        routineId: routine.id,
+        routineId: routineId || null,
         dayId: day.id,
         dayOrder: day.order,
         sets,
@@ -4706,12 +4769,13 @@ function buildWeightliftingForm(){
       inclInput.value = (s.incline != null && String(s.incline) !== "0") ? String(s.incline) : "";
     }
 
-    const saveBtn = el("button", {
+        const saveBtn = el("button", {
       class:"btn primary",
       onClick: () => {
         clearErr();
 
         const dateISO = String(dateInput.value || initialDateISO);
+        const wasComplete = isDayComplete(dateISO, day);
 
         const min = Math.max(0, Math.floor(Number(minInput.value) || 0));
         const sec = Math.max(0, Math.floor(Number(secInput.value) || 0));
@@ -4743,7 +4807,7 @@ function buildWeightliftingForm(){
           type,
           exerciseId,
           routineExerciseId: rx.id,
-          routineId: routine.id,
+          routineId: routineId || null,
           dayId: day.id,
           dayOrder: day.order,
           sets,
@@ -4751,7 +4815,7 @@ function buildWeightliftingForm(){
           pr
         });
 
-        afterSave(dateISO);
+        afterSave(dateISO, wasComplete);
       }
     }, ["Save"]);
 
@@ -4791,12 +4855,13 @@ return el("div", { class:"card" }, [
       weightInput.value = (s.weight != null && Number(s.weight) !== 0) ? String(s.weight) : "";
     }
 
-    const saveBtn = el("button", {
+        const saveBtn = el("button", {
       class:"btn primary",
       onClick: () => {
         clearErr();
 
         const dateISO = String(dateInput.value || initialDateISO);
+        const wasComplete = isDayComplete(dateISO, day);
 
         const setsN = Math.max(0, Math.floor(Number(setsInput.value) || 0));
         const repsN = Math.max(0, Math.floor(Number(repsInput.value) || 0));
@@ -4828,7 +4893,7 @@ return el("div", { class:"card" }, [
           type,
           exerciseId,
           routineExerciseId: rx.id,
-          routineId: routine.id,
+          routineId: routineId || null,
           dayId: day.id,
           dayOrder: day.order,
           sets,
@@ -4836,7 +4901,7 @@ return el("div", { class:"card" }, [
           pr
         });
 
-        afterSave(dateISO);
+        afterSave(dateISO, wasComplete);
       }
     }, ["Save"]);
 
