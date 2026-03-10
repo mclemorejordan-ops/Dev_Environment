@@ -6087,6 +6087,8 @@ ui.leaderboardType = ui.leaderboardType || "weightlifting";
 ui.compareType = ui.compareType || "weightlifting";
 ui.challengeType = ui.challengeType || "weightlifting";
 ui.compareTargetId = ui.compareTargetId || "";
+     ui.compareMode = ui.compareMode || "overall";
+ui.compareExerciseName = ui.compareExerciseName || "";
   ui.profileSharedById = ui.profileSharedById || {};
   ui.profileRoutineById = ui.profileRoutineById || {};
   ui.profileLoadById = ui.profileLoadById || {};
@@ -7505,37 +7507,182 @@ root.appendChild(el("div", { class:"card" }, [
       });
     }
 
-    function openCompareModal(){
+        function openCompareModal(){
       let typeKey = ui.compareType || "weightlifting";
+      let mode = ui.compareMode || "overall";
       const options = socialAthleteOptions().filter(x => String(x.id) !== String(myId || ""));
       let targetId = String(ui.compareTargetId || options?.[0]?.id || "");
+      let selectedExerciseName = String(ui.compareExerciseName || "");
 
       const body = el("div", { class:"grid" });
 
-      function compareValue(type, stat){
-        const t = stat?.types?.[type] || {};
-        if(type === "weightlifting"){
-          return {
-            a:`${fmtInt(t.totalVolume || 0)} vol`,
-            b:`Top ${fmt1(t.topWeight || 0)} • ${t.prCount || 0} PRs`,
-            c:`${t.sessions || 0} sessions`
-          };
-        }
-        if(type === "cardio"){
-          return {
-            a:`${fmt1(t.totalDistance || 0)} distance`,
-            b:`${fmtInt(t.totalTimeSec || 0)} sec • ${t.prCount || 0} PRs`,
-            c:(t.bestPace != null) ? `Best pace ${formatPace(t.bestPace)}` : "Best pace —"
-          };
-        }
-        return {
-          a:`${fmtInt(t.totalVolume || 0)} vol`,
-          b:`${t.prCount || 0} PRs`,
-          c:`${t.sessions || 0} sessions`
-        };
+      function compareModeTabs(activeMode, onChange){
+        const modes = [
+          { key:"overall", label:"Overall" },
+          { key:"exercise", label:"Exercise" }
+        ];
+
+        return el("div", {
+          style:"display:flex; gap:8px; flex-wrap:wrap;"
+        }, modes.map(m => el("button", {
+          class:"pill",
+          type:"button",
+          style:[
+            "flex:0 0 auto",
+            "min-width:0",
+            "padding:10px 12px",
+            "border-radius:999px",
+            "border:1px solid rgba(255,255,255,.10)",
+            (activeMode === m.key) ? "background:rgba(255,255,255,.12)" : "background:rgba(255,255,255,.06)",
+            (activeMode === m.key) ? "color:rgba(255,255,255,.95)" : "color:rgba(255,255,255,.78)",
+            "font-weight:900",
+            "cursor:pointer"
+          ].join(";"),
+          onClick: () => onChange(m.key)
+        }, [m.label])));
       }
 
-      function metricRow(label, mine, theirs){
+      function normalizeExerciseName(v){
+        return String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
+      }
+
+      function buildExerciseCompareRows(type, days = 30){
+        const all = (Social.getFeed ? Social.getFeed() : []) || [];
+        const cutoff = Date.now() - (Math.max(1, Number(days) || 30) * 86400000);
+        const map = {};
+
+        function ensureRow(name){
+          const raw = String(name || "").trim().replace(/\s+/g, " ");
+          const key = normalizeExerciseName(raw);
+          if(!key) return null;
+
+          if(!map[key]){
+            map[key] = {
+              key,
+              name: raw,
+              athletes: {}
+            };
+          }else if(raw && raw.length > String(map[key].name || "").length){
+            map[key].name = raw;
+          }
+
+          return map[key];
+        }
+
+        function ensureAthlete(row, athleteId){
+          const key = String(athleteId || "").trim();
+          if(!key) return null;
+
+          if(!row.athletes[key]){
+            row.athletes[key] = {
+              sessions: 0,
+              prCount: 0,
+
+              // weightlifting
+              bestWeight: 0,
+              best1RM: 0,
+              bestVolume: 0,
+              totalVolume: 0,
+
+              // cardio
+              bestPace: null,
+              longestDistance: 0,
+              bestTimeSec: 0,
+              totalDistance: 0,
+
+              // core
+              bestCoreVolume: 0,
+              totalCoreVolume: 0
+            };
+          }
+
+          return row.athletes[key];
+        }
+
+        (all || []).forEach(ev => {
+          if(ev?.type !== "exercise_logged") return;
+
+          const ms = safeCreatedAtMs(ev);
+          if(ms < cutoff) return;
+
+          const actorId = String(ev?.actorId || "").trim();
+          if(!actorId) return;
+
+          const p = ev?.payload || {};
+          const evType = String(p?.workoutType || "").trim();
+          if(evType !== type) return;
+
+          const exerciseName = String(p?.exerciseName || "").trim();
+          const row = ensureRow(exerciseName);
+          if(!row) return;
+
+          const athlete = ensureAthlete(row, actorId);
+          if(!athlete) return;
+
+          const s = p?.summary || {};
+          athlete.sessions += 1;
+          athlete.prCount += Number(p?.prCount || 0) || 0;
+
+          if(type === "weightlifting"){
+            const bestWeight = Number(s?.bestWeight || 0) || 0;
+            const best1RM = Number(s?.best1RM || 0) || 0;
+            const totalVolume = Number(s?.totalVolume || 0) || 0;
+
+            athlete.bestWeight = Math.max(athlete.bestWeight, bestWeight);
+            athlete.best1RM = Math.max(athlete.best1RM, best1RM);
+            athlete.bestVolume = Math.max(athlete.bestVolume, totalVolume);
+            athlete.totalVolume += totalVolume;
+            return;
+          }
+
+          if(type === "cardio"){
+            const distance = Number(s?.distance || 0) || 0;
+            const timeSec = Number(s?.timeSec || 0) || 0;
+            const pace = Number(s?.paceSecPerUnit || 0) || 0;
+
+            athlete.longestDistance = Math.max(athlete.longestDistance, distance);
+            athlete.bestTimeSec = Math.max(athlete.bestTimeSec, timeSec);
+            athlete.totalDistance += distance;
+
+            if(pace > 0){
+              athlete.bestPace = (athlete.bestPace == null)
+                ? pace
+                : Math.min(athlete.bestPace, pace);
+            }
+            return;
+          }
+
+          const coreVolume = Number(s?.totalVolume || 0) || 0;
+          athlete.bestCoreVolume = Math.max(athlete.bestCoreVolume, coreVolume);
+          athlete.totalCoreVolume += coreVolume;
+        });
+
+        return Object.values(map).sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+      }
+
+      function winnerForMetric(mineRaw, theirRaw, lowerWins = false){
+        const a = Number(mineRaw);
+        const b = Number(theirRaw);
+        const hasA = Number.isFinite(a) && a > 0;
+        const hasB = Number.isFinite(b) && b > 0;
+
+        if(!hasA && !hasB) return "tie";
+        if(hasA && !hasB) return "mine";
+        if(!hasA && hasB) return "theirs";
+
+        if(a === b) return "tie";
+        if(lowerWins) return a < b ? "mine" : "theirs";
+        return a > b ? "mine" : "theirs";
+      }
+
+      function metricRow(label, mineText, theirText, winner = "tie"){
+        const mineStyle = (winner === "mine")
+          ? "font-weight:1000; text-align:right; color:rgba(46,204,113,.98);"
+          : "text-align:right;";
+        const theirStyle = (winner === "theirs")
+          ? "font-weight:1000; text-align:right; color:rgba(46,204,113,.98);"
+          : "font-weight:900; text-align:right;";
+
         return el("div", {
           style:[
             "display:grid",
@@ -7549,15 +7696,196 @@ root.appendChild(el("div", { class:"card" }, [
           ].join(";")
         }, [
           el("div", { style:"font-weight:900;", text: label }),
-          el("div", { class:"note", style:"text-align:right;", text: mine }),
-          el("div", { style:"font-weight:900; text-align:right;", text: theirs })
+          el("div", { class:"note", style: mineStyle, text: mineText }),
+          el("div", { style: theirStyle, text: theirText })
         ]);
+      }
+
+      function buildOverallMetrics(type, stat){
+        const t = stat?.types?.[type] || {};
+
+        if(type === "weightlifting"){
+          return [
+            {
+              label:"Total Shared Volume",
+              raw:Number(t.totalVolume || 0) || 0,
+              text:`${fmtInt(t.totalVolume || 0)}`
+            },
+            {
+              label:"Top Shared Weight",
+              raw:Number(t.topWeight || 0) || 0,
+              text:(Number(t.topWeight || 0) > 0) ? `${fmt1(t.topWeight || 0)}` : "—"
+            },
+            {
+              label:"Shared PRs",
+              raw:Number(t.prCount || 0) || 0,
+              text:`${t.prCount || 0}`
+            },
+            {
+              label:"Shared Sessions",
+              raw:Number(t.sessions || 0) || 0,
+              text:`${t.sessions || 0}`
+            }
+          ];
+        }
+
+        if(type === "cardio"){
+          return [
+            {
+              label:"Total Shared Distance",
+              raw:Number(t.totalDistance || 0) || 0,
+              text:`${fmt1(t.totalDistance || 0)}`
+            },
+            {
+              label:"Best Shared Pace",
+              raw:(t.bestPace == null ? 0 : Number(t.bestPace || 0)),
+              text:(t.bestPace != null) ? formatPace(t.bestPace) : "—",
+              lowerWins:true
+            },
+            {
+              label:"Total Shared Time",
+              raw:Number(t.totalTimeSec || 0) || 0,
+              text:(Number(t.totalTimeSec || 0) > 0) ? formatTime(t.totalTimeSec) : "—"
+            },
+            {
+              label:"Shared Sessions",
+              raw:Number(t.sessions || 0) || 0,
+              text:`${t.sessions || 0}`
+            }
+          ];
+        }
+
+        return [
+          {
+            label:"Total Shared Volume",
+            raw:Number(t.totalVolume || 0) || 0,
+            text:`${fmtInt(t.totalVolume || 0)}`
+          },
+          {
+            label:"Shared PRs",
+            raw:Number(t.prCount || 0) || 0,
+            text:`${t.prCount || 0}`
+          },
+          {
+            label:"Shared Sessions",
+            raw:Number(t.sessions || 0) || 0,
+            text:`${t.sessions || 0}`
+          }
+        ];
+      }
+
+      function buildExerciseMetrics(type, athleteStat){
+        const t = athleteStat || {};
+
+        if(type === "weightlifting"){
+          return [
+            {
+              label:"Best Weight",
+              raw:Number(t.bestWeight || 0) || 0,
+              text:(Number(t.bestWeight || 0) > 0) ? `${fmt1(t.bestWeight || 0)}` : "—"
+            },
+            {
+              label:"Est. 1RM",
+              raw:Number(t.best1RM || 0) || 0,
+              text:(Number(t.best1RM || 0) > 0) ? `${fmt1(t.best1RM || 0)}` : "—"
+            },
+            {
+              label:"Best Volume",
+              raw:Number(t.bestVolume || 0) || 0,
+              text:(Number(t.bestVolume || 0) > 0) ? `${fmtInt(t.bestVolume || 0)}` : "—"
+            },
+            {
+              label:"Shared Sessions",
+              raw:Number(t.sessions || 0) || 0,
+              text:`${t.sessions || 0}`
+            },
+            {
+              label:"Shared PRs",
+              raw:Number(t.prCount || 0) || 0,
+              text:`${t.prCount || 0}`
+            }
+          ];
+        }
+
+        if(type === "cardio"){
+          return [
+            {
+              label:"Best Pace",
+              raw:(t.bestPace == null ? 0 : Number(t.bestPace || 0)),
+              text:(t.bestPace != null) ? formatPace(t.bestPace) : "—",
+              lowerWins:true
+            },
+            {
+              label:"Longest Distance",
+              raw:Number(t.longestDistance || 0) || 0,
+              text:(Number(t.longestDistance || 0) > 0) ? `${fmt1(t.longestDistance || 0)}` : "—"
+            },
+            {
+              label:"Best Time",
+              raw:Number(t.bestTimeSec || 0) || 0,
+              text:(Number(t.bestTimeSec || 0) > 0) ? formatTime(t.bestTimeSec) : "—"
+            },
+            {
+              label:"Shared Sessions",
+              raw:Number(t.sessions || 0) || 0,
+              text:`${t.sessions || 0}`
+            },
+            {
+              label:"Shared PRs",
+              raw:Number(t.prCount || 0) || 0,
+              text:`${t.prCount || 0}`
+            }
+          ];
+        }
+
+        return [
+          {
+            label:"Best Volume",
+            raw:Number(t.bestCoreVolume || 0) || 0,
+            text:(Number(t.bestCoreVolume || 0) > 0) ? `${fmtInt(t.bestCoreVolume || 0)}` : "—"
+          },
+          {
+            label:"Total Shared Volume",
+            raw:Number(t.totalCoreVolume || 0) || 0,
+            text:(Number(t.totalCoreVolume || 0) > 0) ? `${fmtInt(t.totalCoreVolume || 0)}` : "—"
+          },
+          {
+            label:"Shared Sessions",
+            raw:Number(t.sessions || 0) || 0,
+            text:`${t.sessions || 0}`
+          },
+          {
+            label:"Shared PRs",
+            raw:Number(t.prCount || 0) || 0,
+            text:`${t.prCount || 0}`
+          }
+        ];
+      }
+
+      function winSummary(metricsMine, metricsTheirs){
+        let mineWins = 0;
+        let theirWins = 0;
+
+        for(let i = 0; i < Math.min(metricsMine.length, metricsTheirs.length); i++){
+          const a = metricsMine[i];
+          const b = metricsTheirs[i];
+          const winner = winnerForMetric(a?.raw, b?.raw, !!a?.lowerWins);
+          if(winner === "mine") mineWins += 1;
+          else if(winner === "theirs") theirWins += 1;
+        }
+
+        return { mineWins, theirWins };
       }
 
       function repaint(){
         body.innerHTML = "";
 
-        body.appendChild(el("div", { class:"note", text:"Compare your shared Friends activity against one athlete over the rolling last 7 days." }));
+        body.appendChild(el("div", {
+          class:"note",
+          text:(mode === "overall")
+            ? "Compare your shared Friends activity against one athlete over the rolling last 7 days."
+            : "Compare a specific shared exercise using exercise posts from the rolling last 30 days."
+        }));
 
         if(!options.length){
           body.appendChild(el("div", { class:"card" }, [
@@ -7570,6 +7898,8 @@ root.appendChild(el("div", { class:"card" }, [
           onChange: (e) => {
             targetId = String(e?.target?.value || "");
             ui.compareTargetId = targetId;
+            selectedExerciseName = "";
+            ui.compareExerciseName = "";
             repaint();
           }
         });
@@ -7590,9 +7920,21 @@ root.appendChild(el("div", { class:"card" }, [
           picker
         ]));
 
+        body.appendChild(compareModeTabs(mode, (next) => {
+          mode = next;
+          ui.compareMode = next;
+          if(next !== "exercise"){
+            selectedExerciseName = "";
+            ui.compareExerciseName = "";
+          }
+          repaint();
+        }));
+
         body.appendChild(typeTabs(typeKey, (next) => {
           typeKey = next;
           ui.compareType = next;
+          selectedExerciseName = "";
+          ui.compareExerciseName = "";
           repaint();
         }));
 
@@ -7600,23 +7942,105 @@ root.appendChild(el("div", { class:"card" }, [
         const mine = rows.find(x => String(x.id) === String(myId || ""));
         const theirs = rows.find(x => String(x.id) === String(targetId || ""));
 
-        if(!mine || !theirs){
+        if(mode === "overall"){
+          if(!mine || !theirs){
+            body.appendChild(el("div", { class:"card" }, [
+              el("div", { class:"note", text:"Not enough shared activity to compare yet." })
+            ]));
+            return;
+          }
+
+          const mineMetrics = buildOverallMetrics(typeKey, mine);
+          const theirMetrics = buildOverallMetrics(typeKey, theirs);
+          const summary = winSummary(mineMetrics, theirMetrics);
+
           body.appendChild(el("div", { class:"card" }, [
-            el("div", { class:"note", text:"Not enough shared activity to compare yet." })
+            el("h2", { text:`${mine.name} vs ${theirs.name}` }),
+            el("div", {
+              class:"note",
+              text:`Shared ${typeKey} • ${mine.name} leads ${summary.mineWins}–${summary.theirWins}`
+            }),
+            el("div", { style:"height:10px" }),
+            ...mineMetrics.map((m, idx) => {
+              const t = theirMetrics[idx];
+              return metricRow(
+                m.label,
+                m.text,
+                t.text,
+                winnerForMetric(m.raw, t.raw, !!m.lowerWins)
+              );
+            })
           ]));
           return;
         }
 
-        const mineVals = compareValue(typeKey, mine);
-        const theirVals = compareValue(typeKey, theirs);
+        const exerciseRows = buildExerciseCompareRows(typeKey, 30).filter(row => {
+          const mineStat = row?.athletes?.[String(myId || "")];
+          const theirStat = row?.athletes?.[String(targetId || "")];
+          return !!(mineStat || theirStat);
+        });
+
+        if(!exerciseRows.length){
+          body.appendChild(el("div", { class:"card" }, [
+            el("div", { class:"note", text:"No shared exercise posts yet for this category." })
+          ]));
+          return;
+        }
+
+        const exercisePicker = el("select", {
+          onChange: (e) => {
+            selectedExerciseName = String(e?.target?.value || "");
+            ui.compareExerciseName = selectedExerciseName;
+            repaint();
+          }
+        });
+
+        exerciseRows.forEach(row => {
+          exercisePicker.appendChild(el("option", {
+            value: row.name,
+            text: row.name
+          }));
+        });
+
+        const match = exerciseRows.find(row => String(row.name) === String(selectedExerciseName));
+        if(!match){
+          selectedExerciseName = String(exerciseRows?.[0]?.name || "");
+          ui.compareExerciseName = selectedExerciseName;
+        }
+        exercisePicker.value = selectedExerciseName;
+
+        body.appendChild(el("div", { class:"setRow" }, [
+          el("div", {}, [
+            el("div", { style:"font-weight:820;", text:"Exercise" }),
+            el("div", { class:"meta", text:"Built from shared exercise posts only" })
+          ]),
+          exercisePicker
+        ]));
+
+        const selectedRow = exerciseRows.find(row => String(row.name) === String(selectedExerciseName));
+        const mineStat = selectedRow?.athletes?.[String(myId || "")] || {};
+        const theirStat = selectedRow?.athletes?.[String(targetId || "")] || {};
+
+        const mineMetrics = buildExerciseMetrics(typeKey, mineStat);
+        const theirMetrics = buildExerciseMetrics(typeKey, theirStat);
+        const summary = winSummary(mineMetrics, theirMetrics);
 
         body.appendChild(el("div", { class:"card" }, [
-          el("h2", { text:`${mine.name} vs ${theirs.name}` }),
-          el("div", { class:"note", text:"Left = you • Right = selected athlete" }),
+          el("h2", { text:`${selectedExerciseName || "Exercise"} • ${mine?.name || "You"} vs ${theirs?.name || "Friend"}` }),
+          el("div", {
+            class:"note",
+            text:`Shared ${typeKey} exercise • ${mine?.name || "You"} leads ${summary.mineWins}–${summary.theirWins}`
+          }),
           el("div", { style:"height:10px" }),
-          metricRow("Primary", mineVals.a, theirVals.a),
-          metricRow("Secondary", mineVals.b, theirVals.b),
-          metricRow("Sessions", mineVals.c, theirVals.c)
+          ...mineMetrics.map((m, idx) => {
+            const t = theirMetrics[idx];
+            return metricRow(
+              m.label,
+              m.text,
+              t.text,
+              winnerForMetric(m.raw, t.raw, !!m.lowerWins)
+            );
+          })
         ]));
       }
 
