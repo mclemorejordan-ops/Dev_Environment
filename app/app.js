@@ -1844,9 +1844,6 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
 const Social = initSocial();
 Social.bindStateGetter(() => state);
 
-const Social = initSocial();
-Social.bindStateGetter(() => state);
-
 async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
   try{
     if(!Social) return;
