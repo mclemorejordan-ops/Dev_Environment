@@ -2306,7 +2306,9 @@ async function consumePendingWorkoutShareAfterAuth(){
 
     __pendingWorkoutShareReplayBusy = true;
 
-    await syncWorkoutCompletedEventForDay(dateISO, routineId, day);
+    const posted = await syncWorkoutCompletedEventForDay(dateISO, routineId, day);
+    if(!posted) return false;
+
     clearPendingWorkoutShareIntent();
 
     try{ showToast("Workout shared to feed"); }catch(_){}
@@ -2381,10 +2383,10 @@ async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
 
 async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
   try{
-    if(!Social) return;
+    if(!Social) return false;
 
     const safeDayId = day?.id || null;
-    if(!dateISO || !routineId || !safeDayId) return;
+    if(!dateISO || !routineId || !safeDayId) return false;
 
     if(!isDayComplete(dateISO, day)){
       if(typeof Social.deleteWorkoutCompletedEvent === "function"){
@@ -2394,22 +2396,29 @@ async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
           dayId: safeDayId
         });
       }
-      return;
+
+      try{ await Social.fetchFeed?.(); }catch(_){}
+      return true;
     }
 
-    if(typeof Social.upsertWorkoutCompletedEvent === "function"){
-      const data = buildWorkoutEventData(dateISO, routineId, day);
-      await Social.upsertWorkoutCompletedEvent({
-        dateISO,
-        routineId,
-        dayId: safeDayId,
-        highlights: data?.highlights || {},
-        details: data?.details || null
-      });
-    }
-  }catch(_){}
+    if(typeof Social.upsertWorkoutCompletedEvent !== "function") return false;
+
+    const data = buildWorkoutEventData(dateISO, routineId, day);
+
+    await Social.upsertWorkoutCompletedEvent({
+      dateISO,
+      routineId,
+      dayId: safeDayId,
+      highlights: data?.highlights || {},
+      details: data?.details || null
+    });
+
+    try{ await Social.fetchFeed?.(); }catch(_){}
+    return true;
+  }catch(_){
+    return false;
+  }
 }
-Great! mclick gave a clean merged replacement block maybe from somewhere? We can use this as exact block. Need remove inner duplicates later maybe search for function names duplicates further down. But we can advise delete them. Need exact anchor for inner duplicates. Search maybe getRoutineExerciseEntries duplicate occurrences count. Use msearch. Ask exact duplicates location maybe two occurrences. Let's search.
 
 
 // 1) Init Backup FIRST so we have the functions
@@ -12289,6 +12298,40 @@ if(_socialUserNow){
 if(!_socialUserNow){
   socialUI._publicRoutineLoadedFor = "";
   socialUI._publicRoutineLoading = false;
+  socialUI._pendingWorkoutReplayKey = "";
+}
+
+if(_socialConfigured && _socialUserNow){
+  const pending = readPendingWorkoutShareIntent();
+  const pendingKey = pending
+    ? [
+        String(pending?.dateISO || ""),
+        String(pending?.routineId || ""),
+        String(pending?.dayId || ""),
+        String(_socialUserNow?.id || "")
+      ].join("|")
+    : "";
+
+  if(
+    pendingKey &&
+    !__pendingWorkoutShareReplayBusy &&
+    socialUI._pendingWorkoutReplayKey !== pendingKey
+  ){
+    socialUI._pendingWorkoutReplayKey = pendingKey;
+
+    setTimeout(async () => {
+      try{
+        const posted = await consumePendingWorkoutShareAfterAuth();
+        if(posted){
+          try{ renderView(); }catch(_){}
+        }else{
+          socialUI._pendingWorkoutReplayKey = "";
+        }
+      }catch(_){
+        socialUI._pendingWorkoutReplayKey = "";
+      }
+    }, 0);
+  }
 }
            
   const socialBody = el("div", {}, [
