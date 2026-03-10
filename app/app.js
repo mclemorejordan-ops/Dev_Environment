@@ -5511,9 +5511,114 @@ scrollHost.appendChild(el("div", { class:"card" }, [
   const max = lifetimeMaxSet(rx.type, rx.exerciseId);
   const maxText = max ? `${max.weight} × ${max.reps}` : "—";
 
+  const actionChildren = [
+    el("button", {
+      class:"btn primary sm",
+      onClick: () => openExerciseLogger(rx, day, selectedDateISO)
+    }, [logged ? "Edit Log" : "Log Sets"])
+  ];
+
+  if(skipped){
+    actionChildren.push(
+      el("button", {
+        class:"btn sm",
+        onClick: async () => {
+          const wasComplete = isDayComplete(selectedDateISO, day);
+
+          clearSkippedRoutineExercise(selectedDateISO, rx.id);
+          setNextNudge(null);
+
+          const currentRoute = (typeof getCurrentRoute === "function")
+            ? getCurrentRoute()
+            : "";
+
+          if(currentRoute === "home"){
+            renderView();
+          }else{
+            repaint();
+          }
+
+          const nowComplete = isDayComplete(selectedDateISO, day);
+
+          if(wasComplete && !nowComplete){
+            attendanceRemove(selectedDateISO);
+            await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
+            showToast("Marked incomplete");
+            return;
+          }
+
+          await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
+          showToast("Skip removed");
+        }
+      }, ["Undo Skip"])
+    );
+  }else if(!logged){
+    actionChildren.push(
+      el("button", {
+        class:"btn sm",
+        onClick: () => confirmModal({
+          title: "Skip exercise?",
+          note: "This will count the exercise as skipped for this workout. It will still allow workout completion, but it will not affect PRs or feed highlights.",
+          confirmText: "Skip exercise",
+          onConfirm: async () => {
+            const wasComplete = isDayComplete(selectedDateISO, day);
+
+            const changed = markRoutineExerciseSkipped({
+              dateISO: selectedDateISO,
+              routineId: routine.id,
+              day,
+              rx
+            });
+
+            if(!changed){
+              showToast("Could not skip exercise");
+              return;
+            }
+
+            const currentRoute = (typeof getCurrentRoute === "function")
+              ? getCurrentRoute()
+              : "";
+
+            if(currentRoute === "home"){
+              renderView();
+            }else{
+              repaint();
+            }
+
+            const nowComplete = isDayComplete(selectedDateISO, day);
+
+            if(nowComplete){
+              attendanceAdd(selectedDateISO);
+
+              if(!wasComplete){
+                showToast("Day completed ✅");
+              }else{
+                showToast("Exercise skipped");
+              }
+
+              await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
+
+              if(!wasComplete){
+                await maybePromptWorkoutFeedShare(selectedDateISO, routine.id, day);
+              }
+            }else{
+              showToast("Exercise skipped");
+            }
+          }
+        })
+      }, ["Skip Exercise"])
+    );
+  }
+
+  actionChildren.push(
+    el("button", {
+      class:"btn ghost sm",
+      onClick: () => openExerciseHistoryModal(rx.type, rx.exerciseId, exName)
+    }, ["History →"])
+  );
+
   scrollHost.appendChild(el("div", {
     class:"card rxCard",
-    // ✅ DOM selector hardening: namespace ids to this view
     id:`routine_rx_${rx.id}`,
     "data-unlogged": done ? "false" : "true"
   }, [
@@ -5528,105 +5633,7 @@ scrollHost.appendChild(el("div", { class:"card" }, [
 
     el("div", { class:"rxMeta", text:`🏆 Lifetime Max: ${maxText}` }),
 
-    el("div", { class:"rxActions" }, [
-      el("button", {
-        class:"btn primary sm",
-        onClick: () => openExerciseLogger(rx, day, selectedDateISO)
-      }, [logged ? "Edit Log" : "Log Sets"]),
-
-      ...(skipped ? [
-        el("button", {
-          class:"btn sm",
-          onClick: async () => {
-            const wasComplete = isDayComplete(selectedDateISO, day);
-
-            clearSkippedRoutineExercise(selectedDateISO, rx.id);
-            setNextNudge(null);
-
-            const currentRoute = (typeof getCurrentRoute === "function")
-              ? getCurrentRoute()
-              : "";
-
-            if(currentRoute === "home"){
-              renderView();
-            }else{
-              repaint();
-            }
-
-            const nowComplete = isDayComplete(selectedDateISO, day);
-
-            if(wasComplete && !nowComplete){
-              attendanceRemove(selectedDateISO);
-              await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
-              showToast("Marked incomplete");
-              return;
-            }
-
-            await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
-            showToast("Skip removed");
-          }
-        }, ["Undo Skip"])
-      ] : (!logged ? [
-        el("button", {
-          class:"btn sm",
-          onClick: () => confirmModal({
-            title: "Skip exercise?",
-            note: "This will count the exercise as skipped for this workout. It will still allow workout completion, but it will not affect PRs or feed highlights.",
-            confirmText: "Skip exercise",
-            onConfirm: async () => {
-              const wasComplete = isDayComplete(selectedDateISO, day);
-
-              const changed = markRoutineExerciseSkipped({
-                dateISO: selectedDateISO,
-                routineId: routine.id,
-                day,
-                rx
-              });
-
-              if(!changed){
-                showToast("Could not skip exercise");
-                return;
-              }
-
-              const currentRoute = (typeof getCurrentRoute === "function")
-                ? getCurrentRoute()
-                : "";
-
-              if(currentRoute === "home"){
-                renderView();
-              }else{
-                repaint();
-              }
-
-              const nowComplete = isDayComplete(selectedDateISO, day);
-
-              if(nowComplete){
-                attendanceAdd(selectedDateISO);
-
-                if(!wasComplete){
-                  showToast("Day completed ✅");
-                }else{
-                  showToast("Exercise skipped");
-                }
-
-                await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
-
-                if(!wasComplete){
-                  await maybePromptWorkoutFeedShare(selectedDateISO, routine.id, day);
-                }
-              }else{
-                showToast("Exercise skipped");
-              }
-            }
-          })
-        }, ["Skip Exercise"])
-      ] : []),
-
-      el("button", {
-        class:"btn ghost sm",
-        onClick: () => openExerciseHistoryModal(rx.type, rx.exerciseId, exName)
-      }, ["History →"])
-    ])
+    el("div", { class:"rxActions" }, actionChildren)
   ]));
 });
 
