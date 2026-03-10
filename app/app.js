@@ -9045,29 +9045,29 @@ root.appendChild(el("div", { class:"card" }, [
         let savedRoutineId = "";
         let savedRoutineName = "";
 
-        if(createType === "workout"){
+                if(createType === "workout"){
+          ensureDraftDays();
+
           const snapshot = {
             name: String(draftName || "Challenge Routine"),
             days: (draftDays || []).map((day, idx) => ({
-              id: day?.id || null,
               order: idx,
               label: String(day?.label || `Day ${idx + 1}`),
-              isRest: false,
+              isRest: !!day?.isRest,
               exercises: (Array.isArray(day?.exercises) ? day.exercises : []).map((rx, exIdx) => ({
-                id: rx?.id || null,
                 order: exIdx,
-                type: String(rx?.type || ""),
+                type: String(rx?.type || "weightlifting"),
                 exerciseId: rx?.exerciseId || null,
                 name: String(rx?.nameSnap || "Exercise"),
-                plan: rx?.plan || null,
+                plan: rx?.plan ? { ...rx.plan } : null,
                 notes: String(rx?.notes || "")
               }))
             }))
           };
 
-          const importedRoutine = importSharedRoutinePayload(snapshot, { setActive:false });
-          savedRoutineId = String(importedRoutine?.id || "");
-          savedRoutineName = String(importedRoutine?.name || snapshot.name || "Challenge Routine");
+          const savedRoutine = saveRoutineSnapshotToMyRoutines(snapshot);
+          savedRoutineId = String(savedRoutine?.id || "");
+          savedRoutineName = String(savedRoutine?.name || snapshot.name || "Challenge Routine");
         }
 
         const now = new Date();
