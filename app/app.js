@@ -6083,19 +6083,27 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   ui.view = ui.view || "feed"; // "feed" | "profile" (UI-only)
   ui.profileCountsById = ui.profileCountsById || {};
   ui.menuOpen = !!ui.menuOpen;
+
 ui.leaderboardType = ui.leaderboardType || "weightlifting";
+
 ui.compareType = ui.compareType || "weightlifting";
-ui.challengeType = ui.challengeType || "weightlifting";
 ui.compareTargetId = ui.compareTargetId || "";
-     ui.compareMode = ui.compareMode || "overall";
+ui.compareMode = ui.compareMode || "overall";
 ui.compareExerciseName = ui.compareExerciseName || "";
-     ui.challengeTab = ui.challengeTab || "create"; // "create" | "active" | "completed"
+
+ui.challengeTab = ui.challengeTab || "create"; // "create" | "active" | "completed"
 ui.challengeCreateType = ui.challengeCreateType || "exercise"; // "exercise" | "consistency" | "workout"
 ui.challengeMetric = ui.challengeMetric || "bestWeight";
 ui.challengeDays = Math.max(1, Number(ui.challengeDays || 7) || 7);
 ui.challengeExerciseName = ui.challengeExerciseName || "";
+ui.challengeExerciseId = ui.challengeExerciseId || "";
 ui.challengeSelectedFriendIds = Array.isArray(ui.challengeSelectedFriendIds) ? ui.challengeSelectedFriendIds : [];
 ui.challengeItems = Array.isArray(ui.challengeItems) ? ui.challengeItems : [];
+ui.challengeDraftName = ui.challengeDraftName || "Challenge Routine";
+ui.challengeDraftDays = Array.isArray(ui.challengeDraftDays) ? ui.challengeDraftDays : [];
+
+
+     
   ui.profileSharedById = ui.profileSharedById || {};
   ui.profileRoutineById = ui.profileRoutineById || {};
   ui.profileLoadById = ui.profileLoadById || {};
@@ -8163,18 +8171,297 @@ root.appendChild(el("div", { class:"card" }, [
       });
     }
 
-        function openChallengeModal(){
+    function openChallengeExercisePicker({
+      title = "Pick Exercise",
+      dayLabel = "Challenge",
+      selectedType = "weightlifting",
+      selectedKeys = [],
+      keepOpen = true,
+      onAdd = () => {},
+      onDone = null
+    } = {}){
+      ExerciseLibrary.ensureSeeded();
+
+      let typeKey = String(selectedType || "weightlifting");
+      let query = "";
+      const openGroups = new Set();
+      const addedThisSession = new Set();
+      const selectedSet = new Set((selectedKeys || []).map(x => String(x || "")));
+
+      const ctx = el("div", { class:"addExCtx" }, [
+        el("div", { class:"addExCtxA", text:"Add exercises to" }),
+        el("div", { class:"addExCtxB", text: dayLabel || "Challenge" })
+      ]);
+
+      const typeTabsRow = el("div", {
+        style:"display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0;"
+      });
+
+      const searchWrap = el("div", { class:"addExSearch" }, [
+        el("div", { class:"ico", text:"🔎" }),
+        el("input", {
+          type:"text",
+          value:"",
+          placeholder:"Search exercises…",
+          onInput: (e) => {
+            query = String(e.target.value || "");
+            repaint();
+          }
+        })
+      ]);
+
+      const scroller = el("div", { class:"addExScroller" });
+      const bottomBar = el("div", { class:"addExBottom" });
+
+      const countPill = el("div", { class:"addExCount", text:"0 added" });
+      const doneBtn = el("button", {
+        class:"btn primary",
+        type:"button",
+        onClick: () => {
+          Modal.close();
+          try{ if(typeof onDone === "function") onDone(); }catch(_){}
+        }
+      }, [keepOpen ? "Done" : "Close"]);
+
+      function getBucket(type){
+        try{
+          const bucket = state?.exerciseLibrary?.[String(type || "")];
+          return Array.isArray(bucket) ? bucket.slice() : [];
+        }catch(_){
+          return [];
+        }
+      }
+
+      function groupLabelFor(type, ex){
+        if(String(type) === "weightlifting"){
+          return String(ex?.primaryMuscle || "Weightlifting").trim() || "Weightlifting";
+        }
+        if(String(type) === "cardio"){
+          return String(ex?.equipment || "Cardio").trim() || "Cardio";
+        }
+        return String(ex?.primaryMuscle || "Core").trim() || "Core";
+      }
+
+      function buildGroups(type){
+        const q = normName(query || "");
+        const rows = getBucket(type)
+          .filter(ex => {
+            if(!q) return true;
+            const hay = [
+              ex?.name,
+              ex?.primaryMuscle,
+              ex?.equipment,
+              ...(Array.isArray(ex?.secondaryMuscles) ? ex.secondaryMuscles : [])
+            ].map(x => String(x || "")).join(" ");
+            return normName(hay).includes(q);
+          })
+          .sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+
+        const grouped = new Map();
+        rows.forEach(ex => {
+          const g = groupLabelFor(type, ex);
+          if(!grouped.has(g)) grouped.set(g, []);
+          grouped.get(g).push(ex);
+        });
+
+        return Array.from(grouped.entries());
+      }
+
+      function repaintTypeTabs(){
+        typeTabsRow.innerHTML = "";
+        [
+          { key:"weightlifting", label:"Weightlifting" },
+          { key:"cardio", label:"Cardio" },
+          { key:"core", label:"Core" }
+        ].forEach(t => {
+          typeTabsRow.appendChild(el("button", {
+            class:"pill",
+            type:"button",
+            style:[
+              "padding:10px 12px",
+              "border-radius:999px",
+              "border:1px solid rgba(255,255,255,.10)",
+              (typeKey === t.key) ? "background:rgba(255,255,255,.12)" : "background:rgba(255,255,255,.06)",
+              (typeKey === t.key) ? "color:rgba(255,255,255,.96)" : "color:rgba(255,255,255,.78)",
+              "font-weight:900",
+              "cursor:pointer"
+            ].join(";"),
+            onClick: () => {
+              typeKey = t.key;
+              repaint();
+            }
+          }, [t.label]));
+        });
+      }
+
+      function repaint(){
+        repaintTypeTabs();
+        scroller.innerHTML = "";
+        countPill.textContent = `${addedThisSession.size} added`;
+
+        const groups = buildGroups(typeKey);
+
+        if(!groups.length){
+          scroller.appendChild(el("div", {
+            class:"note",
+            style:"padding:8px 2px;",
+            text:"No exercises found."
+          }));
+          return;
+        }
+
+        groups.forEach(([groupName, items]) => {
+          const isOpen = openGroups.has(groupName) || !!query;
+
+          const head = el("button", {
+            type:"button",
+            class:"item",
+            style:"width:100%; justify-content:space-between;",
+            onClick: () => {
+              if(openGroups.has(groupName)) openGroups.delete(groupName);
+              else openGroups.add(groupName);
+              repaint();
+            }
+          }, [
+            el("div", { class:"left" }, [
+              el("div", { class:"name", text: groupName }),
+              el("div", { class:"meta", text: `${items.length} ${items.length === 1 ? "exercise" : "exercises"}` })
+            ]),
+            el("div", { style:"opacity:.78; font-weight:900;", text: isOpen ? "▾" : "▸" })
+          ]);
+
+          scroller.appendChild(head);
+
+          if(!isOpen) return;
+
+          const list = el("div", {
+            style:"display:grid; gap:8px; padding:6px 0 10px;"
+          });
+
+          items.forEach(ex => {
+            const key = `${typeKey}:${String(ex?.id || "")}`;
+            const alreadySelected = selectedSet.has(key);
+
+            list.appendChild(el("button", {
+              type:"button",
+              class:"item",
+              style:[
+                "width:100%",
+                "justify-content:space-between",
+                alreadySelected ? "opacity:.58;" : ""
+              ].join(";"),
+              onClick: () => {
+                if(alreadySelected){
+                  showToast("Already added to this day");
+                  return;
+                }
+
+                const rx = {
+                  id: uid("crx"),
+                  type: typeKey,
+                  exerciseId: ex?.id || null,
+                  nameSnap: String(ex?.name || "Exercise"),
+                  notes: "",
+                  plan: null
+                };
+
+                try{ onAdd(rx); }catch(_){}
+                selectedSet.add(key);
+                addedThisSession.add(key);
+
+                if(!keepOpen){
+                  Modal.close();
+                  try{ if(typeof onDone === "function") onDone(); }catch(_){}
+                  return;
+                }
+
+                repaint();
+              }
+            }, [
+              el("div", { class:"left" }, [
+                el("div", { class:"name", text:String(ex?.name || "Exercise") }),
+                el("div", {
+                  class:"meta",
+                  text:(typeKey === "weightlifting")
+                    ? `${String(ex?.primaryMuscle || "Weightlifting")}${ex?.equipment ? ` • ${ex.equipment}` : ""}`
+                    : (typeKey === "cardio")
+                      ? `${String(ex?.equipment || "Cardio")}`
+                      : `${String(ex?.primaryMuscle || "Core")}${ex?.equipment ? ` • ${ex.equipment}` : ""}`
+                })
+              ]),
+              el("div", {
+                style:"font-weight:1000; opacity:.9;"
+              }, [alreadySelected ? "Added" : "Add"])
+            ]));
+          });
+
+          scroller.appendChild(list);
+        });
+      }
+
+      bottomBar.appendChild(countPill);
+      bottomBar.appendChild(doneBtn);
+
+      const bodyNode = el("div", {}, [
+        ctx,
+        typeTabsRow,
+        el("div", { style:"height:10px" }),
+        searchWrap,
+        el("div", { style:"height:10px" }),
+        scroller,
+        bottomBar
+      ]);
+
+      repaint();
+
+      Modal.open({
+        title,
+        size:"lg",
+        bodyNode
+      });
+    }
+    
+           function openChallengeModal(){
       let hubTab = ui.challengeTab || "create";
       let typeKey = ui.challengeType || "weightlifting";
       let createType = ui.challengeCreateType || "exercise";
       let metricKey = ui.challengeMetric || "bestWeight";
       let challengeDays = Math.max(1, Number(ui.challengeDays || 7) || 7);
       let selectedExerciseName = String(ui.challengeExerciseName || "");
+      let selectedExerciseId = String(ui.challengeExerciseId || "");
       let selectedFriendIds = Array.isArray(ui.challengeSelectedFriendIds)
         ? ui.challengeSelectedFriendIds.slice(0, 5).map(x => String(x || "")).filter(Boolean)
         : [];
+      let draftName = String(ui.challengeDraftName || "Challenge Routine");
+      let draftDays = Array.isArray(ui.challengeDraftDays) ? JSON.parse(JSON.stringify(ui.challengeDraftDays)) : [];
 
       const body = el("div", { class:"grid" });
+
+      function persistDraft(){
+        ui.challengeTab = hubTab;
+        ui.challengeType = typeKey;
+        ui.challengeCreateType = createType;
+        ui.challengeMetric = metricKey;
+        ui.challengeDays = challengeDays;
+        ui.challengeExerciseName = selectedExerciseName;
+        ui.challengeExerciseId = selectedExerciseId;
+        ui.challengeSelectedFriendIds = selectedFriendIds.slice();
+        ui.challengeDraftName = draftName;
+        ui.challengeDraftDays = JSON.parse(JSON.stringify(draftDays));
+      }
+
+      function ensureDraftDays(){
+        if(Array.isArray(draftDays) && draftDays.length) return;
+        draftDays = [{
+          id: uid("cday"),
+          label: "Day 1",
+          exercises: []
+        }];
+      }
+
+      function routineExerciseCount(days){
+        return (days || []).reduce((sum, d) => sum + ((d?.exercises || []).length), 0);
+      }
 
       function challengeTabs(active, onChange){
         const tabs = [
@@ -8189,15 +8476,12 @@ root.appendChild(el("div", { class:"card" }, [
           class:"pill",
           type:"button",
           style:[
-            "flex:0 0 auto",
-            "min-width:0",
             "padding:10px 12px",
             "border-radius:999px",
             "border:1px solid rgba(255,255,255,.10)",
             (active === t.key) ? "background:rgba(255,255,255,.12)" : "background:rgba(255,255,255,.06)",
             (active === t.key) ? "color:rgba(255,255,255,.95)" : "color:rgba(255,255,255,.78)",
-            "font-weight:900",
-            "cursor:pointer"
+            "font-weight:900"
           ].join(";"),
           onClick: () => onChange(t.key)
         }, [t.label])));
@@ -8216,15 +8500,12 @@ root.appendChild(el("div", { class:"card" }, [
           class:"pill",
           type:"button",
           style:[
-            "flex:0 0 auto",
-            "min-width:0",
             "padding:10px 12px",
             "border-radius:999px",
             "border:1px solid rgba(255,255,255,.10)",
             (active === t.key) ? "background:rgba(255,255,255,.12)" : "background:rgba(255,255,255,.06)",
             (active === t.key) ? "color:rgba(255,255,255,.95)" : "color:rgba(255,255,255,.78)",
-            "font-weight:900",
-            "cursor:pointer"
+            "font-weight:900"
           ].join(";"),
           onClick: () => onChange(t.key)
         }, [t.label])));
@@ -8251,38 +8532,9 @@ root.appendChild(el("div", { class:"card" }, [
           ];
         }
 
-        if(kind === "workout"){
-          if(workoutType === "weightlifting"){
-            return [
-              { key:"bestWorkoutVolume", label:"Best Workout Volume" },
-              { key:"bestWorkoutPRs", label:"Most PRs In One Workout" },
-              { key:"bestWorkoutExercises", label:"Most Exercises In One Workout" }
-            ];
-          }
-          if(workoutType === "cardio"){
-            return [
-              { key:"bestWorkoutDistance", label:"Best Workout Distance" },
-              { key:"bestWorkoutPace", label:"Best Workout Pace" },
-              { key:"bestWorkoutTime", label:"Best Workout Time" }
-            ];
-          }
-          return [
-            { key:"bestWorkoutVolume", label:"Best Workout Volume" },
-            { key:"bestWorkoutExercises", label:"Most Exercises In One Workout" }
-          ];
-        }
-
         return [
           { key:"workoutDays", label:"Workout Days" }
         ];
-      }
-
-      function normalizeExerciseName(v){
-        return String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
-      }
-
-      function exerciseDisplayName(v){
-        return String(v || "").trim().replace(/\s+/g, " ");
       }
 
       function socialFriendOptions(){
@@ -8300,46 +8552,9 @@ root.appendChild(el("div", { class:"card" }, [
           const meta = (Social.identityFor ? Social.identityFor(id, id === myId ? "You" : "User") : null) || {};
           return {
             id: String(id || ""),
-            name: String(meta.displayName || (id === myId ? "You" : "User")),
-            username: String(meta.username || "")
+            name: String(meta.displayName || (id === myId ? "You" : "User"))
           };
         });
-      }
-
-      function buildExerciseOptionsFromFeed(workoutType, participantIds){
-        const all = (Social.getFeed ? Social.getFeed() : []) || [];
-        const allowed = new Set((participantIds || []).map(x => String(x || "")));
-        const map = new Map();
-
-        function keepName(raw){
-          const key = normalizeExerciseName(raw);
-          const name = exerciseDisplayName(raw);
-          if(!key || !name) return;
-          if(!map.has(key)) map.set(key, name);
-        }
-
-        (all || []).forEach(ev => {
-          const actorId = String(ev?.actorId || "").trim();
-          if(!allowed.has(actorId)) return;
-
-          const p = ev?.payload || {};
-
-          if(ev?.type === "exercise_logged"){
-            if(String(p?.workoutType || "") !== String(workoutType || "")) return;
-            keepName(p?.exerciseName || "");
-            return;
-          }
-
-          if(ev?.type === "workout_completed"){
-            const items = Array.isArray(p?.details?.items) ? p.details.items : [];
-            items.forEach(it => {
-              if(String(it?.type || "") !== String(workoutType || "")) return;
-              keepName(it?.name || it?.exerciseName || it?.nameSnap || "");
-            });
-          }
-        });
-
-        return Array.from(map.values()).sort((a,b) => String(a || "").localeCompare(String(b || "")));
       }
 
       function buildExerciseChallengeStandings(challenge){
@@ -8347,7 +8562,7 @@ root.appendChild(el("div", { class:"card" }, [
         const participants = new Set((challenge?.participantIds || []).map(x => String(x || "")));
         const type = String(challenge?.workoutType || "");
         const metric = String(challenge?.metric || "");
-        const targetExerciseKey = normalizeExerciseName(challenge?.exerciseName || "");
+        const targetExerciseName = String(challenge?.exerciseName || "").trim().toLowerCase();
         const startMs = new Date(challenge?.startAt || 0).getTime() || 0;
         const endMs = new Date(challenge?.endAt || 0).getTime() || 0;
 
@@ -8357,38 +8572,15 @@ root.appendChild(el("div", { class:"card" }, [
           map[String(id)] = {
             id: String(id),
             name: String(meta.displayName || (String(id) === String(myId || "") ? "You" : "User")),
-            value: (metric === "bestPace") ? null : 0,
-            sessions: 0,
-            prCount: 0
+            value: (metric === "bestPace") ? null : 0
           };
         });
 
-        function ensureRow(actorId){
-          const k = String(actorId || "");
-          if(!map[k]){
-            const meta = (Social.identityFor ? Social.identityFor(k, k === myId ? "You" : "User") : null) || {};
-            map[k] = {
-              id: k,
-              name: String(meta.displayName || (k === myId ? "You" : "User")),
-              value: (metric === "bestPace") ? null : 0,
-              sessions: 0,
-              prCount: 0
-            };
-          }
-          return map[k];
-        }
-
         function applyMetric(row, src){
-          if(!row || !src) return;
-
           if(type === "weightlifting"){
-            const bestWeight = Number(src?.bestWeight || 0) || 0;
-            const best1RM = Number(src?.best1RM || 0) || 0;
-            const totalVolume = Number(src?.totalVolume || 0) || 0;
-
-            if(metric === "bestWeight") row.value = Math.max(Number(row.value || 0) || 0, bestWeight);
-            else if(metric === "best1RM") row.value = Math.max(Number(row.value || 0) || 0, best1RM);
-            else if(metric === "bestVolume") row.value = Math.max(Number(row.value || 0) || 0, totalVolume);
+            if(metric === "bestWeight") row.value = Math.max(Number(row.value || 0) || 0, Number(src?.bestWeight || 0) || 0);
+            else if(metric === "best1RM") row.value = Math.max(Number(row.value || 0) || 0, Number(src?.best1RM || 0) || 0);
+            else row.value = Math.max(Number(row.value || 0) || 0, Number(src?.totalVolume || 0) || 0);
             return;
           }
 
@@ -8397,20 +8589,13 @@ root.appendChild(el("div", { class:"card" }, [
             const timeSec = Number(src?.timeSec || 0) || 0;
             const pace = Number(src?.paceSecPerUnit || 0) || 0;
 
-            if(metric === "longestDistance"){
-              row.value = Math.max(Number(row.value || 0) || 0, dist);
-            }else if(metric === "bestTimeSec"){
-              row.value = Math.max(Number(row.value || 0) || 0, timeSec);
-            }else if(metric === "bestPace"){
-              if(pace > 0){
-                row.value = (row.value == null) ? pace : Math.min(Number(row.value || 0) || pace, pace);
-              }
-            }
+            if(metric === "longestDistance") row.value = Math.max(Number(row.value || 0) || 0, dist);
+            else if(metric === "bestTimeSec") row.value = Math.max(Number(row.value || 0) || 0, timeSec);
+            else if(pace > 0) row.value = (row.value == null) ? pace : Math.min(Number(row.value || 0) || pace, pace);
             return;
           }
 
-          const vol = Number(src?.totalVolume || 0) || 0;
-          row.value = Math.max(Number(row.value || 0) || 0, vol);
+          row.value = Math.max(Number(row.value || 0) || 0, Number(src?.totalVolume || 0) || 0);
         }
 
         function parseWeightliftingTopText(txt){
@@ -8455,12 +8640,8 @@ root.appendChild(el("div", { class:"card" }, [
 
           if(ev?.type === "exercise_logged"){
             if(String(p?.workoutType || "") !== type) return;
-            if(normalizeExerciseName(p?.exerciseName || "") !== targetExerciseKey) return;
-
-            const row = ensureRow(actorId);
-            row.sessions += 1;
-            row.prCount += Number(p?.prCount || 0) || 0;
-            applyMetric(row, p?.summary || {});
+            if(String(p?.exerciseName || "").trim().toLowerCase() !== targetExerciseName) return;
+            applyMetric(map[actorId], p?.summary || {});
             return;
           }
 
@@ -8468,47 +8649,33 @@ root.appendChild(el("div", { class:"card" }, [
             const items = Array.isArray(p?.details?.items) ? p.details.items : [];
             items.forEach(it => {
               if(String(it?.type || "") !== type) return;
-              const itemName = it?.name || it?.exerciseName || it?.nameSnap || "";
-              if(normalizeExerciseName(itemName) !== targetExerciseKey) return;
-
-              const row = ensureRow(actorId);
-              row.sessions += 1;
-
-              const prBadges = Array.isArray(it?.prBadges) ? it.prBadges : [];
-              if(prBadges.length) row.prCount += 1;
+              const itemName = String(it?.name || it?.exerciseName || it?.nameSnap || "").trim().toLowerCase();
+              if(itemName !== targetExerciseName) return;
 
               const lifetime = it?.lifetime || {};
               if(type === "weightlifting"){
-                applyMetric(row, lifetime);
-                applyMetric(row, parseWeightliftingTopText(it?.topText || ""));
+                applyMetric(map[actorId], lifetime);
+                applyMetric(map[actorId], parseWeightliftingTopText(it?.topText || ""));
               }else if(type === "cardio"){
-                applyMetric(row, lifetime);
-                applyMetric(row, parseCardioTopText(it?.topText || ""));
+                applyMetric(map[actorId], lifetime);
+                applyMetric(map[actorId], parseCardioTopText(it?.topText || ""));
               }else{
-                applyMetric(row, lifetime);
-                applyMetric(row, parseCoreTopText(it?.topText || ""));
+                applyMetric(map[actorId], lifetime);
+                applyMetric(map[actorId], parseCoreTopText(it?.topText || ""));
               }
             });
           }
         });
 
         const rows = Object.values(map);
-
         rows.sort((a,b) => {
           if(metric === "bestPace"){
             const av = (a.value == null) ? Infinity : Number(a.value || 0);
             const bv = (b.value == null) ? Infinity : Number(b.value || 0);
-            if(av !== bv) return av - bv;
-            return (b.sessions || 0) - (a.sessions || 0);
+            return av - bv;
           }
-
-          if((Number(b.value || 0) || 0) !== (Number(a.value || 0) || 0)){
-            return (Number(b.value || 0) || 0) - (Number(a.value || 0) || 0);
-          }
-          if((b.prCount || 0) !== (a.prCount || 0)) return (b.prCount || 0) - (a.prCount || 0);
-          return (b.sessions || 0) - (a.sessions || 0);
+          return (Number(b.value || 0) || 0) - (Number(a.value || 0) || 0);
         });
-
         return rows;
       }
 
@@ -8537,9 +8704,6 @@ root.appendChild(el("div", { class:"card" }, [
 
           if(ev?.type !== "exercise_logged" && ev?.type !== "workout_completed") return;
 
-          const row = map[actorId];
-          if(!row) return;
-
           const p = ev?.payload || {};
           let dayKey = String(p?.dateISO || "").trim();
           if(!dayKey){
@@ -8550,7 +8714,7 @@ root.appendChild(el("div", { class:"card" }, [
               }
             }catch(_){}
           }
-          if(dayKey) row.dayKeys.add(dayKey);
+          if(dayKey) map[actorId]?.dayKeys?.add(dayKey);
         });
 
         return Object.values(map)
@@ -8562,148 +8726,6 @@ root.appendChild(el("div", { class:"card" }, [
           .sort((a,b) => (b.value || 0) - (a.value || 0));
       }
 
-      function buildWorkoutChallengeStandings(challenge){
-        const all = (Social.getFeed ? Social.getFeed() : []) || [];
-        const participants = new Set((challenge?.participantIds || []).map(x => String(x || "")));
-        const type = String(challenge?.workoutType || "");
-        const metric = String(challenge?.metric || "");
-        const startMs = new Date(challenge?.startAt || 0).getTime() || 0;
-        const endMs = new Date(challenge?.endAt || 0).getTime() || 0;
-
-        const map = {};
-        (challenge?.participantIds || []).forEach(id => {
-          const meta = (Social.identityFor ? Social.identityFor(id, id === myId ? "You" : "User") : null) || {};
-          map[String(id)] = {
-            id: String(id),
-            name: String(meta.displayName || (String(id) === String(myId || "") ? "You" : "User")),
-            value: (metric === "bestWorkoutPace") ? null : 0,
-            qualifyingWorkouts: 0
-          };
-        });
-
-        (all || []).forEach(ev => {
-          if(ev?.type !== "workout_completed") return;
-
-          const actorId = String(ev?.actorId || "").trim();
-          if(!participants.has(actorId)) return;
-
-          const ms = safeCreatedAtMs(ev);
-          if(ms < startMs || ms > endMs) return;
-
-          const row = map[actorId];
-          if(!row) return;
-
-          const p = ev?.payload || {};
-          const items = Array.isArray(p?.details?.items) ? p.details.items : [];
-          const filtered = items.filter(it => String(it?.type || "") === type);
-          if(!filtered.length) return;
-
-          row.qualifyingWorkouts += 1;
-
-          if(type === "weightlifting"){
-            if(metric === "bestWorkoutPRs"){
-              const prCount = filtered.reduce((sum, it) => sum + ((Array.isArray(it?.prBadges) && it.prBadges.length) ? 1 : 0), 0);
-              row.value = Math.max(Number(row.value || 0) || 0, prCount);
-              return;
-            }
-
-            if(metric === "bestWorkoutExercises"){
-              row.value = Math.max(Number(row.value || 0) || 0, filtered.length);
-              return;
-            }
-
-            let totalVolume = 0;
-            filtered.forEach(it => {
-              totalVolume += Number(it?.lifetime?.totalVolume || 0) || 0;
-            });
-            row.value = Math.max(Number(row.value || 0) || 0, totalVolume);
-            return;
-          }
-
-          if(type === "cardio"){
-            if(metric === "bestWorkoutDistance"){
-              let totalDistance = 0;
-              filtered.forEach(it => {
-                totalDistance += Number(it?.lifetime?.distance || 0) || 0;
-              });
-              row.value = Math.max(Number(row.value || 0) || 0, totalDistance);
-              return;
-            }
-
-            if(metric === "bestWorkoutTime"){
-              let totalTime = 0;
-              filtered.forEach(it => {
-                totalTime += Number(it?.lifetime?.timeSec || 0) || 0;
-              });
-              row.value = Math.max(Number(row.value || 0) || 0, totalTime);
-              return;
-            }
-
-            filtered.forEach(it => {
-              const pace = Number(it?.lifetime?.paceSecPerUnit || 0) || 0;
-              if(pace > 0){
-                row.value = (row.value == null) ? pace : Math.min(Number(row.value || 0) || pace, pace);
-              }
-            });
-            return;
-          }
-
-          if(metric === "bestWorkoutExercises"){
-            row.value = Math.max(Number(row.value || 0) || 0, filtered.length);
-            return;
-          }
-
-          let totalVolume = 0;
-          filtered.forEach(it => {
-            totalVolume += Number(it?.lifetime?.totalVolume || 0) || 0;
-          });
-          row.value = Math.max(Number(row.value || 0) || 0, totalVolume);
-        });
-
-        const rows = Object.values(map);
-
-        rows.sort((a,b) => {
-          if(metric === "bestWorkoutPace"){
-            const av = (a.value == null) ? Infinity : Number(a.value || 0);
-            const bv = (b.value == null) ? Infinity : Number(b.value || 0);
-            if(av !== bv) return av - bv;
-            return (b.qualifyingWorkouts || 0) - (a.qualifyingWorkouts || 0);
-          }
-
-          if((Number(b.value || 0) || 0) !== (Number(a.value || 0) || 0)){
-            return (Number(b.value || 0) || 0) - (Number(a.value || 0) || 0);
-          }
-          return (b.qualifyingWorkouts || 0) - (a.qualifyingWorkouts || 0);
-        });
-
-        return rows;
-      }
-
-      function challengeMetricLabel(challenge){
-        const opts = metricOptionsFor(challenge?.kind, challenge?.workoutType);
-        const match = opts.find(x => String(x.key) === String(challenge?.metric || ""));
-        return match?.label || "Metric";
-      }
-
-      function scoreText(challenge, row){
-        const metric = String(challenge?.metric || "");
-        const type = String(challenge?.workoutType || "");
-
-        if(metric === "bestPace" || metric === "bestWorkoutPace"){
-          return (row?.value != null) ? formatPace(row.value) : "—";
-        }
-
-        if(metric === "bestTimeSec" || metric === "bestWorkoutTime"){
-          return (Number(row?.value || 0) > 0) ? formatTime(row.value) : "—";
-        }
-
-        if(type === "cardio"){
-          return `${fmt1(row?.value || 0)}`;
-        }
-
-        return `${fmtInt(row?.value || 0)}`;
-      }
-
       function standingsForChallenge(challenge){
         if(String(challenge?.kind || "") === "exercise"){
           return buildExerciseChallengeStandings(challenge);
@@ -8711,13 +8733,28 @@ root.appendChild(el("div", { class:"card" }, [
         if(String(challenge?.kind || "") === "consistency"){
           return buildConsistencyChallengeStandings(challenge);
         }
-        return buildWorkoutChallengeStandings(challenge);
+        return [];
       }
 
       function challengeStatus(challenge){
         const now = Date.now();
         const endMs = new Date(challenge?.endAt || 0).getTime() || 0;
         return endMs < now ? "completed" : "active";
+      }
+
+      function scoreText(challenge, row){
+        const metric = String(challenge?.metric || "");
+        const type = String(challenge?.workoutType || "");
+        if(metric === "bestPace"){
+          return (row?.value != null) ? formatPace(row.value) : "—";
+        }
+        if(metric === "bestTimeSec"){
+          return (Number(row?.value || 0) > 0) ? formatTime(row.value) : "—";
+        }
+        if(type === "cardio"){
+          return `${fmt1(row?.value || 0)}`;
+        }
+        return `${fmtInt(row?.value || 0)}`;
       }
 
       function challengeTitle(challenge){
@@ -8727,64 +8764,108 @@ root.appendChild(el("div", { class:"card" }, [
         if(String(challenge?.kind || "") === "consistency"){
           return `${challenge?.days || 7}-Day Consistency Challenge`;
         }
-        return `${typeKey === "cardio" ? "Workout" : "Workout"} Challenge`;
+        return String(challenge?.routineName || "Routine Workout Challenge");
       }
 
-      function createChallenge(){
-        const participantIds = selectedChallengeParticipants();
-        if(participantIds.length < 2){
-          showToast("Select at least 1 friend.");
-          return;
-        }
-        if(selectedFriendIds.length > 5){
-          showToast("You can challenge up to 5 friends.");
-          return;
-        }
+      function openSingleExercisePicker(){
+        openChallengeExercisePicker({
+          title:"Pick Challenge Exercise",
+          dayLabel:"Challenge Exercise",
+          selectedType:typeKey,
+          keepOpen:false,
+          onAdd: (rx) => {
+            typeKey = String(rx?.type || "weightlifting");
+            selectedExerciseId = String(rx?.exerciseId || "");
+            selectedExerciseName = String(rx?.nameSnap || "");
+            ui.challengeType = typeKey;
+            ui.challengeExerciseId = selectedExerciseId;
+            ui.challengeExerciseName = selectedExerciseName;
+          },
+          onDone: () => {
+            persistDraft();
+            repaint();
+          }
+        });
+      }
 
-        if(createType === "exercise" && !selectedExerciseName){
-          showToast("Select an exercise first.");
-          return;
-        }
+      function openWorkoutDayExercisePicker(dayId){
+        const day = (draftDays || []).find(d => String(d?.id || "") === String(dayId || ""));
+        if(!day) return;
 
-        const now = new Date();
-        const end = new Date(now.getTime() + (challengeDays * 86400000));
+        const existingKeys = (day.exercises || []).map(rx => `${rx.type}:${rx.exerciseId}`);
 
-        const item = {
-          id: uid(),
-          creatorId: String(myId || ""),
-          participantIds,
-          kind: createType,
-          workoutType: typeKey,
-          metric: metricKey,
-          exerciseName: (createType === "exercise") ? String(selectedExerciseName || "") : "",
-          days: challengeDays,
-          startAt: now.toISOString(),
-          endAt: end.toISOString(),
-          createdAt: now.toISOString()
-        };
-
-        ui.challengeItems = Array.isArray(ui.challengeItems) ? ui.challengeItems : [];
-        ui.challengeItems.unshift(item);
-
-        ui.challengeTab = "active";
-        hubTab = "active";
-
-        showToast("Challenge created.");
-        repaint();
+        openChallengeExercisePicker({
+          title:"Add Routine Exercises",
+          dayLabel: day.label || "Challenge Day",
+          selectedType: typeKey,
+          selectedKeys: existingKeys,
+          keepOpen:true,
+          onAdd: (rx) => {
+            day.exercises = Array.isArray(day.exercises) ? day.exercises : [];
+            day.exercises.push({
+              id: rx.id || uid("crx"),
+              type: String(rx.type || "weightlifting"),
+              exerciseId: rx.exerciseId || null,
+              nameSnap: String(rx.nameSnap || "Exercise"),
+              notes: "",
+              plan: null
+            });
+            persistDraft();
+            repaint();
+          },
+          onDone: () => {
+            persistDraft();
+            repaint();
+          }
+        });
       }
 
       function challengeCard(challenge){
-        const rows = standingsForChallenge(challenge);
-        const leader = rows?.[0] || null;
-        const endMs = new Date(challenge?.endAt || 0).getTime() || 0;
-        const daysLeft = Math.max(0, Math.ceil((endMs - Date.now()) / 86400000));
         const status = challengeStatus(challenge);
         const people = challengeParticipantMeta(challenge?.participantIds || []);
+        const endMs = new Date(challenge?.endAt || 0).getTime() || 0;
+        const daysLeft = Math.max(0, Math.ceil((endMs - Date.now()) / 86400000));
+
+        if(String(challenge?.kind || "") === "workout"){
+          const days = Array.isArray(challenge?.routineDays) ? challenge.routineDays : [];
+          const exCount = routineExerciseCount(days);
+
+          return el("div", { class:"card" }, [
+            el("h2", { text: challengeTitle(challenge) }),
+            el("div", {
+              class:"note",
+              text:`Workout routine challenge • ${days.length} ${days.length === 1 ? "day" : "days"} • ${exCount} ${exCount === 1 ? "exercise" : "exercises"} • ${people.length} athletes`
+            }),
+            el("div", { style:"height:8px" }),
+            el("div", {
+              class:"meta",
+              text:(status === "completed")
+                ? `Completed • Ended ${new Date(challenge.endAt).toLocaleDateString()}`
+                : `${daysLeft} day${daysLeft === 1 ? "" : "s"} remaining`
+            }),
+            el("div", { style:"height:10px" }),
+            el("div", {
+              style:"display:grid; gap:10px;"
+            }, days.map(day => el("div", {
+              style:"padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04);"
+            }, [
+              el("div", { style:"font-weight:900;", text: day?.label || "Day" }),
+              el("div", { style:"height:6px" }),
+              (Array.isArray(day?.exercises) && day.exercises.length)
+                ? el("div", {
+                    class:"meta",
+                    text: day.exercises.map(rx => String(rx?.nameSnap || "Exercise")).join(" • ")
+                  })
+                : el("div", { class:"meta", text:"No exercises" })
+            ])))
+          ]);
+        }
+
+        const rows = standingsForChallenge(challenge);
+        const leader = rows?.[0] || null;
         const maxValue = rows.length
           ? Math.max(...rows.map(r => {
-              if(String(challenge?.metric || "") === "bestPace" || String(challenge?.metric || "") === "bestWorkoutPace"){
-                return 1;
-              }
+              if(String(challenge?.metric || "") === "bestPace") return 1;
               return Number(r?.value || 0) || 0;
             }), 1)
           : 1;
@@ -8793,11 +8874,7 @@ root.appendChild(el("div", { class:"card" }, [
           el("h2", { text: challengeTitle(challenge) }),
           el("div", {
             class:"note",
-            text:[
-              `${String(challenge?.kind || "").charAt(0).toUpperCase()}${String(challenge?.kind || "").slice(1)} • ${challengeMetricLabel(challenge)}`,
-              challenge?.exerciseName ? `• ${challenge.exerciseName}` : "",
-              `• ${people.length} athletes`
-            ].join(" ")
+            text:`${String(challenge?.kind || "").charAt(0).toUpperCase()}${String(challenge?.kind || "").slice(1)} • ${people.length} athletes`
           }),
           el("div", { style:"height:8px" }),
           el("div", {
@@ -8809,14 +8886,10 @@ root.appendChild(el("div", { class:"card" }, [
           leader ? el("div", {
             style:"margin-top:10px; font-weight:1000;"
           }, [`Leader: ${leader.name} • ${scoreText(challenge, leader)}`]) : null,
-          el("div", { style:"height:10px" }),
-          el("div", { class:"list" }, rows.map((row, idx) => {
-            let pct = 8;
-            if(String(challenge?.metric || "") !== "bestPace" && String(challenge?.metric || "") !== "bestWorkoutPace"){
-              pct = Math.max(8, Math.round(((Number(row?.value || 0) || 0) / Math.max(maxValue, 1)) * 100));
-            }else{
-              pct = (idx === 0) ? 100 : Math.max(20, 100 - (idx * 18));
-            }
+          rows.length ? el("div", { class:"list", style:"margin-top:10px;" }, rows.map((row, idx) => {
+            const pct = (String(challenge?.metric || "") === "bestPace")
+              ? (idx === 0 ? 100 : Math.max(20, 100 - (idx * 18)))
+              : Math.max(8, Math.round(((Number(row?.value || 0) || 0) / Math.max(maxValue, 1)) * 100));
 
             return el("div", { class:"item", style:"display:block;" }, [
               el("div", {
@@ -8834,21 +8907,108 @@ root.appendChild(el("div", { class:"card" }, [
                 })
               ])
             ]);
-          }))
+          })) : el("div", {
+            class:"note",
+            style:"margin-top:10px;",
+            text:"No qualifying shared activity yet."
+          })
         ].filter(Boolean));
+      }
+
+      function resetDraft(){
+        draftName = "Challenge Routine";
+        draftDays = [{
+          id: uid("cday"),
+          label: "Day 1",
+          exercises: []
+        }];
+        selectedExerciseName = "";
+        selectedExerciseId = "";
+        selectedFriendIds = [];
+        challengeDays = 7;
+        createType = "exercise";
+        typeKey = "weightlifting";
+        metricKey = "bestWeight";
+        persistDraft();
+      }
+
+      function createChallenge(){
+        const participantIds = selectedChallengeParticipants();
+        if(participantIds.length < 2){
+          showToast("Select at least 1 friend.");
+          return;
+        }
+        if(selectedFriendIds.length > 5){
+          showToast("You can challenge up to 5 friends.");
+          return;
+        }
+
+        if(createType === "exercise" && !selectedExerciseName){
+          showToast("Pick an exercise first.");
+          return;
+        }
+
+        if(createType === "workout"){
+          ensureDraftDays();
+          if(!routineExerciseCount(draftDays)){
+            showToast("Add at least 1 exercise to the routine.");
+            return;
+          }
+        }
+
+        const now = new Date();
+        const end = new Date(now.getTime() + (challengeDays * 86400000));
+
+        const item = {
+          id: uid("chg"),
+          creatorId: String(myId || ""),
+          participantIds,
+          kind: createType,
+          workoutType: typeKey,
+          metric: (createType === "workout") ? "" : metricKey,
+          exerciseId: (createType === "exercise") ? selectedExerciseId : "",
+          exerciseName: (createType === "exercise") ? selectedExerciseName : "",
+          routineName: (createType === "workout") ? String(draftName || "Challenge Routine") : "",
+          routineDays: (createType === "workout") ? JSON.parse(JSON.stringify(draftDays)) : [],
+          days: challengeDays,
+          startAt: now.toISOString(),
+          endAt: end.toISOString(),
+          createdAt: now.toISOString()
+        };
+
+        ui.challengeItems = Array.isArray(ui.challengeItems) ? ui.challengeItems : [];
+        ui.challengeItems.unshift(item);
+
+        hubTab = "active";
+        ui.challengeTab = "active";
+        showToast("Challenge created.");
+
+        if(createType === "workout"){
+          resetDraft();
+        }else{
+          selectedExerciseName = "";
+          selectedExerciseId = "";
+          ui.challengeExerciseName = "";
+          ui.challengeExerciseId = "";
+        }
+
+        persistDraft();
+        repaint();
       }
 
       function repaint(){
         body.innerHTML = "";
+        persistDraft();
 
         body.appendChild(el("div", {
           class:"note",
-          text:"Workout Challenges v1 uses shared Friends posts only. Create exercise, consistency, or workout challenges against up to 5 friends."
+          text:"Workout Challenges v1 uses shared Friends activity. Workout challenges now let you build a routine blueprint participants follow."
         }));
 
         body.appendChild(challengeTabs(hubTab, (next) => {
           hubTab = next;
           ui.challengeTab = next;
+          persistDraft();
           repaint();
         }));
 
@@ -8857,55 +9017,31 @@ root.appendChild(el("div", { class:"card" }, [
 
           body.appendChild(el("div", { class:"card" }, [
             el("h2", { text:"Create Challenge" }),
-            el("div", { class:"note", text:"Challenge up to 5 friends. Your own account is always included automatically." }),
+            el("div", { class:"note", text:"Challenge up to 5 friends. Your own account is included automatically." }),
             el("div", { style:"height:10px" }),
             createTypeTabs(createType, (next) => {
               createType = next;
               ui.challengeCreateType = next;
-              const nextMetric = metricOptionsFor(createType, typeKey)?.[0]?.key || "workoutDays";
-              metricKey = nextMetric;
-              ui.challengeMetric = nextMetric;
-              if(next !== "exercise"){
-                selectedExerciseName = "";
-                ui.challengeExerciseName = "";
+              if(next === "exercise"){
+                metricKey = metricOptionsFor("exercise", typeKey)?.[0]?.key || "bestWeight";
+              }else if(next === "consistency"){
+                metricKey = "workoutDays";
+              }else{
+                ensureDraftDays();
               }
+              persistDraft();
               repaint();
             }),
             el("div", { style:"height:10px" }),
             typeTabs(typeKey, (next) => {
               typeKey = next;
               ui.challengeType = next;
-              const nextMetric = metricOptionsFor(createType, typeKey)?.[0]?.key || "workoutDays";
-              metricKey = nextMetric;
-              ui.challengeMetric = nextMetric;
-              selectedExerciseName = "";
-              ui.challengeExerciseName = "";
+              if(createType === "exercise"){
+                metricKey = metricOptionsFor("exercise", typeKey)?.[0]?.key || "bestWeight";
+              }
+              persistDraft();
               repaint();
-            }),
-            el("div", { style:"height:10px" })
-          ]));
-
-          const metricSelect = el("select", {
-            onChange: (e) => {
-              metricKey = String(e?.target?.value || "");
-              ui.challengeMetric = metricKey;
-            }
-          });
-
-          metricOptionsFor(createType, typeKey).forEach(opt => {
-            metricSelect.appendChild(el("option", {
-              value: opt.key,
-              text: opt.label
-            }));
-          });
-          metricSelect.value = metricKey;
-
-          body.appendChild(el("div", { class:"setRow" }, [
-            el("div", {}, [
-              el("div", { style:"font-weight:820;", text:"Metric" }),
-              el("div", { class:"meta", text:"Choose how the winner is scored" })
-            ]),
-            metricSelect
+            })
           ]));
 
           const daySelect = el("select", {
@@ -8915,10 +9051,7 @@ root.appendChild(el("div", { class:"card" }, [
             }
           });
           [7, 14, 30].forEach(n => {
-            daySelect.appendChild(el("option", {
-              value: n,
-              text: `${n} Days`
-            }));
+            daySelect.appendChild(el("option", { value:n, text:`${n} Days` }));
           });
           daySelect.value = String(challengeDays);
 
@@ -8931,40 +9064,141 @@ root.appendChild(el("div", { class:"card" }, [
           ]));
 
           if(createType === "exercise"){
-            const names = buildExerciseOptionsFromFeed(typeKey, selectedChallengeParticipants());
-            const exerciseSelect = el("select", {
+            const metricSelect = el("select", {
               onChange: (e) => {
-                selectedExerciseName = String(e?.target?.value || "");
-                ui.challengeExerciseName = selectedExerciseName;
+                metricKey = String(e?.target?.value || "");
+                ui.challengeMetric = metricKey;
               }
             });
 
-            names.forEach(name => {
-              exerciseSelect.appendChild(el("option", {
-                value: name,
-                text: name
+            metricOptionsFor(createType, typeKey).forEach(opt => {
+              metricSelect.appendChild(el("option", {
+                value: opt.key,
+                text: opt.label
               }));
             });
+            metricSelect.value = metricKey;
 
-            if(!names.length){
-              body.appendChild(el("div", { class:"card" }, [
-                el("div", { class:"note", text:"No shared exercise posts found yet for this category. Share more exercise or workout posts first." })
-              ]));
-            }else{
-              if(!names.find(x => String(x) === String(selectedExerciseName))){
-                selectedExerciseName = String(names?.[0] || "");
-                ui.challengeExerciseName = selectedExerciseName;
+            body.appendChild(el("div", { class:"setRow" }, [
+              el("div", {}, [
+                el("div", { style:"font-weight:820;", text:"Metric" }),
+                el("div", { class:"meta", text:"Choose how the winner is scored" })
+              ]),
+              metricSelect
+            ]));
+
+            body.appendChild(el("div", { class:"card" }, [
+              el("h2", { text:"Exercise" }),
+              el("div", {
+                class:"note",
+                text:selectedExerciseName
+                  ? `${selectedExerciseName} • ${typeKey}`
+                  : "Pick any exercise from Weightlifting, Cardio, or Core."
+              }),
+              el("div", { style:"height:10px" }),
+              el("button", {
+                class:"btn",
+                type:"button",
+                onClick: openSingleExercisePicker
+              }, [selectedExerciseName ? "Change Exercise" : "Pick Exercise"])
+            ]));
+          }
+
+          if(createType === "workout"){
+            ensureDraftDays();
+
+            const routineNameInput = el("input", {
+              type:"text",
+              value:draftName,
+              placeholder:"Challenge routine name",
+              onInput: (e) => {
+                draftName = String(e?.target?.value || "");
+                ui.challengeDraftName = draftName;
               }
-              exerciseSelect.value = selectedExerciseName;
+            });
 
-              body.appendChild(el("div", { class:"setRow" }, [
-                el("div", {}, [
-                  el("div", { style:"font-weight:820;", text:"Exercise" }),
-                  el("div", { class:"meta", text:"Built from shared exercise and completed workout posts" })
+            body.appendChild(el("div", { class:"card" }, [
+              el("h2", { text:"Workout Routine" }),
+              el("div", { class:"note", text:"Build the routine participants are supposed to follow." }),
+              el("div", { style:"height:10px" }),
+              el("label", {}, [
+                el("span", { text:"Routine Name" }),
+                routineNameInput
+              ]),
+              el("div", { style:"height:12px" }),
+              el("div", {
+                style:"display:grid; gap:12px;"
+              }, draftDays.map((day, idx) => el("div", {
+                style:"padding:12px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04);"
+              }, [
+                el("div", {
+                  style:"display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+                }, [
+                  el("input", {
+                    type:"text",
+                    value:String(day?.label || `Day ${idx + 1}`),
+                    placeholder:`Day ${idx + 1}`,
+                    onInput: (e) => {
+                      day.label = String(e?.target?.value || `Day ${idx + 1}`);
+                      persistDraft();
+                    }
+                  }),
+                  el("button", {
+                    class:"btn danger",
+                    type:"button",
+                    onClick: () => {
+                      if(draftDays.length <= 1){
+                        showToast("Keep at least 1 day.");
+                        return;
+                      }
+                      draftDays = draftDays.filter(x => String(x?.id || "") !== String(day?.id || ""));
+                      persistDraft();
+                      repaint();
+                    }
+                  }, ["Remove Day"])
                 ]),
-                exerciseSelect
-              ]));
-            }
+                el("div", { style:"height:10px" }),
+                (Array.isArray(day?.exercises) && day.exercises.length)
+                  ? el("div", { class:"list" }, day.exercises.map((rx, exIdx) => el("div", {
+                      class:"item"
+                    }, [
+                      el("div", { class:"left" }, [
+                        el("div", { class:"name", text:String(rx?.nameSnap || "Exercise") }),
+                        el("div", { class:"meta", text:String(rx?.type || "") })
+                      ]),
+                      el("button", {
+                        class:"btn sm danger",
+                        type:"button",
+                        onClick: () => {
+                          day.exercises.splice(exIdx, 1);
+                          persistDraft();
+                          repaint();
+                        }
+                      }, ["Remove"])
+                    ])))
+                  : el("div", { class:"note", text:"No exercises yet." }),
+                el("div", { style:"height:10px" }),
+                el("button", {
+                  class:"btn",
+                  type:"button",
+                  onClick: () => openWorkoutDayExercisePicker(day.id)
+                }, ["Add Exercise"])
+              ]))),
+              el("div", { style:"height:10px" }),
+              el("button", {
+                class:"btn",
+                type:"button",
+                onClick: () => {
+                  draftDays.push({
+                    id: uid("cday"),
+                    label: `Day ${draftDays.length + 1}`,
+                    exercises: []
+                  });
+                  persistDraft();
+                  repaint();
+                }
+              }, ["+ Add Day"])
+            ]));
           }
 
           const friendOptionsWrap = el("div", {
@@ -8985,16 +9219,14 @@ root.appendChild(el("div", { class:"card" }, [
                   "border:1px solid rgba(255,255,255,.10)",
                   isOn ? "background:rgba(255,255,255,.12)" : "background:rgba(255,255,255,.06)",
                   isOn ? "color:rgba(255,255,255,.96)" : "color:rgba(255,255,255,.78)",
-                  "font-weight:900",
-                  "cursor:pointer"
+                  "font-weight:900"
                 ].join(";"),
                 onClick: () => {
                   const id = String(opt.id || "");
                   const next = new Set(selectedFriendIds.map(x => String(x || "")));
 
-                  if(next.has(id)){
-                    next.delete(id);
-                  }else{
+                  if(next.has(id)) next.delete(id);
+                  else{
                     if(next.size >= 5){
                       showToast("Max 5 friends per challenge.");
                       return;
@@ -9003,7 +9235,7 @@ root.appendChild(el("div", { class:"card" }, [
                   }
 
                   selectedFriendIds = Array.from(next);
-                  ui.challengeSelectedFriendIds = selectedFriendIds.slice();
+                  persistDraft();
                   repaint();
                 }
               }, [isOn ? `✓ ${opt.name}` : opt.name]));
@@ -9029,20 +9261,7 @@ root.appendChild(el("div", { class:"card" }, [
               class:"btn",
               type:"button",
               onClick: () => {
-                selectedFriendIds = [];
-                selectedExerciseName = "";
-                challengeDays = 7;
-                createType = "exercise";
-                typeKey = "weightlifting";
-                metricKey = "bestWeight";
-
-                ui.challengeSelectedFriendIds = [];
-                ui.challengeExerciseName = "";
-                ui.challengeDays = 7;
-                ui.challengeCreateType = "exercise";
-                ui.challengeType = "weightlifting";
-                ui.challengeMetric = "bestWeight";
-
+                resetDraft();
                 repaint();
               }
             }, ["Reset"])
@@ -9069,7 +9288,10 @@ root.appendChild(el("div", { class:"card" }, [
         visibleItems.forEach(item => body.appendChild(challengeCard(item)));
       }
 
+      ensureDraftDays();
+      persistDraft();
       repaint();
+
       Modal.open({
         title:"Workout Challenge",
         size:"lg",
