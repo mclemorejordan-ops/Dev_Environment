@@ -4371,10 +4371,11 @@ function buildWorkoutEventData(dateISO, routineId, day){
     }
 
     details = {
-      dayLabel: day?.label || null,
-      dateISO: dateISO || null,
-      items
-    };
+  routineName: ((state.routines || []).find(r => String(r.id || "") === String(routineId || ""))?.name || null),
+  dayLabel: day?.label || null,
+  dateISO: dateISO || null,
+  items
+};
   }catch(_){
     details = null;
   }
