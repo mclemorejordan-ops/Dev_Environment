@@ -6917,6 +6917,10 @@ function openFollowerNotifsModal(){
 
 
 function openAddFriendModal(){
+  let searchSeq = 0;
+  let searchDebounce = null;
+  let selectedSuggestionId = "";
+
   const friendCodeInput = el("input", {
     class:"connCodeInput",
     type:"text",
@@ -6927,17 +6931,33 @@ function openAddFriendModal(){
     spellcheck:"false"
   });
 
-  friendCodeInput.addEventListener("input", () => {
-    ui.connAddCode = friendCodeInput.value || "";
+  const searchStatus = el("div", {
+    class:"note",
+    style:"display:none; margin-top:8px;"
+  }, ["Searching…"]);
+
+  const suggestionsHost = el("div", {
+    style:"display:none; margin-top:10px;"
   });
 
-  async function doAdd(){
+  function avatarLetter(name){
+    const s = String(name || "").trim();
+    return (s && s[0]) ? s[0].toUpperCase() : "•";
+  }
+
+  function clearSuggestions(){
+    suggestionsHost.innerHTML = "";
+    suggestionsHost.style.display = "none";
+    selectedSuggestionId = "";
+  }
+
+  async function doAdd(explicitTarget = null){
     if(!user){
       showToast("Sign in to add friends");
       return;
     }
 
-    const raw = String(ui.connAddCode || "").trim();
+    const raw = String(explicitTarget || ui.connAddCode || "").trim();
     const uname = normalizeUsername(raw);
 
     if(!uname){
@@ -6949,6 +6969,8 @@ function openAddFriendModal(){
       await Social.follow(uname);
       showToast("Friend added");
       ui.connAddCode = "";
+      selectedSuggestionId = "";
+      clearSuggestions();
       Modal.close();
       renderView();
     }catch(e){
@@ -6956,26 +6978,163 @@ function openAddFriendModal(){
     }
   }
 
+  function buildSuggestionRow(row){
+    const id = String(row?.id || "");
+    const dn = String(row?.displayName || "User").trim() || "User";
+    const un = normalizeUsername(row?.username || "");
+    const handle = usernameToHandle(un);
+
+    return el("button", {
+      type:"button",
+      class:"connRow",
+      style:[
+        "width:100%",
+        "margin:0",
+        "background:transparent",
+        "border:0",
+        "padding:10px 0",
+        "text-align:left",
+        "cursor:pointer",
+        "display:flex",
+        "align-items:center",
+        "gap:10px"
+      ].join(";"),
+      onClick: async () => {
+        selectedSuggestionId = id;
+        ui.connAddCode = un;
+        friendCodeInput.value = handle || un;
+        try{
+          await doAdd(un);
+        }catch(_){}
+      }
+    }, [
+      el("div", { class:"connAvatar", text: avatarLetter(dn) }),
+      el("div", { style:"min-width:0; flex:1;" }, [
+        el("div", {
+          style:"font-weight:800; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [dn]),
+        el("div", {
+          class:"note",
+          style:"margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [handle || "@unknown"])
+      ])
+    ]);
+  }
+
+  async function repaintSuggestions(){
+    const seq = ++searchSeq;
+    const q = normalizeUsername(friendCodeInput.value || "");
+
+    ui.connAddCode = friendCodeInput.value || "";
+    selectedSuggestionId = "";
+
+    if(!user){
+      clearSuggestions();
+      return;
+    }
+
+    if(!q){
+      clearSuggestions();
+      return;
+    }
+
+    if(!Social.searchProfilesByUsername){
+      clearSuggestions();
+      return;
+    }
+
+    searchStatus.style.display = "block";
+
+    let results = [];
+    try{
+      results = await Social.searchProfilesByUsername(q, { limit: 6 });
+    }catch(_){
+      results = [];
+    }finally{
+      if(seq === searchSeq){
+        searchStatus.style.display = "none";
+      }
+    }
+
+    if(seq !== searchSeq) return;
+
+    const myId = String(user?.id || "");
+    const followsSet = new Set((Social.getFollows ? Social.getFollows() : []).map(x => String(x || "")));
+
+    const filtered = (results || [])
+      .filter(row => String(row?.id || ""))
+      .filter(row => String(row.id) !== myId)
+      .filter(row => !followsSet.has(String(row.id)));
+
+    suggestionsHost.innerHTML = "";
+
+    if(!filtered.length){
+      suggestionsHost.style.display = "none";
+      return;
+    }
+
+    suggestionsHost.style.display = "block";
+    suggestionsHost.appendChild(el("div", {
+      style:"font-size:12px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; opacity:.72; margin:0 0 8px;"
+    }, ["Suggested users"]));
+
+    filtered.forEach((row, idx) => {
+      suggestionsHost.appendChild(buildSuggestionRow(row));
+      if(idx !== filtered.length - 1){
+        suggestionsHost.appendChild(el("div", { class:"hr" }));
+      }
+    });
+  }
+
+  friendCodeInput.addEventListener("input", () => {
+    ui.connAddCode = friendCodeInput.value || "";
+
+    try{
+      if(searchDebounce) clearTimeout(searchDebounce);
+    }catch(_){}
+
+    searchDebounce = setTimeout(() => {
+      repaintSuggestions();
+    }, 150);
+  });
+
+  friendCodeInput.addEventListener("keydown", async (e) => {
+    if(e.key === "Enter"){
+      try{ e.preventDefault(); }catch(_){}
+      await doAdd();
+    }
+  });
+
   Modal.open({
     title: "Add Friend",
     bodyNode: el("div", { class:"connAddFriendModal" }, [
-
       el("div", { class:"setRow" }, [
         el("div", {}, [
           el("div", { style:"font-weight:820;", text:"Friend username" }),
-          el("div", { class:"meta", text:"Enter @username to add" })
+          el("div", { class:"meta", text:"Type @username to search and add" })
         ]),
 
         el("div", { class:"connCodeRight" }, [
           friendCodeInput,
           el("button", {
             class:"btn primary sm",
-            onClick: doAdd
+            onClick: () => doAdd()
           }, ["Add"])
         ])
-      ])
+      ]),
+      searchStatus,
+      suggestionsHost
     ])
   });
+
+  setTimeout(() => {
+    try{
+      friendCodeInput.focus();
+      friendCodeInput.setSelectionRange(friendCodeInput.value.length, friendCodeInput.value.length);
+    }catch(_){}
+  }, 0);
+
+  repaintSuggestions();
 }
 
 const addFriendBtn = el("button", {
