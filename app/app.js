@@ -4156,10 +4156,9 @@ function openExerciseLogger(rx, day, defaultDateISO){
   const exName = resolveExerciseName(type, exerciseId, rx.nameSnap);
 
   const initialDateISO = String(defaultDateISO || Dates.todayISO());
-  const routineId = String(existingEntry?.routineId || state.activeRoutineId || "");
 
-  // Manual override date (defaults to the day you're viewing in the carousel)
-  const dateInput = el("input", { type:"date", value: initialDateISO });
+// Manual override date (defaults to the day you're viewing in the carousel)
+const dateInput = el("input", { type:"date", value: initialDateISO });
 
   // Existing log for this routine-exercise on the selected date (so inputs persist)
   const existingEntry = (state.logs?.workouts || []).find(e =>
