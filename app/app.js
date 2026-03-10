@@ -2301,10 +2301,10 @@ const { buildProteinTodayModal, deleteMeal, totalProtein } = ProteinUI;
 let openExerciseLoggerRef = null;
  
 const Views = {   
-    Onboarding(){
+   Onboarding(){
   let hideRestDays = true;
   let selectedTpl = "ppl";
-  let trackProtein = true; // ✅ NEW: default ON for onboarding toggle
+  let trackProtein = true;
 
   const errorBox = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
@@ -2314,7 +2314,6 @@ const Views = {
     switchNode.classList.toggle("on", hideRestDays);
   });
 
-  // ✅ NEW: Track Protein toggle (default ON)
   const proteinSwitchNode = el("div", { class:"switch on" });
 
   const tplCardsHost = el("div", { class:"tplGrid" });
@@ -2332,7 +2331,8 @@ const Views = {
   };
   renderTplCards();
 
-    const nameInput = el("input", { type:"text", placeholder:"Jordan" });
+  const nameInput = el("input", { type:"text", placeholder:"Jordan" });
+
   const usernameInput = el("input", {
     type:"text",
     placeholder:"jordand",
@@ -2341,19 +2341,125 @@ const Views = {
     spellcheck:"false"
   });
 
-      // ✅ auto-clean username while typing
-usernameInput.addEventListener("input", () => {
-  usernameInput.value = normalizeUsername(usernameInput.value);
-});
-      
+  usernameInput.addEventListener("input", () => {
+    usernameInput.value = normalizeUsername(usernameInput.value);
+  });
+
+  let onboardingUsernameCheckSeq = 0;
+  let onboardingUsernameCheckTimer = null;
+  let onboardingLastUsernameChecked = "";
+  let onboardingUsernameStatus = "idle"; // idle | checking | available | taken | invalid
+  let onboardingUsernameOwnerId = null;
+
+  const onboardingUsernameStatusNode = el("div", {
+    class:"meta",
+    style:"margin-top:6px; min-height:18px;"
+  });
+
+  function paintOnboardingUsernameStatus(){
+    const current = normalizeUsername(usernameInput.value);
+    const mine = String(Social.getUser?.()?.id || "");
+
+    if(!current){
+      onboardingUsernameStatusNode.textContent = "3–20 letters, numbers, or underscores.";
+      onboardingUsernameStatusNode.style.color = "";
+      return;
+    }
+
+    if(onboardingUsernameStatus === "invalid"){
+      onboardingUsernameStatusNode.textContent = "Use 3–20 lowercase letters, numbers, or underscores.";
+      onboardingUsernameStatusNode.style.color = "rgba(255,92,122,.95)";
+      return;
+    }
+
+    if(onboardingUsernameStatus === "checking"){
+      onboardingUsernameStatusNode.textContent = "Checking availability…";
+      onboardingUsernameStatusNode.style.color = "";
+      return;
+    }
+
+    if(onboardingUsernameStatus === "taken"){
+      onboardingUsernameStatusNode.textContent = "Username is already taken.";
+      onboardingUsernameStatusNode.style.color = "rgba(255,92,122,.95)";
+      return;
+    }
+
+    if(onboardingUsernameStatus === "available"){
+      if(onboardingUsernameOwnerId && mine && onboardingUsernameOwnerId === mine){
+        onboardingUsernameStatusNode.textContent = "This is your current username.";
+        onboardingUsernameStatusNode.style.color = "";
+        return;
+      }
+      onboardingUsernameStatusNode.textContent = "Username is available.";
+      onboardingUsernameStatusNode.style.color = "rgba(46,204,113,.95)";
+      return;
+    }
+
+    onboardingUsernameStatusNode.textContent = "Shown in Friends as @username.";
+    onboardingUsernameStatusNode.style.color = "";
+  }
+
+  async function checkOnboardingUsernameAvailabilityLive(opts = {}){
+    const force = !!opts.force;
+    const mine = String(Social.getUser?.()?.id || "");
+    const current = normalizeUsername(usernameInput.value);
+
+    if(!force && current === onboardingLastUsernameChecked) return;
+    onboardingLastUsernameChecked = current;
+
+    const seq = ++onboardingUsernameCheckSeq;
+
+    if(!current){
+      onboardingUsernameStatus = "idle";
+      onboardingUsernameOwnerId = null;
+      paintOnboardingUsernameStatus();
+      return;
+    }
+
+    if(!isValidUsername(current)){
+      onboardingUsernameStatus = "invalid";
+      onboardingUsernameOwnerId = null;
+      paintOnboardingUsernameStatus();
+      return;
+    }
+
+    onboardingUsernameStatus = "checking";
+    onboardingUsernameOwnerId = null;
+    paintOnboardingUsernameStatus();
+
+    const ownerId = await getUsernameOwnerId(current);
+    if(seq !== onboardingUsernameCheckSeq) return;
+
+    onboardingUsernameOwnerId = ownerId;
+    if(ownerId && (!mine || ownerId !== mine)){
+      onboardingUsernameStatus = "taken";
+    }else{
+      onboardingUsernameStatus = "available";
+    }
+
+    paintOnboardingUsernameStatus();
+  }
+
+  function queueOnboardingUsernameAvailabilityCheck(){
+    if(onboardingUsernameCheckTimer) clearTimeout(onboardingUsernameCheckTimer);
+    onboardingUsernameCheckTimer = setTimeout(() => {
+      checkOnboardingUsernameAvailabilityLive().catch(() => {});
+    }, 250);
+  }
+
+  usernameInput.addEventListener("input", () => {
+    queueOnboardingUsernameAvailabilityCheck();
+  });
+
+  paintOnboardingUsernameStatus();
+
   const proteinInput = el("input", { type:"number", inputmode:"numeric", placeholder:"180", min:"0" });
-         
+
   const weekSelect = el("select", {});
   weekSelect.appendChild(el("option", { value:"mon", text:"Monday" }));
   weekSelect.appendChild(el("option", { value:"sun", text:"Sunday" }));
   weekSelect.value = "mon";
 
-  // ✅ Wrap protein input label so we can show/hide it safely
   const proteinLabel = el("label", {}, [
     el("span", { text:"Protein goal (grams/day)" }),
     proteinInput
@@ -2362,24 +2468,20 @@ usernameInput.addEventListener("input", () => {
   proteinSwitchNode.addEventListener("click", () => {
     trackProtein = !trackProtein;
     proteinSwitchNode.classList.toggle("on", trackProtein);
-
-    // Show/hide protein goal input
     proteinLabel.style.display = trackProtein ? "" : "none";
 
-    // If turning off, clear any protein-related error
     if(!trackProtein){
       errorBox.style.display = "none";
       errorBox.textContent = "";
     }
   });
 
-  const finish = () => {
+  async function finish(){
     errorBox.style.display = "none";
     errorBox.textContent = "";
 
     const cleanName = (nameInput.value || "").trim();
     const cleanUsername = normalizeUsername(usernameInput.value);
-    
     const cleanProtein = Number(proteinInput.value);
     const weekStartsOn = weekSelect.value === "sun" ? "sun" : "mon";
 
@@ -2390,12 +2492,40 @@ usernameInput.addEventListener("input", () => {
     }
 
     if(!isValidUsername(cleanUsername)){
-    errorBox.textContent = "Choose a username with 3–20 letters, numbers, or underscores.";
-    errorBox.style.display = "block";
-    return;
-  }
+      onboardingUsernameStatus = "invalid";
+      onboardingUsernameOwnerId = null;
+      paintOnboardingUsernameStatus();
 
-    // ✅ Only require protein if Track Protein is ON
+      errorBox.textContent = "Choose a username with 3–20 letters, numbers, or underscores.";
+      errorBox.style.display = "block";
+      return;
+    }
+
+    if(onboardingUsernameCheckTimer){
+      clearTimeout(onboardingUsernameCheckTimer);
+      onboardingUsernameCheckTimer = null;
+    }
+
+    await checkOnboardingUsernameAvailabilityLive({ force:true });
+
+    if(onboardingUsernameStatus === "taken"){
+      errorBox.textContent = "That username is already taken.";
+      errorBox.style.display = "block";
+      return;
+    }
+
+    const ownerId = await getUsernameOwnerId(cleanUsername);
+    const mine = String(Social.getUser?.()?.id || "");
+    if(ownerId && (!mine || ownerId !== mine)){
+      onboardingUsernameStatus = "taken";
+      onboardingUsernameOwnerId = ownerId;
+      paintOnboardingUsernameStatus();
+
+      errorBox.textContent = "That username is already taken.";
+      errorBox.style.display = "block";
+      return;
+    }
+
     if(trackProtein){
       if(!Number.isFinite(cleanProtein) || cleanProtein <= 0){
         errorBox.textContent = "Please enter a valid daily protein goal (grams).";
@@ -2404,25 +2534,20 @@ usernameInput.addEventListener("input", () => {
       }
     }
 
-        const profile = {
-        name: cleanName,
-        username: cleanUsername,
-      proteinGoal: trackProtein ? Math.round(cleanProtein) : 0, // ✅ NEW behavior
+    const profile = {
+      name: cleanName,
+      username: cleanUsername,
+      proteinGoal: trackProtein ? Math.round(cleanProtein) : 0,
       weekStartsOn,
       hideRestDays: !!hideRestDays,
-
-      // ✅ Goals (persistent)
       goals: {
         weeklySessionsTarget: 4,
         targetWeight: null,
-        items: [] // ✅ new additive goals list
+        items: []
       },
-
-      // ✅ existing behavior you already added
       show3DPreview: true
     };
 
-    // Seed library FIRST so template exercises can resolve to real exerciseIds
     ExerciseLibrary.ensureSeeded();
 
     const routineName = RoutineTemplates.find(t => t.key === selectedTpl)?.name || "Routine";
@@ -2432,7 +2557,6 @@ usernameInput.addEventListener("input", () => {
     state.routines = [routine];
     state.activeRoutineId = routine.id;
 
-    // Repair any missing links (older data / edge cases)
     repairExerciseLinks();
 
     Storage.save(state);
@@ -2440,9 +2564,8 @@ usernameInput.addEventListener("input", () => {
     bindHeaderPills();
     setHeaderPills();
     checkForUpdates();
-  };
+  }
 
-  // Initial visibility (default ON)
   proteinLabel.style.display = trackProtein ? "" : "none";
 
   return el("div", { class:"grid" }, [
@@ -2453,12 +2576,20 @@ usernameInput.addEventListener("input", () => {
         el("div", { class:"small", text:"Create your profile and choose a routine template. You can edit everything later." })
       ])
     ]),
+
     el("div", { class:"card" }, [
       el("h2", { text:"Create profile" }),
-            el("div", { class:"form" }, [
+      el("div", { class:"form" }, [
         el("div", { class:"row2" }, [
-          el("label", {}, [ el("span", { text:"Name" }), nameInput ]),
-          el("label", {}, [ el("span", { text:"Username" }), usernameInput ])
+          el("label", {}, [
+            el("span", { text:"Name" }),
+            nameInput
+          ]),
+          el("label", {}, [
+            el("span", { text:"Username" }),
+            usernameInput,
+            onboardingUsernameStatusNode
+          ])
         ]),
         el("div", { class:"row2" }, [
           proteinLabel,
@@ -2484,12 +2615,21 @@ usernameInput.addEventListener("input", () => {
         errorBox
       ])
     ]),
+
     el("div", { class:"card" }, [
       el("h2", { text:"Choose a routine template" }),
       tplCardsHost,
       el("div", { style:"height:10px" }),
       el("div", { class:"btnrow" }, [
-        el("button", { class:"btn primary", onClick: finish }, ["Finish setup"]),
+        el("button", {
+          class:"btn primary",
+          onClick: () => {
+            finish().catch((e) => {
+              errorBox.textContent = String(e?.message || "Could not finish setup.");
+              errorBox.style.display = "block";
+            });
+          }
+        }, ["Finish setup"]),
         el("button", {
           class:"btn danger",
           onClick: () => {
@@ -2502,7 +2642,7 @@ usernameInput.addEventListener("input", () => {
                   el("button", {
                     class:"btn danger",
                     onClick: () => {
-                      try{ BackupVault.forceSnapshot(state, "pre-reset"); }catch(_){ }
+                      try{ BackupVault.forceSnapshot(state, "pre-reset"); }catch(_){}
                       Storage.reset();
                       state = Storage.load();
                       Modal.close();
