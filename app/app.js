@@ -8301,11 +8301,11 @@ root.appendChild(el("div", { class:"card" }, [
         }catch(_){}
       }
 
-            const doneBtn = el("button", {
+      const doneBtn = el("button", {
         class:"btn primary",
         type:"button",
         onClick: closeAndReturn
-      }, [keepOpen ? "Done" : "Close"]);
+      }, [opts?.keepOpen ? "Done" : "Close"]);
 
       function getBucket(type){
         try{
@@ -8853,7 +8853,7 @@ root.appendChild(el("div", { class:"card" }, [
         return String(challenge?.routineName || "Routine Workout Challenge");
       }
 
-            function openSingleExercisePicker(){
+      function openSingleExercisePicker(){
         openChallengeExercisePicker({
           title:"Pick Challenge Exercise",
           dayLabel:"Challenge Exercise",
@@ -8867,14 +8867,15 @@ root.appendChild(el("div", { class:"card" }, [
             ui.challengeExerciseId = selectedExerciseId;
             ui.challengeExerciseName = selectedExerciseName;
           },
-          onReturn: () => {
+                    onReturn: () => {
             persistDraft();
             openChallengeModal();
+          }
           }
         });
       }
 
-            function openWorkoutDayExercisePicker(dayId){
+      function openWorkoutDayExercisePicker(dayId){
         const day = (draftDays || []).find(d => String(d?.id || "") === String(dayId || ""));
         if(!day) return;
 
@@ -8899,9 +8900,10 @@ root.appendChild(el("div", { class:"card" }, [
             persistDraft();
             repaint();
           },
-          onReturn: () => {
+                    onReturn: () => {
             persistDraft();
             openChallengeModal();
+          }
           }
         });
       }
@@ -9018,7 +9020,7 @@ root.appendChild(el("div", { class:"card" }, [
         persistDraft();
       }
 
-            async function createChallenge(){
+                  async function createChallenge(){
         const participantIds = selectedChallengeParticipants();
         if(participantIds.length < 2){
           showToast("Select at least 1 friend.");
@@ -9044,28 +9046,29 @@ root.appendChild(el("div", { class:"card" }, [
 
         let savedRoutineId = "";
         let savedRoutineName = "";
+        let savedRoutine = null;
 
-                if(createType === "workout"){
-          ensureDraftDays();
-
+        if(createType === "workout"){
           const snapshot = {
             name: String(draftName || "Challenge Routine"),
             days: (draftDays || []).map((day, idx) => ({
+              id: day?.id || null,
               order: idx,
               label: String(day?.label || `Day ${idx + 1}`),
-              isRest: !!day?.isRest,
+              isRest: false,
               exercises: (Array.isArray(day?.exercises) ? day.exercises : []).map((rx, exIdx) => ({
+                id: rx?.id || null,
                 order: exIdx,
-                type: String(rx?.type || "weightlifting"),
+                type: String(rx?.type || ""),
                 exerciseId: rx?.exerciseId || null,
                 name: String(rx?.nameSnap || "Exercise"),
-                plan: rx?.plan ? { ...rx.plan } : null,
+                plan: rx?.plan || null,
                 notes: String(rx?.notes || "")
               }))
             }))
           };
 
-          const savedRoutine = saveRoutineSnapshotToMyRoutines(snapshot);
+          savedRoutine = importSharedRoutinePayload(snapshot, { setActive:false });
           savedRoutineId = String(savedRoutine?.id || "");
           savedRoutineName = String(savedRoutine?.name || snapshot.name || "Challenge Routine");
         }
@@ -9094,6 +9097,21 @@ root.appendChild(el("div", { class:"card" }, [
         ui.challengeItems = Array.isArray(ui.challengeItems) ? ui.challengeItems : [];
         ui.challengeItems.unshift(item);
 
+        let shareCount = 0;
+
+        if(createType === "workout" && savedRoutine){
+          const targets = participantIds
+            .map(id => String(id || ""))
+            .filter(id => id && id !== String(myId || ""));
+
+          for(const recipientId of targets){
+            try{
+              await Social.shareRoutineWithUser?.(recipientId, savedRoutine);
+              shareCount += 1;
+            }catch(_){}
+          }
+        }
+
         try{
           await Social.publishChallengeCreatedEvent?.(item);
         }catch(_){}
@@ -9101,11 +9119,15 @@ root.appendChild(el("div", { class:"card" }, [
         hubTab = "active";
         ui.challengeTab = "active";
 
-        showToast(
-          createType === "workout"
-            ? "Challenge created. Routine saved to Your Routines."
-            : "Challenge created."
-        );
+        if(createType === "workout"){
+          showToast(
+            shareCount > 0
+              ? `Challenge created. Routine saved and shared to ${shareCount} participant${shareCount === 1 ? "" : "s"}.`
+              : "Challenge created. Routine saved to Your Routines."
+          );
+        }else{
+          showToast("Challenge created.");
+        }
 
         if(createType === "workout"){
           resetDraft();
@@ -9241,9 +9263,9 @@ root.appendChild(el("div", { class:"card" }, [
               }
             });
 
-            body.appendChild(el("div", { class:"card" }, [
+                        body.appendChild(el("div", { class:"card" }, [
               el("h2", { text:"Workout Routine" }),
-              el("div", { class:"note", text:"Build the routine participants are supposed to follow." }),
+              el("div", { class:"note", text:"Create a real routine for this challenge. It will be saved to Your Routines and shared to the selected participants." }),
               el("div", { style:"height:10px" }),
               el("label", {}, [
                 el("span", { text:"Routine Name" }),
