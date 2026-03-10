@@ -1844,6 +1844,40 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
 const Social = initSocial();
 Social.bindStateGetter(() => state);
 
+const Social = initSocial();
+Social.bindStateGetter(() => state);
+
+async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
+  try{
+    if(!Social) return;
+
+    const safeDayId = day?.id || null;
+    if(!dateISO || !routineId || !safeDayId) return;
+
+    if(!isDayComplete(dateISO, day)){
+      if(typeof Social.deleteWorkoutCompletedEvent === "function"){
+        await Social.deleteWorkoutCompletedEvent({
+          dateISO,
+          routineId,
+          dayId: safeDayId
+        });
+      }
+      return;
+    }
+
+    if(typeof Social.upsertWorkoutCompletedEvent === "function"){
+      const data = buildWorkoutEventData(dateISO, routineId, day);
+      await Social.upsertWorkoutCompletedEvent({
+        dateISO,
+        routineId,
+        dayId: safeDayId,
+        highlights: data?.highlights || {},
+        details: data?.details || null
+      });
+    }
+  }catch(_){}
+}
+
 
 // 1) Init Backup FIRST so we have the functions
 const Backup = initBackup({
