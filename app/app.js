@@ -9059,13 +9059,9 @@ root.appendChild(el("div", { class:"card" }, [
     })();
 
     const ownTotalPRs = ownWorkoutLogs.reduce((sum, entry) => {
-      const pr = entry?.pr || {};
-      return sum
-        + (pr?.isPRWeight ? 1 : 0)
-        + (pr?.isPR1RM ? 1 : 0)
-        + (pr?.isPRVolume ? 1 : 0)
-        + (pr?.isPRPace ? 1 : 0);
-    }, 0);
+  const pr = entry?.pr || {};
+  return sum + (pr?.isPRWeight ? 1 : 0);
+}, 0);
 
     const parseWeightSet = (text) => {
       const s = String(text || "");
@@ -9176,9 +9172,12 @@ root.appendChild(el("div", { class:"card" }, [
     })();
 
     const sharedTotalPRs = sharedEvents.reduce((sum, ev) => {
-      const p = ev?.payload || {};
-      return sum + (Number(p?.highlights?.prCount || 0) || 0);
-    }, 0);
+  const items = Array.isArray(ev?.payload?.details?.items) ? ev.payload.details.items : [];
+  const hasWeightPR = items.some(item =>
+    Array.isArray(item?.prBadges) && item.prBadges.includes("PR W")
+  );
+  return sum + (hasWeightPR ? 1 : 0);
+}, 0);
 
     const strengthBest = isOwnProfile ? ownStrengthBest : sharedStrengthBest;
     const cardioBest = isOwnProfile ? ownCardioBest : sharedCardioBest;
