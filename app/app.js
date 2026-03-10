@@ -6915,11 +6915,9 @@ function openFollowerNotifsModal(){
   repaint();
 }
 
-
 function openAddFriendModal(){
   let searchSeq = 0;
   let searchDebounce = null;
-  let selectedSuggestionId = "";
 
   const friendCodeInput = el("input", {
     class:"connCodeInput",
@@ -6948,16 +6946,15 @@ function openAddFriendModal(){
   function clearSuggestions(){
     suggestionsHost.innerHTML = "";
     suggestionsHost.style.display = "none";
-    selectedSuggestionId = "";
   }
 
-  async function doAdd(explicitTarget = null){
+  async function doAdd(explicitUsername){
     if(!user){
       showToast("Sign in to add friends");
       return;
     }
 
-    const raw = String(explicitTarget || ui.connAddCode || "").trim();
+    const raw = String(explicitUsername || ui.connAddCode || "").trim();
     const uname = normalizeUsername(raw);
 
     if(!uname){
@@ -6969,7 +6966,6 @@ function openAddFriendModal(){
       await Social.follow(uname);
       showToast("Friend added");
       ui.connAddCode = "";
-      selectedSuggestionId = "";
       clearSuggestions();
       Modal.close();
       renderView();
@@ -7000,12 +6996,9 @@ function openAddFriendModal(){
         "gap:10px"
       ].join(";"),
       onClick: async () => {
-        selectedSuggestionId = id;
         ui.connAddCode = un;
         friendCodeInput.value = handle || un;
-        try{
-          await doAdd(un);
-        }catch(_){}
+        await doAdd(un);
       }
     }, [
       el("div", { class:"connAvatar", text: avatarLetter(dn) }),
@@ -7026,7 +7019,6 @@ function openAddFriendModal(){
     const q = normalizeUsername(friendCodeInput.value || "");
 
     ui.connAddCode = friendCodeInput.value || "";
-    selectedSuggestionId = "";
 
     if(!user){
       clearSuggestions();
@@ -7059,7 +7051,11 @@ function openAddFriendModal(){
     if(seq !== searchSeq) return;
 
     const myId = String(user?.id || "");
-    const followsSet = new Set((Social.getFollows ? Social.getFollows() : []).map(x => String(x || "")));
+    const followsSet = new Set(
+      (Social.getFollows ? Social.getFollows() : [])
+        .map(x => String(x || ""))
+        .filter(Boolean)
+    );
 
     const filtered = (results || [])
       .filter(row => String(row?.id || ""))
