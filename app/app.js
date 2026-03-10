@@ -1844,6 +1844,541 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
 const Social = initSocial();
 Social.bindStateGetter(() => state);
 
+function getRoutineExerciseEntries(dateISO, routineExerciseId){
+  return (state.logs?.workouts || []).filter(e =>
+    String(e?.dateISO || "") === String(dateISO || "") &&
+    String(e?.routineExerciseId || "") === String(routineExerciseId || "")
+  );
+}
+
+function hasRoutineExerciseSkipped(dateISO, routineExerciseId){
+  return getRoutineExerciseEntries(dateISO, routineExerciseId).some(e => !!e?.skipped);
+}
+
+function hasRoutineExerciseLogged(dateISO, routineExerciseId){
+  return getRoutineExerciseEntries(dateISO, routineExerciseId).some(e => !e?.skipped);
+}
+
+function isRoutineExerciseDone(dateISO, routineExerciseId){
+  return hasRoutineExerciseLogged(dateISO, routineExerciseId) ||
+         hasRoutineExerciseSkipped(dateISO, routineExerciseId);
+}
+
+function clearSkippedRoutineExercise(dateISO, routineExerciseId){
+  const before = (state.logs?.workouts || []).length;
+
+  state.logs.workouts = (state.logs.workouts || []).filter(e =>
+    !(
+      String(e?.dateISO || "") === String(dateISO || "") &&
+      String(e?.routineExerciseId || "") === String(routineExerciseId || "") &&
+      !!e?.skipped
+    )
+  );
+
+  if((state.logs.workouts || []).length !== before){
+    Storage.save(state);
+    return true;
+  }
+
+  return false;
+}
+
+function markRoutineExerciseSkipped({ dateISO, routineId, day, rx }){
+  if(!dateISO || !routineId || !day?.id || !rx?.id) return false;
+
+  if(hasRoutineExerciseLogged(dateISO, rx.id)) return false;
+
+  LogEngine.ensure();
+
+  state.logs.workouts = (state.logs.workouts || []).filter(e =>
+    !(
+      String(e?.dateISO || "") === String(dateISO || "") &&
+      String(e?.routineExerciseId || "") === String(rx.id || "")
+    )
+  );
+
+  state.logs.workouts.push({
+    id: uid("skip"),
+    createdAt: Date.now(),
+    dateISO,
+    type: rx.type,
+    exerciseId: rx.exerciseId,
+    routineExerciseId: rx.id,
+    routineId,
+    dayId: day.id,
+    dayOrder: day.order,
+    nameSnap: rx.nameSnap || resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap),
+    sets: [],
+    summary: {},
+    pr: {},
+    skipped: true
+  });
+
+  Storage.save(state);
+  return true;
+}
+
+function isDayComplete(dateISO, day){
+  const ex = (day?.exercises || []);
+  if(ex.length === 0) return false;
+  return ex.every(rx => isRoutineExerciseDone(dateISO, rx.id));
+}
+
+function buildWorkoutEventData(dateISO, routineId, day){
+  const entries = (state?.logs?.workouts || []).filter(e =>
+    String(e?.dateISO || "") === String(dateISO || "") &&
+    String(e?.routineId || "") === String(routineId || "") &&
+    String(e?.dayId || "") === String(day?.id || "") &&
+    !e?.skipped
+  );
+
+  const exSet = new Set();
+  let totalVolume = 0;
+  let prCount = 0;
+
+  function hasAnyPR(pr){
+    try{
+      return !!(
+        pr?.isPRWeight ||
+        pr?.isPR1RM ||
+        pr?.isPRVolume ||
+        pr?.isPRPace
+      );
+    }catch(_){
+      return false;
+    }
+  }
+
+  function num(v){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function bestWeightFromEntry(e){
+    try{
+      const sets = Array.isArray(e?.sets) ? e.sets : [];
+      let best = 0;
+      for(const s of sets){
+        const w = num(s?.weight);
+        if(w > best) best = w;
+      }
+      if(best > 0) return best;
+      return num(e?.summary?.bestWeight);
+    }catch(_){
+      return 0;
+    }
+  }
+
+  function bestRepsAtBestWeightFromEntry(e){
+    try{
+      const sets = Array.isArray(e?.sets) ? e.sets : [];
+      let bestWeight = -1;
+      let bestReps = 0;
+
+      for(const s of sets){
+        const w = num(s?.weight);
+        const r = num(s?.reps);
+        if(w > bestWeight){
+          bestWeight = w;
+          bestReps = r;
+        }else if(w === bestWeight && r > bestReps){
+          bestReps = r;
+        }
+      }
+
+      return bestReps;
+    }catch(_){
+      return 0;
+    }
+  }
+
+  function cardioScore(entry){
+    try{
+      const s = entry?.summary || {};
+      const distance = num(s?.distance);
+      const timeSec = num(s?.timeSec);
+      const pace = num(s?.paceSecPerUnit);
+
+      return {
+        hasPR: hasAnyPR(entry?.pr),
+        paceScore: (pace > 0) ? (999999 - pace) : 0,
+        distance,
+        timeSec
+      };
+    }catch(_){
+      return { hasPR:false, paceScore:0, distance:0, timeSec:0 };
+    }
+  }
+
+  function coreScore(entry){
+    try{
+      const s = entry?.summary || {};
+      return {
+        hasPR: hasAnyPR(entry?.pr),
+        totalVolume: num(s?.totalVolume),
+        timeSec: num(s?.timeSec),
+        reps: num(s?.reps),
+        weight: num(s?.weight)
+      };
+    }catch(_){
+      return { hasPR:false, totalVolume:0, timeSec:0, reps:0, weight:0 };
+    }
+  }
+
+  function compareEntries(a, b){
+    const typeA = String(a?.type || "");
+    const typeB = String(b?.type || "");
+
+    const aPR = hasAnyPR(a?.pr);
+    const bPR = hasAnyPR(b?.pr);
+    if(aPR !== bPR) return aPR ? -1 : 1;
+
+    if(typeA === "weightlifting" && typeB === "weightlifting"){
+      const aW = bestWeightFromEntry(a);
+      const bW = bestWeightFromEntry(b);
+      if(bW !== aW) return bW - aW;
+
+      const aR = bestRepsAtBestWeightFromEntry(a);
+      const bR = bestRepsAtBestWeightFromEntry(b);
+      if(bR !== aR) return bR - aR;
+
+      const aVol = num(a?.summary?.totalVolume);
+      const bVol = num(b?.summary?.totalVolume);
+      if(bVol !== aVol) return bVol - aVol;
+
+      return 0;
+    }
+
+    if(typeA === "cardio" && typeB === "cardio"){
+      const A = cardioScore(a);
+      const B = cardioScore(b);
+
+      if(B.paceScore !== A.paceScore) return B.paceScore - A.paceScore;
+      if(B.distance !== A.distance) return B.distance - A.distance;
+      if(B.timeSec !== A.timeSec) return B.timeSec - A.timeSec;
+
+      return 0;
+    }
+
+    if(typeA === "core" && typeB === "core"){
+      const A = coreScore(a);
+      const B = coreScore(b);
+
+      if(B.totalVolume !== A.totalVolume) return B.totalVolume - A.totalVolume;
+      if(B.reps !== A.reps) return B.reps - A.reps;
+      if(B.timeSec !== A.timeSec) return B.timeSec - A.timeSec;
+      if(B.weight !== A.weight) return B.weight - A.weight;
+
+      return 0;
+    }
+
+    const aVol = num(a?.summary?.totalVolume);
+    const bVol = num(b?.summary?.totalVolume);
+    if(bVol !== aVol) return bVol - aVol;
+
+    return 0;
+  }
+
+  function buildTopTextFromEntry(e){
+    try{
+      const type = String(e?.type || "");
+
+      if(type === "weightlifting"){
+        const sets = Array.isArray(e?.sets) ? e.sets : [];
+        let best = null;
+
+        for(const s of sets){
+          const w = num(s?.weight);
+          const r = num(s?.reps);
+          if(!best || w > best.w || (w === best.w && r > best.r)){
+            best = { w, r };
+          }
+        }
+
+        if(best && best.w > 0) return `${best.w}×${best.r}`;
+        if(num(e?.summary?.bestWeight) > 0) return `${num(e.summary.bestWeight)} (top)`;
+        return "";
+      }
+
+      if(type === "cardio"){
+        const d = e?.summary?.distance;
+        const t = e?.summary?.timeSec;
+        const p = e?.summary?.paceSecPerUnit;
+        const dist = (d == null) ? "" : `Dist ${d}`;
+        const time = (t == null) ? "" : `Time ${formatTime(num(t) || 0)}`;
+        const pace = (p == null) ? "" : `Pace ${formatPace(p)}`;
+        return [dist, time, pace].filter(Boolean).join(" • ");
+      }
+
+      if(type === "core"){
+        const t = e?.summary?.timeSec;
+        const reps = e?.summary?.reps;
+        const sets = e?.summary?.sets;
+        const w = e?.summary?.weight;
+        const parts = [];
+        if(Number.isFinite(Number(sets))) parts.push(`${Number(sets)} sets`);
+        if(Number.isFinite(Number(reps))) parts.push(`${Number(reps)} reps`);
+        if(Number.isFinite(Number(t))) parts.push(`${formatTime(Number(t) || 0)}`);
+        if(Number.isFinite(Number(w)) && Number(w) > 0) parts.push(`${Number(w)} lb`);
+        return parts.join(" • ");
+      }
+
+      return "";
+    }catch(_){
+      return "";
+    }
+  }
+
+  const byRx = new Map();
+
+  for(const e of entries){
+    const key = String(e?.routineExerciseId || e?.exerciseId || "");
+    if(!key) continue;
+
+    exSet.add(key);
+
+    if(Number.isFinite(Number(e?.summary?.totalVolume))){
+      totalVolume += Number(e.summary.totalVolume) || 0;
+    }
+
+    if(!byRx.has(key)) byRx.set(key, []);
+    byRx.get(key).push(e);
+  }
+
+  let details = null;
+
+  try{
+    const items = [];
+
+    for(const [, group] of byRx.entries()){
+      const sorted = group.slice().sort(compareEntries);
+      const bestEntry = sorted[0] || group[0];
+      if(!bestEntry) continue;
+
+      const type = String(bestEntry?.type || "");
+      const exerciseId = bestEntry?.exerciseId || null;
+
+      const exName = (() => {
+        try{
+          const lib = state?.exerciseLibrary?.[type] || [];
+          const found = lib.find(x => String(x.id || "") === String(exerciseId || ""));
+          return found?.name || bestEntry?.nameSnap || "Exercise";
+        }catch(_){
+          return bestEntry?.nameSnap || "Exercise";
+        }
+      })();
+
+      const mergedPRBadges = [];
+      try{
+        const anyWeight = group.some(x => x?.pr?.isPRWeight);
+        const any1RM = group.some(x => x?.pr?.isPR1RM);
+        const anyVol = group.some(x => x?.pr?.isPRVolume);
+        const anyPace = group.some(x => x?.pr?.isPRPace);
+
+        if(anyWeight) mergedPRBadges.push("PR W");
+        if(any1RM) mergedPRBadges.push("PR 1RM");
+        if(anyVol) mergedPRBadges.push("PR Vol");
+        if(anyPace) mergedPRBadges.push("PR Pace");
+      }catch(_){}
+
+      if(mergedPRBadges.length) prCount += 1;
+
+      let lifetime = null;
+      try{
+        if(LogEngine && typeof LogEngine.lifetimeBests === "function" && exerciseId){
+          lifetime = LogEngine.lifetimeBests(type, exerciseId) || null;
+        }
+      }catch(_){}
+
+      items.push({
+        type,
+        exerciseId,
+        name: exName,
+        topText: buildTopTextFromEntry(bestEntry),
+        prBadges: mergedPRBadges,
+        lifetime
+      });
+    }
+
+    details = {
+      routineName: ((state.routines || []).find(r => String(r.id || "") === String(routineId || ""))?.name || null),
+      dayLabel: day?.label || null,
+      dateISO: dateISO || null,
+      items
+    };
+  }catch(_){
+    details = null;
+  }
+
+  return {
+    highlights: {
+      exerciseCount: exSet.size,
+      prCount,
+      totalVolume: Math.round(totalVolume * 100) / 100
+    },
+    details
+  };
+}
+
+function readPendingWorkoutShareIntent(){
+  try{
+    return JSON.parse(localStorage.getItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY) || "null");
+  }catch(_){
+    return null;
+  }
+}
+
+function writePendingWorkoutShareIntent(payload){
+  try{
+    if(!payload){
+      localStorage.removeItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY);
+      return;
+    }
+    localStorage.setItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY, JSON.stringify(payload));
+  }catch(_){}
+}
+
+function clearPendingWorkoutShareIntent(){
+  try{
+    localStorage.removeItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY);
+  }catch(_){}
+}
+
+function resolveRoutineAndDayForPendingShare(routineId, dayId){
+  try{
+    const routines = Array.isArray(state?.routines) ? state.routines : [];
+    const routine = routines.find(r => String(r?.id || "") === String(routineId || ""));
+    if(!routine) return { routine:null, day:null };
+
+    const day = (routine.days || []).find(d => String(d?.id || "") === String(dayId || ""));
+    return {
+      routine: routine || null,
+      day: day || null
+    };
+  }catch(_){
+    return { routine:null, day:null };
+  }
+}
+
+async function consumePendingWorkoutShareAfterAuth(){
+  try{
+    if(__pendingWorkoutShareReplayBusy) return false;
+    if(!Social || typeof Social.getUser !== "function" || !Social.getUser()) return false;
+
+    const pending = readPendingWorkoutShareIntent();
+    if(!pending) return false;
+
+    const createdAt = Number(pending?.createdAt || 0) || 0;
+    const ageMs = Date.now() - createdAt;
+    const maxAgeMs = 15 * 60 * 1000;
+
+    if(!createdAt || ageMs < 0 || ageMs > maxAgeMs){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    const dateISO = String(pending?.dateISO || "");
+    const routineId = String(pending?.routineId || "");
+    const dayId = String(pending?.dayId || "");
+
+    if(!dateISO || !routineId || !dayId){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    if(dateISO !== String(Dates.todayISO())){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    const resolved = resolveRoutineAndDayForPendingShare(routineId, dayId);
+    const day = resolved?.day || null;
+
+    if(!day){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    if(!isDayComplete(dateISO, day)){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    __pendingWorkoutShareReplayBusy = true;
+
+    await syncWorkoutCompletedEventForDay(dateISO, routineId, day);
+    clearPendingWorkoutShareIntent();
+
+    try{ showToast("Workout shared to feed"); }catch(_){}
+    return true;
+  }catch(_){
+    return false;
+  }finally{
+    __pendingWorkoutShareReplayBusy = false;
+  }
+}
+
+async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
+  try{
+    if(!Social) return;
+    if(!Social.isConfigured?.()) return;
+    if(Social.getUser?.()) return;
+    if(!isDayComplete(dateISO, day)) return;
+    if(String(dateISO || "") !== String(Dates.todayISO())) return;
+
+    const routineName = (() => {
+      try{
+        return ((state.routines || []).find(r =>
+          String(r?.id || "") === String(routineId || "")
+        )?.name || "this workout");
+      }catch(_){
+        return "this workout";
+      }
+    })();
+
+    Modal.open({
+      title: "Share to Feed?",
+      size: "sm",
+      bodyNode: el("div", { class:"grid" }, [
+        el("div", {
+          style:"font-weight:900; font-size:14px;",
+          text:"Would you like to share it to the feed?"
+        }),
+        el("div", {
+          class:"note",
+          text:`You’ll go to Friends to sign in first, then we’ll share ${routineName}.`
+        }),
+        el("div", { style:"height:8px" }),
+        el("div", { class:"btnrow" }, [
+          el("button", {
+            class:"btn primary",
+            onClick: () => {
+              writePendingWorkoutShareIntent({
+                source: "workout_complete_prompt",
+                dateISO: String(dateISO || ""),
+                routineId: String(routineId || ""),
+                dayId: String(day?.id || ""),
+                createdAt: Date.now()
+              });
+
+              Modal.close();
+              navigate("friends");
+
+              try{
+                showToast("Continue with Google to share your workout");
+              }catch(_){}
+            }
+          }, ["Yes"]),
+          el("button", {
+            class:"btn",
+            onClick: () => Modal.close()
+          }, ["No"])
+        ])
+      ])
+    });
+  }catch(_){}
+}
+
 async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
   try{
     if(!Social) return;
@@ -1874,6 +2409,7 @@ async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
     }
   }catch(_){}
 }
+Great! mclick gave a clean merged replacement block maybe from somewhere? We can use this as exact block. Need remove inner duplicates later maybe search for function names duplicates further down. But we can advise delete them. Need exact anchor for inner duplicates. Search maybe getRoutineExerciseEntries duplicate occurrences count. Use msearch. Ask exact duplicates location maybe two occurrences. Let's search.
 
 
 // 1) Init Backup FIRST so we have the functions
