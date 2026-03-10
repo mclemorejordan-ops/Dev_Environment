@@ -7546,14 +7546,27 @@ root.appendChild(el("div", { class:"card" }, [
         return String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
       }
 
-      function buildExerciseCompareRows(type, days = 30){
+            function buildExerciseCompareRows(type, days = 30){
         const all = (Social.getFeed ? Social.getFeed() : []) || [];
         const cutoff = Date.now() - (Math.max(1, Number(days) || 30) * 86400000);
         const map = {};
 
+        function cleanNum(v){
+          const n = Number(v);
+          return Number.isFinite(n) ? n : null;
+        }
+
+        function normalizeName(v){
+          return String(v || "").trim().replace(/\s+/g, " ");
+        }
+
+        function keyForName(v){
+          return normalizeName(v).toLowerCase();
+        }
+
         function ensureRow(name){
-          const raw = String(name || "").trim().replace(/\s+/g, " ");
-          const key = normalizeExerciseName(raw);
+          const raw = normalizeName(name);
+          const key = keyForName(raw);
           if(!key) return null;
 
           if(!map[key]){
@@ -7582,26 +7595,94 @@ root.appendChild(el("div", { class:"card" }, [
               bestWeight: 0,
               best1RM: 0,
               bestVolume: 0,
-              totalVolume: 0,
 
               // cardio
               bestPace: null,
               longestDistance: 0,
               bestTimeSec: 0,
-              totalDistance: 0,
 
               // core
-              bestCoreVolume: 0,
-              totalCoreVolume: 0
+              bestCoreVolume: 0
             };
           }
 
           return row.athletes[key];
         }
 
-        (all || []).forEach(ev => {
-          if(ev?.type !== "exercise_logged") return;
+        function applyWeightliftingStats(athlete, src = {}){
+          const bw = cleanNum(src?.bestWeight);
+          const rm = cleanNum(src?.best1RM);
+          const vol = cleanNum(src?.totalVolume);
 
+          if(bw != null) athlete.bestWeight = Math.max(athlete.bestWeight, bw);
+          if(rm != null) athlete.best1RM = Math.max(athlete.best1RM, rm);
+          if(vol != null) athlete.bestVolume = Math.max(athlete.bestVolume, vol);
+        }
+
+        function applyCardioStats(athlete, src = {}){
+          const dist = cleanNum(src?.distance);
+          const time = cleanNum(src?.timeSec);
+          const pace = cleanNum(src?.paceSecPerUnit);
+
+          if(dist != null) athlete.longestDistance = Math.max(athlete.longestDistance, dist);
+          if(time != null) athlete.bestTimeSec = Math.max(athlete.bestTimeSec, time);
+
+          if(pace != null && pace > 0){
+            athlete.bestPace = (athlete.bestPace == null)
+              ? pace
+              : Math.min(athlete.bestPace, pace);
+          }
+        }
+
+        function applyCoreStats(athlete, src = {}){
+          const vol = cleanNum(src?.totalVolume);
+          if(vol != null) athlete.bestCoreVolume = Math.max(athlete.bestCoreVolume, vol);
+        }
+
+        function parseWeightliftingTopText(topText){
+          const out = {};
+          const txt = String(topText || "").trim();
+          if(!txt) return out;
+
+          const lbMatch = txt.match(/(\d+(?:\.\d+)?)\s*lb/i);
+          if(lbMatch) out.bestWeight = Number(lbMatch[1]);
+
+          return out;
+        }
+
+        function parseCardioTopText(topText){
+          const out = {};
+          const txt = String(topText || "").trim();
+          if(!txt) return out;
+
+          const distMatch = txt.match(/dist\s+(\d+(?:\.\d+)?)/i);
+          if(distMatch) out.distance = Number(distMatch[1]);
+
+          const timeMatch = txt.match(/time\s+(\d+):(\d{2})/i);
+          if(timeMatch){
+            out.timeSec = (Number(timeMatch[1]) * 60) + Number(timeMatch[2]);
+          }
+
+          const paceMatch = txt.match(/pace\s+(\d+):(\d{2})/i);
+          if(paceMatch){
+            out.paceSecPerUnit = (Number(paceMatch[1]) * 60) + Number(paceMatch[2]);
+          }
+
+          return out;
+        }
+
+        function parseCoreTopText(topText){
+          const out = {};
+          const txt = String(topText || "").trim();
+          if(!txt) return out;
+
+          const numMatch = txt.match(/(\d+(?:\.\d+)?)/);
+          if(numMatch) out.totalVolume = Number(numMatch[1]);
+
+          return out;
+        }
+
+        (all || []).forEach(ev => {
           const ms = safeCreatedAtMs(ev);
           if(ms < cutoff) return;
 
@@ -7609,55 +7690,78 @@ root.appendChild(el("div", { class:"card" }, [
           if(!actorId) return;
 
           const p = ev?.payload || {};
-          const evType = String(p?.workoutType || "").trim();
-          if(evType !== type) return;
 
-          const exerciseName = String(p?.exerciseName || "").trim();
-          const row = ensureRow(exerciseName);
-          if(!row) return;
+          // 1) Direct exercise posts
+          if(ev?.type === "exercise_logged"){
+            const evType = String(p?.workoutType || "").trim();
+            if(evType !== type) return;
 
-          const athlete = ensureAthlete(row, actorId);
-          if(!athlete) return;
+            const row = ensureRow(p?.exerciseName || "Exercise");
+            if(!row) return;
 
-          const s = p?.summary || {};
-          athlete.sessions += 1;
-          athlete.prCount += Number(p?.prCount || 0) || 0;
+            const athlete = ensureAthlete(row, actorId);
+            if(!athlete) return;
 
-          if(type === "weightlifting"){
-            const bestWeight = Number(s?.bestWeight || 0) || 0;
-            const best1RM = Number(s?.best1RM || 0) || 0;
-            const totalVolume = Number(s?.totalVolume || 0) || 0;
+            athlete.sessions += 1;
+            athlete.prCount += Number(p?.prCount || 0) || 0;
 
-            athlete.bestWeight = Math.max(athlete.bestWeight, bestWeight);
-            athlete.best1RM = Math.max(athlete.best1RM, best1RM);
-            athlete.bestVolume = Math.max(athlete.bestVolume, totalVolume);
-            athlete.totalVolume += totalVolume;
+            const s = p?.summary || {};
+            if(type === "weightlifting") applyWeightliftingStats(athlete, s);
+            else if(type === "cardio") applyCardioStats(athlete, s);
+            else if(type === "core") applyCoreStats(athlete, s);
+
             return;
           }
 
-          if(type === "cardio"){
-            const distance = Number(s?.distance || 0) || 0;
-            const timeSec = Number(s?.timeSec || 0) || 0;
-            const pace = Number(s?.paceSecPerUnit || 0) || 0;
+          // 2) Completed workout posts with embedded exercise items
+          if(ev?.type === "workout_completed"){
+            const items = Array.isArray(p?.details?.items) ? p.details.items : [];
+            if(!items.length) return;
 
-            athlete.longestDistance = Math.max(athlete.longestDistance, distance);
-            athlete.bestTimeSec = Math.max(athlete.bestTimeSec, timeSec);
-            athlete.totalDistance += distance;
+            items.forEach(it => {
+              const itemType = String(it?.type || "").trim();
+              if(itemType !== type) return;
 
-            if(pace > 0){
-              athlete.bestPace = (athlete.bestPace == null)
-                ? pace
-                : Math.min(athlete.bestPace, pace);
-            }
-            return;
+              const row = ensureRow(
+                it?.name ||
+                it?.exerciseName ||
+                it?.nameSnap ||
+                "Exercise"
+              );
+              if(!row) return;
+
+              const athlete = ensureAthlete(row, actorId);
+              if(!athlete) return;
+
+              athlete.sessions += 1;
+
+              const prBadges = Array.isArray(it?.prBadges) ? it.prBadges : [];
+              if(prBadges.length) athlete.prCount += 1;
+
+              const lifetime = it?.lifetime || {};
+              const topText = String(it?.topText || "").trim();
+
+              if(type === "weightlifting"){
+                applyWeightliftingStats(athlete, lifetime);
+                applyWeightliftingStats(athlete, parseWeightliftingTopText(topText));
+                return;
+              }
+
+              if(type === "cardio"){
+                applyCardioStats(athlete, lifetime);
+                applyCardioStats(athlete, parseCardioTopText(topText));
+                return;
+              }
+
+              applyCoreStats(athlete, lifetime);
+              applyCoreStats(athlete, parseCoreTopText(topText));
+            });
           }
-
-          const coreVolume = Number(s?.totalVolume || 0) || 0;
-          athlete.bestCoreVolume = Math.max(athlete.bestCoreVolume, coreVolume);
-          athlete.totalCoreVolume += coreVolume;
         });
 
-        return Object.values(map).sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+        return Object.values(map)
+          .filter(row => row && row.name)
+          .sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || "")));
       }
 
       function winnerForMetric(mineRaw, theirRaw, lowerWins = false){
