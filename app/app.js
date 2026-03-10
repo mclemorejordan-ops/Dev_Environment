@@ -1567,6 +1567,62 @@ async function signInWithOAuth(provider){
   }
   
 
+  function formatChallengeCreatedEvent(challenge){
+    const state = stateRef();
+    const participantIds = Array.isArray(challenge?.participantIds) ? challenge.participantIds : [];
+    const participantNames = participantIds.map(id => {
+      const ident = identityFor(id, id === _user?.id ? "You" : "User");
+      return String(ident?.displayName || (id === _user?.id ? "You" : "User"));
+    });
+
+    return {
+      eventType: "challenge_created",
+      payload: {
+        displayName: state?.profile?.name || null,
+        username: normalizeUsername(state?.profile?.username || "") || null,
+        createdAtISO: new Date().toISOString(),
+        challengeId: challenge?.id || null,
+        challengeKind: String(challenge?.kind || ""),
+        workoutType: String(challenge?.workoutType || ""),
+        metric: String(challenge?.metric || ""),
+        exerciseId: challenge?.exerciseId || null,
+        exerciseName: String(challenge?.exerciseName || ""),
+        routineName: String(challenge?.routineName || ""),
+        routineDays: Array.isArray(challenge?.routineDays) ? challenge.routineDays : [],
+        participantIds,
+        participantNames,
+        days: Number(challenge?.days || 0) || 0
+      }
+    };
+  }
+
+  async function publishChallengeCreatedEvent(challenge){
+    if(!isConfigured()) return;
+    await ensureClient();
+    if(!_user) return;
+    if(!challenge) return;
+
+    const ev = formatChallengeCreatedEvent(challenge);
+    const row = {
+      actor_id: _user.id,
+      type: ev.eventType,
+      payload: ev.payload
+    };
+
+    try{
+      const sb = await ensureClient();
+      if(!sb) return;
+      const { error } = await sb.from("activity_events").insert(row);
+      if(error) throw error;
+      fetchFeed();
+    }catch(_){
+      const out = readOutbox();
+      out.unshift(row);
+      writeOutbox(out.slice(0, 100));
+    }
+  }
+
+  
   async function flushOutbox(){
     const sb = await ensureClient();
     if(!sb || !_user) return;
@@ -1810,6 +1866,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     publishWorkoutCompletedEvent,
     upsertWorkoutCompletedEvent,
     deleteWorkoutCompletedEvent,
+    publishChallengeCreatedEvent,
 
     // likes
     getLikeCount,
@@ -8171,14 +8228,15 @@ root.appendChild(el("div", { class:"card" }, [
       });
     }
 
-    function openChallengeExercisePicker({
+        function openChallengeExercisePicker({
       title = "Pick Exercise",
       dayLabel = "Challenge",
       selectedType = "weightlifting",
       selectedKeys = [],
       keepOpen = true,
       onAdd = () => {},
-      onDone = null
+      onDone = null,
+      onReturn = null
     } = {}){
       ExerciseLibrary.ensureSeeded();
 
@@ -8197,31 +8255,57 @@ root.appendChild(el("div", { class:"card" }, [
         style:"display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0;"
       });
 
-      const searchWrap = el("div", { class:"addExSearch" }, [
-        el("div", { class:"ico", text:"🔎" }),
-        el("input", {
-          type:"text",
-          value:"",
-          placeholder:"Search exercises…",
-          onInput: (e) => {
-            query = String(e.target.value || "");
-            repaint();
-          }
-        })
+      const searchInput = el("input", {
+        type:"text",
+        value:"",
+        placeholder:"Search exercises…",
+        style:[
+          "width:100%",
+          "background:transparent",
+          "border:0",
+          "outline:none",
+          "color:rgba(255,255,255,.96)",
+          "caret-color:rgba(255,255,255,.96)"
+        ].join(";"),
+        onInput: (e) => {
+          query = String(e.target.value || "");
+          repaint();
+        }
+      });
+
+      const searchWrap = el("div", {
+        class:"addExSearch",
+        style:"color:rgba(255,255,255,.96);"
+      }, [
+        el("div", { class:"ico", text:"🔎", style:"color:rgba(255,255,255,.78);" }),
+        searchInput
       ]);
 
-      const scroller = el("div", { class:"addExScroller" });
+      const scroller = el("div", {
+        class:"addExScroller",
+        style:"color:rgba(255,255,255,.96);"
+      });
       const bottomBar = el("div", { class:"addExBottom" });
 
-      const countPill = el("div", { class:"addExCount", text:"0 added" });
+      const countPill = el("div", {
+        class:"addExCount",
+        style:"color:rgba(255,255,255,.96);",
+        text:"0 added"
+      });
+
+      function closeAndReturn(){
+        Modal.close();
+        try{
+          if(typeof onReturn === "function") onReturn();
+          else if(typeof onDone === "function") onDone();
+        }catch(_){}
+      }
+
       const doneBtn = el("button", {
         class:"btn primary",
         type:"button",
-        onClick: () => {
-          Modal.close();
-          try{ if(typeof onDone === "function") onDone(); }catch(_){}
-        }
-      }, [keepOpen ? "Done" : "Close"]);
+        onClick: closeAndReturn
+      }, [opts?.keepOpen ? "Done" : "Close"]);
 
       function getBucket(type){
         try{
@@ -8304,7 +8388,7 @@ root.appendChild(el("div", { class:"card" }, [
         if(!groups.length){
           scroller.appendChild(el("div", {
             class:"note",
-            style:"padding:8px 2px;",
+            style:"padding:8px 2px; color:rgba(255,255,255,.78);",
             text:"No exercises found."
           }));
           return;
@@ -8316,7 +8400,7 @@ root.appendChild(el("div", { class:"card" }, [
           const head = el("button", {
             type:"button",
             class:"item",
-            style:"width:100%; justify-content:space-between;",
+            style:"width:100%; justify-content:space-between; color:rgba(255,255,255,.96);",
             onClick: () => {
               if(openGroups.has(groupName)) openGroups.delete(groupName);
               else openGroups.add(groupName);
@@ -8327,7 +8411,7 @@ root.appendChild(el("div", { class:"card" }, [
               el("div", { class:"name", text: groupName }),
               el("div", { class:"meta", text: `${items.length} ${items.length === 1 ? "exercise" : "exercises"}` })
             ]),
-            el("div", { style:"opacity:.78; font-weight:900;", text: isOpen ? "▾" : "▸" })
+            el("div", { style:"opacity:.78; font-weight:900; color:rgba(255,255,255,.92);", text: isOpen ? "▾" : "▸" })
           ]);
 
           scroller.appendChild(head);
@@ -8348,6 +8432,7 @@ root.appendChild(el("div", { class:"card" }, [
               style:[
                 "width:100%",
                 "justify-content:space-between",
+                "color:rgba(255,255,255,.96)",
                 alreadySelected ? "opacity:.58;" : ""
               ].join(";"),
               onClick: () => {
@@ -8370,8 +8455,7 @@ root.appendChild(el("div", { class:"card" }, [
                 addedThisSession.add(key);
 
                 if(!keepOpen){
-                  Modal.close();
-                  try{ if(typeof onDone === "function") onDone(); }catch(_){}
+                  closeAndReturn();
                   return;
                 }
 
@@ -8390,7 +8474,7 @@ root.appendChild(el("div", { class:"card" }, [
                 })
               ]),
               el("div", {
-                style:"font-weight:1000; opacity:.9;"
+                style:"font-weight:1000; opacity:.9; color:rgba(255,255,255,.92);"
               }, [alreadySelected ? "Added" : "Add"])
             ]));
           });
@@ -8402,7 +8486,9 @@ root.appendChild(el("div", { class:"card" }, [
       bottomBar.appendChild(countPill);
       bottomBar.appendChild(doneBtn);
 
-      const bodyNode = el("div", {}, [
+      const bodyNode = el("div", {
+        style:"color:rgba(255,255,255,.96);"
+      }, [
         ctx,
         typeTabsRow,
         el("div", { style:"height:10px" }),
@@ -8781,9 +8867,10 @@ root.appendChild(el("div", { class:"card" }, [
             ui.challengeExerciseId = selectedExerciseId;
             ui.challengeExerciseName = selectedExerciseName;
           },
-          onDone: () => {
+                    onReturn: () => {
             persistDraft();
-            repaint();
+            openChallengeModal();
+          }
           }
         });
       }
@@ -8813,9 +8900,10 @@ root.appendChild(el("div", { class:"card" }, [
             persistDraft();
             repaint();
           },
-          onDone: () => {
+                    onReturn: () => {
             persistDraft();
-            repaint();
+            openChallengeModal();
+          }
           }
         });
       }
@@ -8932,7 +9020,7 @@ root.appendChild(el("div", { class:"card" }, [
         persistDraft();
       }
 
-      function createChallenge(){
+            async function createChallenge(){
         const participantIds = selectedChallengeParticipants();
         if(participantIds.length < 2){
           showToast("Select at least 1 friend.");
@@ -8956,6 +9044,34 @@ root.appendChild(el("div", { class:"card" }, [
           }
         }
 
+        let savedRoutineId = "";
+        let savedRoutineName = "";
+
+        if(createType === "workout"){
+          const snapshot = {
+            name: String(draftName || "Challenge Routine"),
+            days: (draftDays || []).map((day, idx) => ({
+              id: day?.id || null,
+              order: idx,
+              label: String(day?.label || `Day ${idx + 1}`),
+              isRest: false,
+              exercises: (Array.isArray(day?.exercises) ? day.exercises : []).map((rx, exIdx) => ({
+                id: rx?.id || null,
+                order: exIdx,
+                type: String(rx?.type || ""),
+                exerciseId: rx?.exerciseId || null,
+                name: String(rx?.nameSnap || "Exercise"),
+                plan: rx?.plan || null,
+                notes: String(rx?.notes || "")
+              }))
+            }))
+          };
+
+          const importedRoutine = importSharedRoutinePayload(snapshot, { setActive:false });
+          savedRoutineId = String(importedRoutine?.id || "");
+          savedRoutineName = String(importedRoutine?.name || snapshot.name || "Challenge Routine");
+        }
+
         const now = new Date();
         const end = new Date(now.getTime() + (challengeDays * 86400000));
 
@@ -8968,8 +9084,9 @@ root.appendChild(el("div", { class:"card" }, [
           metric: (createType === "workout") ? "" : metricKey,
           exerciseId: (createType === "exercise") ? selectedExerciseId : "",
           exerciseName: (createType === "exercise") ? selectedExerciseName : "",
-          routineName: (createType === "workout") ? String(draftName || "Challenge Routine") : "",
+          routineName: (createType === "workout") ? String(savedRoutineName || draftName || "Challenge Routine") : "",
           routineDays: (createType === "workout") ? JSON.parse(JSON.stringify(draftDays)) : [],
+          savedRoutineId,
           days: challengeDays,
           startAt: now.toISOString(),
           endAt: end.toISOString(),
@@ -8979,9 +9096,18 @@ root.appendChild(el("div", { class:"card" }, [
         ui.challengeItems = Array.isArray(ui.challengeItems) ? ui.challengeItems : [];
         ui.challengeItems.unshift(item);
 
+        try{
+          await Social.publishChallengeCreatedEvent?.(item);
+        }catch(_){}
+
         hubTab = "active";
         ui.challengeTab = "active";
-        showToast("Challenge created.");
+
+        showToast(
+          createType === "workout"
+            ? "Challenge created. Routine saved to Your Routines."
+            : "Challenge created."
+        );
 
         if(createType === "workout"){
           resetDraft();
@@ -10850,6 +10976,30 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
             return bits.filter(Boolean).join(" • ");
           }
 
+
+                    if(ev.type === "challenge_created"){
+            const kind = String(p.challengeKind || "");
+            const workoutType = String(p.workoutType || "");
+            const people = Array.isArray(p.participantNames) ? p.participantNames : [];
+            const bits = [];
+
+            if(kind === "exercise"){
+              bits.push(p.exerciseName || "Exercise Challenge");
+            }else if(kind === "consistency"){
+              bits.push(`${Number(p.days || 7) || 7}-Day Consistency`);
+            }else if(kind === "workout"){
+              bits.push(p.routineName || "Routine Workout Challenge");
+            }else{
+              bits.push("Challenge");
+            }
+
+            if(workoutType) bits.push(workoutType);
+            if(people.length > 0) bits.push(`${people.length} athletes`);
+
+            return bits.filter(Boolean).join(" • ");
+          }
+
+          
           // Fallback for any other event types
           return "";
         }catch(_){
@@ -10886,6 +11036,25 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
         if(Number.isFinite(prCount) && prCount > 0){
           badges.push(`🏅 ${prCount} PR${prCount === 1 ? "" : "s"}`);
         }
+      }
+    }else if(ev.type === "challenge_created"){
+      const kind = String(p.challengeKind || "").trim();
+      const wt = String(p.workoutType || "").trim();
+      const people = Array.isArray(p.participantNames) ? p.participantNames : [];
+      const count = people.length || (Array.isArray(p.participantIds) ? p.participantIds.length : 0);
+
+      badges.push("🏁 Challenge");
+
+      if(kind === "exercise") badges.push("Exercise");
+      else if(kind === "consistency") badges.push("Consistency");
+      else if(kind === "workout") badges.push("Workout");
+
+      if(wt === "weightlifting") badges.push("Weightlifting");
+      else if(wt === "cardio") badges.push("Cardio");
+      else if(wt === "core") badges.push("Core");
+
+      if(count > 0){
+        badges.push(`${count} Athlete${count === 1 ? "" : "s"}`);
       }
     }else{
       const prCount = Number(p.prCount || p.highlights?.prCount || 0);
