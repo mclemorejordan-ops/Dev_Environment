@@ -11389,63 +11389,7 @@ if(!_socialUserNow){
 }
            
   const socialBody = el("div", {}, [
-  el("div", { class:"note", text:"Connect a free Supabase project to enable the Friends feed (events-only). This does not sync your full app data — it only posts compact activity events." }),
-  el("div", { style:"height:10px" }),
-
-  el("div", { class:"setRow" }, [
-    el("div", {}, [
-      el("div", { style:"font-weight:820;", text:"Supabase URL" }),
-      el("div", { class:"meta", text:"Project URL (https://xxxx.supabase.co)" })
-    ]),
-    el("input", {
-      type:"text",
-      value: socialUI.supabaseUrl,
-      onInput: (e) => { socialUI.supabaseUrl = e.target.value || ""; }
-    })
-  ]),
-
-  el("div", { class:"setRow" }, [
-    el("div", {}, [
-      el("div", { style:"font-weight:820;", text:"Supabase anon key" }),
-      el("div", { class:"meta", text:"Settings → API → anon public key" })
-    ]),
-    el("input", {
-      type:"password",
-      value: socialUI.supabaseAnon,
-      onInput: (e) => { socialUI.supabaseAnon = e.target.value || ""; }
-    })
-  ]),
-
-  el("div", { style:"height:10px" }),
-
-  el("div", { class:"btnrow" }, [
-    el("button", {
-      class:"btn primary",
-      onClick: async () => {
-        try{
-          await Social.configure({ url: socialUI.supabaseUrl, anonKey: socialUI.supabaseAnon });
-          showToast("Social configured");
-          renderView();
-        }catch(e){
-          showToast(e?.message || "Couldn't save social config");
-        }
-      }
-    }, ["Save"]),
-
-    el("button", {
-      class:"btn",
-      onClick: async () => {
-        try{
-          await Social.configure({ url: "", anonKey: "" });
-          try{ localStorage.setItem(SOCIAL_CFG_KEY, JSON.stringify({ disabled:true })); }catch(_){}
-          showToast("Social disconnected");
-          renderView();
-        }catch(_){}
-      }
-    }, ["Disconnect"])
-  ]),
-
-  el("div", { style:"height:14px" }),
+  el("div", { style:"height:8px" }),
 
   el("div", { class:"note", text:"Sign-in" }),
   el("div", { class:"btnrow" }, [
