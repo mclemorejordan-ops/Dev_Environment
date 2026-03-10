@@ -9228,7 +9228,9 @@ function mondayFirstTodayOrder(){
 }
 
 function dayNameFromOrder(order){
-  const names = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  // App routine day order is Sunday-first:
+  // 0=Sunday, 1=Monday, ... 6=Saturday
+  const names = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const idx = Number(order);
   return names[idx] || `Day ${Number.isFinite(idx) ? (idx + 1) : ""}`.trim();
 }
