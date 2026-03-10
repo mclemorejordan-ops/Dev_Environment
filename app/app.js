@@ -8536,13 +8536,27 @@ root.appendChild(el("div", { class:"card" }, [
         ui.challengeDraftDays = JSON.parse(JSON.stringify(draftDays));
       }
 
+            function createWeeklyChallengeDays(){
+        return [
+          { id: uid("cday"), order: 0, label: "Sunday",    isRest: false, exercises: [] },
+          { id: uid("cday"), order: 1, label: "Monday",    isRest: false, exercises: [] },
+          { id: uid("cday"), order: 2, label: "Tuesday",   isRest: false, exercises: [] },
+          { id: uid("cday"), order: 3, label: "Wednesday", isRest: false, exercises: [] },
+          { id: uid("cday"), order: 4, label: "Thursday",  isRest: false, exercises: [] },
+          { id: uid("cday"), order: 5, label: "Friday",    isRest: false, exercises: [] },
+          { id: uid("cday"), order: 6, label: "Saturday",  isRest: false, exercises: [] }
+        ];
+      }
+
       function ensureDraftDays(){
-        if(Array.isArray(draftDays) && draftDays.length) return;
-        draftDays = [{
-          id: uid("cday"),
-          label: "Day 1",
-          exercises: []
-        }];
+        const validWeekly =
+          Array.isArray(draftDays) &&
+          draftDays.length === 7 &&
+          draftDays.every((day, idx) => Number(day?.order) === idx);
+
+        if(validWeekly) return;
+
+        draftDays = createWeeklyChallengeDays();
       }
 
       function routineExerciseCount(days){
@@ -9001,13 +9015,9 @@ root.appendChild(el("div", { class:"card" }, [
         ].filter(Boolean));
       }
 
-      function resetDraft(){
+            function resetDraft(){
         draftName = "Challenge Routine";
-        draftDays = [{
-          id: uid("cday"),
-          label: "Day 1",
-          exercises: []
-        }];
+        draftDays = createWeeklyChallengeDays();
         selectedExerciseName = "";
         selectedExerciseId = "";
         selectedFriendIds = [];
@@ -9047,23 +9057,34 @@ root.appendChild(el("div", { class:"card" }, [
         let savedRoutine = null;
 
         if(createType === "workout"){
-          const snapshot = {
+                    const snapshot = {
             name: String(draftName || "Challenge Routine"),
-            days: (draftDays || []).map((day, idx) => ({
-              id: day?.id || null,
-              order: idx,
-              label: String(day?.label || `Day ${idx + 1}`),
-              isRest: false,
-              exercises: (Array.isArray(day?.exercises) ? day.exercises : []).map((rx, exIdx) => ({
-                id: rx?.id || null,
-                order: exIdx,
-                type: String(rx?.type || ""),
-                exerciseId: rx?.exerciseId || null,
-                name: String(rx?.nameSnap || "Exercise"),
-                plan: rx?.plan || null,
-                notes: String(rx?.notes || "")
+            days: (draftDays || [])
+              .slice()
+              .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+              .map((day, idx) => ({
+                id: day?.id || null,
+                order: Number.isFinite(Number(day?.order)) ? Number(day.order) : idx,
+                label: String(day?.label || [
+                  "Sunday",
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ][idx] || `Day ${idx + 1}`),
+                isRest: !!day?.isRest,
+                exercises: (Array.isArray(day?.exercises) ? day.exercises : []).map((rx, exIdx) => ({
+                  id: rx?.id || null,
+                  order: exIdx,
+                  type: String(rx?.type || ""),
+                  exerciseId: rx?.exerciseId || null,
+                  name: String(rx?.nameSnap || "Exercise"),
+                  plan: rx?.plan || null,
+                  notes: String(rx?.notes || "")
+                }))
               }))
-            }))
           };
 
           savedRoutine = importSharedRoutinePayload(snapshot, { setActive:false });
@@ -9248,7 +9269,7 @@ root.appendChild(el("div", { class:"card" }, [
             ]));
           }
 
-          if(createType === "workout"){
+                    if(createType === "workout"){
             ensureDraftDays();
 
             const routineNameInput = el("input", {
@@ -9261,9 +9282,81 @@ root.appendChild(el("div", { class:"card" }, [
               }
             });
 
-                        body.appendChild(el("div", { class:"card" }, [
+            const weekdayCards = draftDays
+              .slice()
+              .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+              .map((day, idx) => {
+                const restId = `challenge-rest-${String(day?.id || idx)}`;
+
+                return el("div", {
+                  style:"padding:12px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04);"
+                }, [
+                  el("div", {
+                    style:"display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;"
+                  }, [
+                    el("div", {}, [
+                      el("div", { style:"font-weight:900;", text:String(day?.label || `Day ${idx + 1}`) }),
+                      el("div", {
+                        class:"meta",
+                        text:`${Array.isArray(day?.exercises) ? day.exercises.length : 0} ${(Array.isArray(day?.exercises) ? day.exercises.length : 0) === 1 ? "exercise" : "exercises"}`
+                      })
+                    ]),
+                    el("label", {
+                      for: restId,
+                      style:"display:inline-flex; align-items:center; gap:8px; cursor:pointer;"
+                    }, [
+                      el("input", {
+                        id: restId,
+                        type:"checkbox",
+                        checked: !!day?.isRest,
+                        onChange: (e) => {
+                          day.isRest = !!e?.target?.checked;
+                          persistDraft();
+                          repaint();
+                        }
+                      }),
+                      el("span", { class:"meta", text:"Rest Day" })
+                    ])
+                  ]),
+
+                  el("div", { style:"height:10px" }),
+
+                  (Array.isArray(day?.exercises) && day.exercises.length)
+                    ? el("div", { class:"list" }, day.exercises.map((rx, exIdx) => el("div", {
+                        class:"item"
+                      }, [
+                        el("div", { class:"left" }, [
+                          el("div", { class:"name", text:String(rx?.nameSnap || "Exercise") }),
+                          el("div", { class:"meta", text:String(rx?.type || "") })
+                        ]),
+                        el("button", {
+                          class:"btn sm danger",
+                          type:"button",
+                          onClick: () => {
+                            day.exercises.splice(exIdx, 1);
+                            persistDraft();
+                            repaint();
+                          }
+                        }, ["Remove"])
+                      ])))
+                    : el("div", {
+                        class:"note",
+                        text: day?.isRest ? "Rest day selected." : "No exercises yet."
+                      }),
+
+                  el("div", { style:"height:10px" }),
+
+                  el("button", {
+                    class:"btn",
+                    type:"button",
+                    onClick: () => openWorkoutDayExercisePicker(day.id)
+                  }, [day?.isRest ? "Add Exercise Anyway" : "Add Exercise"])
+                ]);
+              });
+
+            body.appendChild(el("div", { class:"card" }, [
               el("h2", { text:"Workout Routine" }),
-              el("div", { class:"note", text:"Create a real routine for this challenge. It will be saved to Your Routines and shared to the selected participants." }),
+              el("div", { class:"note", text:"Create a real Sunday–Saturday routine for this challenge. It will be saved to Your Routines and shared to the selected participants." }),
               el("div", { style:"height:10px" }),
               el("label", {}, [
                 el("span", { text:"Routine Name" }),
@@ -9272,76 +9365,7 @@ root.appendChild(el("div", { class:"card" }, [
               el("div", { style:"height:12px" }),
               el("div", {
                 style:"display:grid; gap:12px;"
-              }, draftDays.map((day, idx) => el("div", {
-                style:"padding:12px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04);"
-              }, [
-                el("div", {
-                  style:"display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;"
-                }, [
-                  el("input", {
-                    type:"text",
-                    value:String(day?.label || `Day ${idx + 1}`),
-                    placeholder:`Day ${idx + 1}`,
-                    onInput: (e) => {
-                      day.label = String(e?.target?.value || `Day ${idx + 1}`);
-                      persistDraft();
-                    }
-                  }),
-                  el("button", {
-                    class:"btn danger",
-                    type:"button",
-                    onClick: () => {
-                      if(draftDays.length <= 1){
-                        showToast("Keep at least 1 day.");
-                        return;
-                      }
-                      draftDays = draftDays.filter(x => String(x?.id || "") !== String(day?.id || ""));
-                      persistDraft();
-                      repaint();
-                    }
-                  }, ["Remove Day"])
-                ]),
-                el("div", { style:"height:10px" }),
-                (Array.isArray(day?.exercises) && day.exercises.length)
-                  ? el("div", { class:"list" }, day.exercises.map((rx, exIdx) => el("div", {
-                      class:"item"
-                    }, [
-                      el("div", { class:"left" }, [
-                        el("div", { class:"name", text:String(rx?.nameSnap || "Exercise") }),
-                        el("div", { class:"meta", text:String(rx?.type || "") })
-                      ]),
-                      el("button", {
-                        class:"btn sm danger",
-                        type:"button",
-                        onClick: () => {
-                          day.exercises.splice(exIdx, 1);
-                          persistDraft();
-                          repaint();
-                        }
-                      }, ["Remove"])
-                    ])))
-                  : el("div", { class:"note", text:"No exercises yet." }),
-                el("div", { style:"height:10px" }),
-                el("button", {
-                  class:"btn",
-                  type:"button",
-                  onClick: () => openWorkoutDayExercisePicker(day.id)
-                }, ["Add Exercise"])
-              ]))),
-              el("div", { style:"height:10px" }),
-              el("button", {
-                class:"btn",
-                type:"button",
-                onClick: () => {
-                  draftDays.push({
-                    id: uid("cday"),
-                    label: `Day ${draftDays.length + 1}`,
-                    exercises: []
-                  });
-                  persistDraft();
-                  repaint();
-                }
-              }, ["+ Add Day"])
+              }, weekdayCards)
             ]));
           }
 
