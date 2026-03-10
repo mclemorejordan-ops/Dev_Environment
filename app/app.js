@@ -8305,7 +8305,7 @@ root.appendChild(el("div", { class:"card" }, [
         class:"btn primary",
         type:"button",
         onClick: closeAndReturn
-      }, [opts?.keepOpen ? "Done" : "Close"]);
+      }, [keepOpen ? "Done" : "Close"]);
 
       function getBucket(type){
         try{
@@ -8853,7 +8853,7 @@ root.appendChild(el("div", { class:"card" }, [
         return String(challenge?.routineName || "Routine Workout Challenge");
       }
 
-      function openSingleExercisePicker(){
+            function openSingleExercisePicker(){
         openChallengeExercisePicker({
           title:"Pick Challenge Exercise",
           dayLabel:"Challenge Exercise",
@@ -8867,15 +8867,14 @@ root.appendChild(el("div", { class:"card" }, [
             ui.challengeExerciseId = selectedExerciseId;
             ui.challengeExerciseName = selectedExerciseName;
           },
-                    onReturn: () => {
+          onReturn: () => {
             persistDraft();
             openChallengeModal();
-          }
           }
         });
       }
 
-      function openWorkoutDayExercisePicker(dayId){
+            function openWorkoutDayExercisePicker(dayId){
         const day = (draftDays || []).find(d => String(d?.id || "") === String(dayId || ""));
         if(!day) return;
 
@@ -8900,10 +8899,9 @@ root.appendChild(el("div", { class:"card" }, [
             persistDraft();
             repaint();
           },
-                    onReturn: () => {
+          onReturn: () => {
             persistDraft();
             openChallengeModal();
-          }
           }
         });
       }
