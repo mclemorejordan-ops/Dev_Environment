@@ -7003,12 +7003,12 @@ function openAddFriendModal(){
     }, [
       el("div", { class:"connAvatar", text: avatarLetter(dn) }),
       el("div", { style:"min-width:0; flex:1;" }, [
-        el("div", {
-          style:"font-weight:800; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+       el("div", {
+          style:"font-weight:800; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff;"
         }, [dn]),
         el("div", {
           class:"note",
-          style:"margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+          style:"margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff;"
         }, [handle || "@unknown"])
       ])
     ]);
