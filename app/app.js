@@ -4694,7 +4694,11 @@ async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
           text:`You’ll go to Friends to sign in first, then we’ll share ${routineName}.`
         }),
         el("div", { style:"height:8px" }),
-       el("div", { class:"btnrow" }, [
+        el("div", { class:"btnrow" }, [
+          el("button", {
+            class:"btn",
+            onClick: () => Modal.close()
+          }, ["No"]),
           el("button", {
             class:"btn primary",
             onClick: () => {
@@ -4705,19 +4709,15 @@ async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
                 dayId: String(day?.id || ""),
                 createdAt: Date.now()
               });
-        
+
               Modal.close();
               navigate("friends");
-        
+
               try{
                 showToast("Continue with Google to share your workout");
               }catch(_){}
             }
-          }, ["Yes"]),
-          el("button", {
-            class:"btn",
-            onClick: () => Modal.close()
-          }, ["No"])
+          }, ["Yes"])
         ])
       ])
     });
