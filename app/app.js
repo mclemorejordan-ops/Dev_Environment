@@ -84,6 +84,8 @@ let state = Storage.load();
  ********************/
 const SOCIAL_CFG_KEY = "pc.social.supabase.v1";
 const SOCIAL_OUTBOX_KEY = "pc.social.outbox.v1";
+const SOCIAL_PENDING_WORKOUT_SHARE_KEY = "pc.social.pendingWorkoutShare.v1";
+let __pendingWorkoutShareReplayBusy = false;
 
 // ─────────────────────────────
 // Friends (Option B): baked-in Supabase config
@@ -547,22 +549,26 @@ if(_user){
 }
 
     // react to auth changes
-    try{
+        try{
       _sb.auth.onAuthStateChange((_event, session) => {
-  _user = session?.user || null;
+        _user = session?.user || null;
 
-  // OAuth handoff is complete once auth state changes
-  _authInFlight = false;
+        // OAuth handoff is complete once auth state changes
+        _authInFlight = false;
 
-  if(_user){
-    try{ upsertMyProfile(); }catch(_){}
-    startFeed();
-  }else{
-    stopFeed();
-  }
+        if(_user){
+          try{ upsertMyProfile(); }catch(_){}
+          startFeed();
 
-  notify();
-});
+          setTimeout(() => {
+            try{ consumePendingWorkoutShareAfterAuth(); }catch(_){}
+          }, 0);
+        }else{
+          stopFeed();
+        }
+
+        notify();
+      });
     }catch(_){}
 
     return _sb;
@@ -980,37 +986,41 @@ async function signInWithOAuth(provider){
     notify();
   }
 
-  async function refreshUser(){
-  const sb = await ensureClient();
-  if(!sb) {
-    _user = null;
+    async function refreshUser(){
+    const sb = await ensureClient();
+    if(!sb) {
+      _user = null;
+      _authInFlight = false;
+      stopFeed();
+      notify();
+      return;
+    }
+
+    try{
+      const { data } = await sb.auth.getUser();
+      _user = data?.user || null;
+    }catch(_){
+      _user = null;
+    }
+
+    // OAuth handoff is complete once we've refreshed user state
     _authInFlight = false;
-    stopFeed();
+
+    if(_user){
+      try{ await upsertMyProfile(); }catch(_){}
+    }
+
+    // ✅ Important: if we are already signed in on cold-open,
+    // start polling so followers/following counts update live.
+    if(_user) startFeed();
+    else stopFeed();
+
+    if(_user){
+      try{ await consumePendingWorkoutShareAfterAuth(); }catch(_){}
+    }
+
     notify();
-    return;
   }
-
-  try{
-    const { data } = await sb.auth.getUser();
-    _user = data?.user || null;
-  }catch(_){
-    _user = null;
-  }
-
-  // OAuth handoff is complete once we've refreshed user state
-  _authInFlight = false;
-
-  if(_user){
-    try{ await upsertMyProfile(); }catch(_){}
-  }
-
-  // ✅ Important: if we are already signed in on cold-open,
-  // start polling so followers/following counts update live.
-  if(_user) startFeed();
-  else stopFeed();
-
-  notify();
-}
 
   async function fetchFollows(){
     const sb = await ensureClient();
@@ -4156,6 +4166,15 @@ function openExerciseLogger(rx, day, defaultDateISO){
     e.dateISO === initialDateISO && e.routineExerciseId === rx.id
   ) || null;
 
+    const routineId = String(
+    existingEntry?.routineId ||
+    ((state.routines || []).find(r =>
+      (r.days || []).some(d => String(d?.id || "") === String(day?.id || ""))
+    )?.id || "") ||
+    state.activeRoutineId ||
+    ""
+  );
+
 const headerText = el("div", { class:"note" }, [
   `${exName} • ${ExerciseLibrary.typeLabel(type)} • `,
   dateInput
@@ -4214,7 +4233,7 @@ if(type === "weightlifting"){
     err.textContent = "";
   }
 
-       async function afterSave(savedDateISO, wasComplete=false){
+        async function afterSave(savedDateISO, wasComplete=false){
     Modal.close();
 
     const currentRoute = (typeof getCurrentRoute === "function")
@@ -4238,13 +4257,11 @@ if(type === "weightlifting"){
 
       await syncWorkoutCompletedEventForDay(savedDateISO, routineId || null, day);
 
-      // If the workout just became complete and the user is not signed in,
-      // offer a quick route to Friends so they can sign in and share.
       if(!wasComplete){
         await maybePromptWorkoutFeedShare(savedDateISO, routineId || null, day);
       }
     }
-  }  
+  }
 
 function buildWorkoutEventData(dateISO, routineId, day){
   const entries = (state?.logs?.workouts || []).filter(e =>
@@ -4541,6 +4558,109 @@ function buildWorkoutEventData(dateISO, routineId, day){
   };
 }
 
+function readPendingWorkoutShareIntent(){
+  try{
+    return JSON.parse(localStorage.getItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY) || "null");
+  }catch(_){
+    return null;
+  }
+}
+
+function writePendingWorkoutShareIntent(payload){
+  try{
+    if(!payload){
+      localStorage.removeItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY);
+      return;
+    }
+    localStorage.setItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY, JSON.stringify(payload));
+  }catch(_){}
+}
+
+function clearPendingWorkoutShareIntent(){
+  try{
+    localStorage.removeItem(SOCIAL_PENDING_WORKOUT_SHARE_KEY);
+  }catch(_){}
+}
+
+function resolveRoutineAndDayForPendingShare(routineId, dayId){
+  try{
+    const routines = Array.isArray(state?.routines) ? state.routines : [];
+    const routine = routines.find(r => String(r?.id || "") === String(routineId || ""));
+    if(!routine) return { routine:null, day:null };
+
+    const day = (routine.days || []).find(d => String(d?.id || "") === String(dayId || ""));
+    return {
+      routine: routine || null,
+      day: day || null
+    };
+  }catch(_){
+    return { routine:null, day:null };
+  }
+}
+
+async function consumePendingWorkoutShareAfterAuth(){
+  try{
+    if(__pendingWorkoutShareReplayBusy) return false;
+    if(!Social || !Social.getUser?.()) return false;
+
+    const pending = readPendingWorkoutShareIntent();
+    if(!pending) return false;
+
+    const createdAt = Number(pending?.createdAt || 0) || 0;
+    const ageMs = Date.now() - createdAt;
+    const maxAgeMs = 15 * 60 * 1000;
+
+    if(!createdAt || ageMs < 0 || ageMs > maxAgeMs){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    const dateISO = String(pending?.dateISO || "");
+    const routineId = String(pending?.routineId || "");
+    const dayId = String(pending?.dayId || "");
+
+    if(!dateISO || !routineId || !dayId){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    // Keep behavior aligned with current feed-posting expectations:
+    // only replay for today's completed workout.
+    if(dateISO !== String(Dates.todayISO())){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    const resolved = resolveRoutineAndDayForPendingShare(routineId, dayId);
+    const day = resolved?.day || null;
+
+    if(!day){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    if(!isDayComplete(dateISO, day)){
+      clearPendingWorkoutShareIntent();
+      return false;
+    }
+
+    __pendingWorkoutShareReplayBusy = true;
+
+    await syncWorkoutCompletedEventForDay(dateISO, routineId, day);
+    clearPendingWorkoutShareIntent();
+
+    try{
+      showToast("Workout shared to feed");
+    }catch(_){}
+
+    return true;
+  }catch(_){
+    return false;
+  }finally{
+    __pendingWorkoutShareReplayBusy = false;
+  }
+}
+
 async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
   try{
     if(!Social) return;
@@ -4548,7 +4668,8 @@ async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
     if(Social.getUser?.()) return;
     if(!isDayComplete(dateISO, day)) return;
 
-    // Keep the prompt honest: workout-complete feed posts are same-day only.
+    // Match current workout-complete post behavior:
+    // only offer replay for today's workout.
     if(String(dateISO || "") !== String(Dates.todayISO())) return;
 
     const routineName = (() => {
@@ -4571,7 +4692,7 @@ async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
         }),
         el("div", {
           class:"note",
-          text:`You’ll go to Friends to sign in first, then you can share ${routineName}.`
+          text:`You’ll go to Friends to sign in first, then we’ll share ${routineName}.`
         }),
         el("div", { style:"height:8px" }),
         el("div", { class:"btnrow" }, [
@@ -4582,9 +4703,20 @@ async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
           el("button", {
             class:"btn primary",
             onClick: () => {
+              writePendingWorkoutShareIntent({
+                source: "workout_complete_prompt",
+                dateISO: String(dateISO || ""),
+                routineId: String(routineId || ""),
+                dayId: String(day?.id || ""),
+                createdAt: Date.now()
+              });
+
               Modal.close();
               navigate("friends");
-              showToast("Continue with Google to share your workout");
+
+              try{
+                showToast("Continue with Google to share your workout");
+              }catch(_){}
             }
           }, ["Yes"])
         ])
@@ -4690,7 +4822,7 @@ function buildWeightliftingForm(){
     if(last?.wInput) last.wInput.focus();
   }}, ["+ Add Set"]);
 
-    const saveBtn = el("button", {
+      const saveBtn = el("button", {
     class:"btn primary",
     onClick: () => {
       clearErr();
@@ -4769,7 +4901,7 @@ function buildWeightliftingForm(){
       inclInput.value = (s.incline != null && String(s.incline) !== "0") ? String(s.incline) : "";
     }
 
-        const saveBtn = el("button", {
+            const saveBtn = el("button", {
       class:"btn primary",
       onClick: () => {
         clearErr();
@@ -4855,7 +4987,7 @@ return el("div", { class:"card" }, [
       weightInput.value = (s.weight != null && Number(s.weight) !== 0) ? String(s.weight) : "";
     }
 
-        const saveBtn = el("button", {
+           const saveBtn = el("button", {
       class:"btn primary",
       onClick: () => {
         clearErr();
