@@ -4161,8 +4161,10 @@ function openExerciseLogger(rx, day, defaultDateISO){
 const dateInput = el("input", { type:"date", value: initialDateISO });
 
   // Existing log for this routine-exercise on the selected date (so inputs persist)
-  const existingEntry = (state.logs?.workouts || []).find(e =>
-    e.dateISO === initialDateISO && e.routineExerciseId === rx.id
+    const existingEntry = (state.logs?.workouts || []).find(e =>
+    e.dateISO === initialDateISO &&
+    e.routineExerciseId === rx.id &&
+    !e?.skipped
   ) || null;
 
     const routineId = String(
@@ -4266,7 +4268,8 @@ function buildWorkoutEventData(dateISO, routineId, day){
   const entries = (state?.logs?.workouts || []).filter(e =>
     String(e?.dateISO || "") === String(dateISO || "") &&
     String(e?.routineId || "") === String(routineId || "") &&
-    String(e?.dayId || "") === String(day?.id || "")
+    String(e?.dayId || "") === String(day?.id || "") &&
+    !e?.skipped
   );
 
   const exSet = new Set();
@@ -5077,10 +5080,85 @@ return el("div", { class:"card" }, [
   }
 }
 
+function getRoutineExerciseEntries(dateISO, routineExerciseId){
+  return (state.logs?.workouts || []).filter(e =>
+    String(e?.dateISO || "") === String(dateISO || "") &&
+    String(e?.routineExerciseId || "") === String(routineExerciseId || "")
+  );
+}
+
+function hasRoutineExerciseSkipped(dateISO, routineExerciseId){
+  return getRoutineExerciseEntries(dateISO, routineExerciseId).some(e => !!e?.skipped);
+}
+
+function hasRoutineExerciseLogged(dateISO, routineExerciseId){
+  return getRoutineExerciseEntries(dateISO, routineExerciseId).some(e => !e?.skipped);
+}
+
+function isRoutineExerciseDone(dateISO, routineExerciseId){
+  return hasRoutineExerciseLogged(dateISO, routineExerciseId) ||
+         hasRoutineExerciseSkipped(dateISO, routineExerciseId);
+}
+
+function clearSkippedRoutineExercise(dateISO, routineExerciseId){
+  const before = (state.logs?.workouts || []).length;
+
+  state.logs.workouts = (state.logs.workouts || []).filter(e =>
+    !(
+      String(e?.dateISO || "") === String(dateISO || "") &&
+      String(e?.routineExerciseId || "") === String(routineExerciseId || "") &&
+      !!e?.skipped
+    )
+  );
+
+  if((state.logs.workouts || []).length !== before){
+    Storage.save(state);
+    return true;
+  }
+
+  return false;
+}
+
+function markRoutineExerciseSkipped({ dateISO, routineId, day, rx }){
+  if(!dateISO || !routineId || !day?.id || !rx?.id) return false;
+
+  // Do not overwrite a real logged exercise with skip.
+  if(hasRoutineExerciseLogged(dateISO, rx.id)) return false;
+
+  LogEngine.ensure();
+
+  state.logs.workouts = (state.logs.workouts || []).filter(e =>
+    !(
+      String(e?.dateISO || "") === String(dateISO || "") &&
+      String(e?.routineExerciseId || "") === String(rx.id || "")
+    )
+  );
+
+  state.logs.workouts.push({
+    id: uid("skip"),
+    createdAt: Date.now(),
+    dateISO,
+    type: rx.type,
+    exerciseId: rx.exerciseId,
+    routineExerciseId: rx.id,
+    routineId,
+    dayId: day.id,
+    dayOrder: day.order,
+    nameSnap: rx.nameSnap || resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap),
+    sets: [],
+    summary: {},
+    pr: {},
+    skipped: true
+  });
+
+  Storage.save(state);
+  return true;
+}
+
 function isDayComplete(dateISO, day){
   const ex = (day?.exercises || []);
   if(ex.length === 0) return false;
-  return ex.every(rx => hasRoutineExerciseLog(dateISO, rx.id));
+  return ex.every(rx => isRoutineExerciseDone(dateISO, rx.id));
 }
   
   function removeWorkoutEntriesForRoutineDay(dateISO, routineId, dayId){
@@ -5387,7 +5465,7 @@ scrollHost.appendChild(el("div", { class:"card restCard" }, [
     if(isDayComplete(selectedDateISO, day)){
 scrollHost.appendChild(el("div", { class:"card" }, [
         el("h2", { text:"Completed" }),
-        el("div", { class:"note", text:`All exercises logged for ${selectedDateISO}.` }),
+        el("div", { class:"note", text:`All exercises logged or skipped for ${selectedDateISO}.` }),
         el("div", { style:"height:10px" }),
         el("div", { class:"btnrow" }, [
           el("button", {
@@ -5421,7 +5499,14 @@ scrollHost.appendChild(el("div", { class:"card" }, [
 // ────────────────────────────
 (day.exercises || []).forEach(rx => {
   const exName = resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap);
-  const logged = hasRoutineExerciseLog(selectedDateISO, rx.id);
+  const skipped = hasRoutineExerciseSkipped(selectedDateISO, rx.id);
+  const logged = hasRoutineExerciseLogged(selectedDateISO, rx.id);
+  const done = logged || skipped;
+
+  const chipClass = "rxChip" + (logged ? " on" : "");
+  const chipStyle = skipped
+    ? "background:rgba(255,179,71,.18); color:#ffb347; border-color:rgba(255,179,71,.35);"
+    : "";
 
   const max = lifetimeMaxSet(rx.type, rx.exerciseId);
   const maxText = max ? `${max.weight} × ${max.reps}` : "—";
@@ -5430,13 +5515,14 @@ scrollHost.appendChild(el("div", { class:"card" }, [
     class:"card rxCard",
     // ✅ DOM selector hardening: namespace ids to this view
     id:`routine_rx_${rx.id}`,
-    "data-unlogged": logged ? "false" : "true"
+    "data-unlogged": done ? "false" : "true"
   }, [
     el("div", { class:"rxTop" }, [
       el("div", { class:"rxName", text: exName }),
       el("div", {
-        class:"rxChip" + (logged ? " on" : ""),
-        text: logged ? "Logged" : "Not logged"
+        class: chipClass,
+        style: chipStyle,
+        text: logged ? "Logged" : (skipped ? "Skipped" : "Not logged")
       })
     ]),
 
@@ -5446,7 +5532,95 @@ scrollHost.appendChild(el("div", { class:"card" }, [
       el("button", {
         class:"btn primary sm",
         onClick: () => openExerciseLogger(rx, day, selectedDateISO)
-      }, ["Log Sets"]),
+      }, [logged ? "Edit Log" : "Log Sets"]),
+
+      ...(skipped ? [
+        el("button", {
+          class:"btn sm",
+          onClick: async () => {
+            const wasComplete = isDayComplete(selectedDateISO, day);
+
+            clearSkippedRoutineExercise(selectedDateISO, rx.id);
+            setNextNudge(null);
+
+            const currentRoute = (typeof getCurrentRoute === "function")
+              ? getCurrentRoute()
+              : "";
+
+            if(currentRoute === "home"){
+              renderView();
+            }else{
+              repaint();
+            }
+
+            const nowComplete = isDayComplete(selectedDateISO, day);
+
+            if(wasComplete && !nowComplete){
+              attendanceRemove(selectedDateISO);
+              await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
+              showToast("Marked incomplete");
+              return;
+            }
+
+            await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
+            showToast("Skip removed");
+          }
+        }, ["Undo Skip"])
+      ] : (!logged ? [
+        el("button", {
+          class:"btn sm",
+          onClick: () => confirmModal({
+            title: "Skip exercise?",
+            note: "This will count the exercise as skipped for this workout. It will still allow workout completion, but it will not affect PRs or feed highlights.",
+            confirmText: "Skip exercise",
+            onConfirm: async () => {
+              const wasComplete = isDayComplete(selectedDateISO, day);
+
+              const changed = markRoutineExerciseSkipped({
+                dateISO: selectedDateISO,
+                routineId: routine.id,
+                day,
+                rx
+              });
+
+              if(!changed){
+                showToast("Could not skip exercise");
+                return;
+              }
+
+              const currentRoute = (typeof getCurrentRoute === "function")
+                ? getCurrentRoute()
+                : "";
+
+              if(currentRoute === "home"){
+                renderView();
+              }else{
+                repaint();
+              }
+
+              const nowComplete = isDayComplete(selectedDateISO, day);
+
+              if(nowComplete){
+                attendanceAdd(selectedDateISO);
+
+                if(!wasComplete){
+                  showToast("Day completed ✅");
+                }else{
+                  showToast("Exercise skipped");
+                }
+
+                await syncWorkoutCompletedEventForDay(selectedDateISO, routine.id, day);
+
+                if(!wasComplete){
+                  await maybePromptWorkoutFeedShare(selectedDateISO, routine.id, day);
+                }
+              }else{
+                showToast("Exercise skipped");
+              }
+            }
+          })
+        }, ["Skip Exercise"])
+      ] : []),
 
       el("button", {
         class:"btn ghost sm",
