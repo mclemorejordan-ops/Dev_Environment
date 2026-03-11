@@ -216,6 +216,76 @@ export function initRouter({
     return null;
   }
 
+    function ensureSwipeBackAffordance(){
+    let host = document.getElementById("swipeBackAffordance");
+    if(host) return host;
+
+    host = document.createElement("div");
+    host.id = "swipeBackAffordance";
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText = [
+      "position:fixed",
+      "left:8px",
+      "top:50%",
+      "transform:translateY(-50%) translateX(-10px) scale(.98)",
+      "width:42px",
+      "height:42px",
+      "border-radius:999px",
+      "display:flex",
+      "align-items:center",
+      "justify-content:center",
+      "pointer-events:none",
+      "opacity:0",
+      "z-index:85",
+      "background:rgba(16,20,30,.78)",
+      "border:1px solid rgba(255,255,255,.12)",
+      "backdrop-filter:blur(14px)",
+      "-webkit-backdrop-filter:blur(14px)",
+      "box-shadow:0 14px 34px rgba(0,0,0,.36)",
+      "transition:opacity .14s ease, transform .14s ease"
+    ].join(";");
+
+    const glyph = document.createElement("div");
+    glyph.textContent = "‹";
+    glyph.style.cssText = [
+      "font-size:24px",
+      "line-height:1",
+      "font-weight:900",
+      "color:rgba(255,255,255,.92)",
+      "transform:translateX(-1px)"
+    ].join(";");
+
+    host.appendChild(glyph);
+    document.body.appendChild(host);
+    return host;
+  }
+
+  function paintSwipeBackAffordance(dx){
+    const host = ensureSwipeBackAffordance();
+    const progress = Math.max(0, Math.min(1, (Number(dx) || 0) / 72));
+
+    host.style.opacity = String(Math.max(0, Math.min(.98, 0.16 + (progress * 0.82))));
+    host.style.transform =
+      `translateY(-50%) translateX(${Math.round((-10) + (progress * 12))}px) scale(${(0.98 + (progress * 0.04)).toFixed(3)})`;
+
+    host.style.background = progress >= 1
+      ? "rgba(124,92,255,.26)"
+      : "rgba(16,20,30,.78)";
+    host.style.borderColor = progress >= 1
+      ? "rgba(124,92,255,.34)"
+      : "rgba(255,255,255,.12)";
+  }
+
+  function resetSwipeBackAffordance(){
+    const host = document.getElementById("swipeBackAffordance");
+    if(!host) return;
+
+    host.style.opacity = "0";
+    host.style.transform = "translateY(-50%) translateX(-10px) scale(.98)";
+    host.style.background = "rgba(16,20,30,.78)";
+    host.style.borderColor = "rgba(255,255,255,.12)";
+  }
+
   function bindSwipeBack(){
     if(__swipeBackBound) return;
     __swipeBackBound = true;
@@ -230,6 +300,9 @@ export function initRouter({
     let startY = 0;
     let scroller = null;
 
+    ensureSwipeBackAffordance();
+    resetSwipeBackAffordance();
+
     document.addEventListener("touchstart", (e) => {
       const t = e.changedTouches && e.changedTouches[0];
       if(!t) return;
@@ -239,6 +312,7 @@ export function initRouter({
       scroller = null;
       startX = t.clientX;
       startY = t.clientY;
+      resetSwipeBackAffordance();
 
       if(startX > EDGE_PX) return;
       if(hasOpenModalOrPopover()) return;
@@ -251,6 +325,7 @@ export function initRouter({
       }
 
       tracking = true;
+      paintSwipeBackAffordance(0);
     }, { passive:true });
 
     document.addEventListener("touchmove", (e) => {
@@ -264,6 +339,7 @@ export function initRouter({
 
       if(Math.abs(dy) > MAX_VERTICAL_DRIFT && Math.abs(dy) > Math.abs(dx)){
         blocked = true;
+        resetSwipeBackAffordance();
         return;
       }
 
@@ -271,16 +347,21 @@ export function initRouter({
         try{
           if(scroller.scrollLeft > 0){
             blocked = true;
+            resetSwipeBackAffordance();
+            return;
           }
         }catch(_){}
       }
+
+      paintSwipeBackAffordance(Math.max(0, dx));
     }, { passive:true });
 
     document.addEventListener("touchend", (e) => {
-      if(!tracking || blocked) {
+      if(!tracking || blocked){
         tracking = false;
         blocked = false;
         scroller = null;
+        resetSwipeBackAffordance();
         return;
       }
 
@@ -289,6 +370,7 @@ export function initRouter({
         tracking = false;
         blocked = false;
         scroller = null;
+        resetSwipeBackAffordance();
         return;
       }
 
@@ -298,6 +380,7 @@ export function initRouter({
       tracking = false;
       blocked = false;
       scroller = null;
+      resetSwipeBackAffordance();
 
       if(dx >= TRIGGER_PX && Math.abs(dy) <= MAX_VERTICAL_DRIFT){
         goBack();
@@ -308,6 +391,7 @@ export function initRouter({
       tracking = false;
       blocked = false;
       scroller = null;
+      resetSwipeBackAffordance();
     }, { passive:true });
   }
 
