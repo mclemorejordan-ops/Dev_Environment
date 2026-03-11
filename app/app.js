@@ -1348,6 +1348,17 @@ async function signInWithOAuth(provider){
         sb.from("follows").select("follower_id", { count:"exact", head:true }).eq("followee_id", id)
       ]);
 
+      ui.profileWorkoutHistoryById = ui.profileWorkoutHistoryById || {};
+
+if(!isOwnProfile && profileUserId){
+  try{
+    ui.profileWorkoutHistoryById[String(profileUserId)] =
+      await Social.fetchWorkoutHistoryDates(String(profileUserId));
+  }catch(_){
+    ui.profileWorkoutHistoryById[String(profileUserId)] = [];
+  }
+}
+
       return {
         following: Number(followingCount || 0) || 0,
         followers: Number(followerCount || 0) || 0
@@ -1386,6 +1397,30 @@ async function signInWithOAuth(provider){
       return [];
     }
   }
+
+  async function fetchWorkoutHistoryDates(userId){
+  const sb = await ensureClient();
+  const id = String(userId || "").trim();
+  if(!sb || !_user || !id) return [];
+
+  try{
+    const { data, error } = await sb
+      .from("workout_history")
+      .select("date_iso")
+      .eq("user_id", id)
+      .order("date_iso", { ascending: false });
+
+    if(error) throw error;
+
+    return Array.from(new Set(
+      (data || [])
+        .map(r => String(r?.date_iso || "").trim())
+        .filter(Boolean)
+    ));
+  }catch(_){
+    return [];
+  }
+}
 
   async function fetchFeed(){
   const sb = await ensureClient();
@@ -1667,6 +1702,25 @@ function queueSocialOp(op){
   writeOutbox(out.slice(0, 100));
 }
 
+  async function syncWorkoutHistoryDate(dateISO){
+  const sb = await ensureClient();
+  if(!sb || !_user) return;
+
+  const iso = String(dateISO || "").trim();
+  if(!iso) return;
+
+  try{
+    const { error } = await sb
+      .from("workout_history")
+      .upsert(
+        { user_id: _user.id, date_iso: iso },
+        { onConflict: "user_id,date_iso" }
+      );
+
+    if(error) throw error;
+  }catch(_){}
+}
+
 async function upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
   if(!isConfigured()) return;
   await ensureClient();
@@ -1687,23 +1741,25 @@ async function upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highligh
 
     const existing = await findExistingWorkoutCompletedEvent({ dateISO, routineId, dayId });
 
-    if(existing?.id != null){
-      const { error } = await sb
-        .from("activity_events")
-        .update({ payload: row.payload })
-        .eq("id", existing.id)
-        .eq("actor_id", _user.id);
+          if(existing?.id != null){
+        const { error } = await sb
+          .from("activity_events")
+          .update({ payload: row.payload })
+          .eq("id", existing.id)
+          .eq("actor_id", _user.id);
 
-      if(error) throw error;
-      fetchFeed();
-      return;
-    }
+        if(error) throw error;
+        await syncWorkoutHistoryDate(dateISO);
+        fetchFeed();
+        return;
+      }
 
     // Only create a brand-new workout feed event for the current calendar day.
     if(String(dateISO || "") !== String(todayISO)) return;
 
-    const { error } = await sb.from("activity_events").insert(row);
+        const { error } = await sb.from("activity_events").insert(row);
     if(error) throw error;
+    await syncWorkoutHistoryDate(dateISO);
     fetchFeed();
   }catch(_){
     queueSocialOp({
@@ -1806,6 +1862,7 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     fetchProfileRoutine,
     fetchProfileFollowCounts,
     fetchProfileWorkoutHighlights,
+    fetchWorkoutHistoryDates,
     
     // feed
     getFeed,
@@ -9310,16 +9367,9 @@ root.appendChild(el("div", { class:"card" }, [
         .filter(Boolean)
     ));
 
-    const sharedCompletedWorkoutDateISOs = Array.from(new Set(
-      sharedEvents
-        .filter(ev => String(ev?.type || "") === "workout_completed")
-        .map(ev => String(
-          ev?.payload?.details?.dateISO ||
-          ev?.payload?.dateISO ||
-          ""
-        ).trim())
-        .filter(Boolean)
-    ));
+        const sharedCompletedWorkoutDateISOs = Array.isArray(ui.profileWorkoutHistoryById?.[String(profileUserId || "")])
+      ? ui.profileWorkoutHistoryById[String(profileUserId || "")]
+      : [];
 
         const consistencyMetric = isOwnProfile
       ? currentConsistencyMetric(ownRoutineSnapshot, ownCompletedWorkoutDateISOs, {
