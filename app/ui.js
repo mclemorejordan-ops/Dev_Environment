@@ -171,7 +171,6 @@ export function unlockBodyScroll(){
  ********************/
 let __modalLastFocus = null;
 let __modalKeydownHandler = null;
-let __modalGestureCleanup = null;
 
 function __getModalFocusables(sheet){
   if(!sheet) return [];
@@ -184,130 +183,6 @@ function __getModalFocusables(sheet){
     if(el.hasAttribute("disabled")) return false;
     return true;
   });
-}
-
-function __resetModalSheetGesture(sheet){
-  if(!sheet) return;
-  sheet.style.transition = "";
-  sheet.style.transform = "";
-  sheet.style.opacity = "";
-}
-
-function __bindModalSwipeDismiss(host, sheet){
-  if(__modalGestureCleanup){
-    try{ __modalGestureCleanup(); }catch(_){}
-    __modalGestureCleanup = null;
-  }
-
-  if(!host || !sheet) return;
-
-  const header = sheet.querySelector(".sheetHeader") || sheet;
-
-  let tracking = false;
-  let blocked = false;
-  let startX = 0;
-  let startY = 0;
-  let lastDy = 0;
-
-  function cleanup(){
-    header.removeEventListener("touchstart", onStart, { passive:true });
-    document.removeEventListener("touchmove", onMove, { passive:false });
-    document.removeEventListener("touchend", onEnd, { passive:true });
-    document.removeEventListener("touchcancel", onCancel, { passive:true });
-  }
-
-  function onStart(e){
-    const t = e.changedTouches && e.changedTouches[0];
-    if(!t) return;
-    if(!host.classList.contains("show")) return;
-
-    const target = e.target instanceof Element ? e.target : null;
-    if(target && target.closest("button, a, input, textarea, select, [contenteditable='true']")){
-      return;
-    }
-
-    tracking = true;
-    blocked = false;
-    startX = t.clientX;
-    startY = t.clientY;
-    lastDy = 0;
-
-    sheet.style.transition = "none";
-  }
-
-  function onMove(e){
-    if(!tracking || blocked) return;
-
-    const t = e.changedTouches && e.changedTouches[0];
-    if(!t) return;
-
-    const dx = t.clientX - startX;
-    const dy = t.clientY - startY;
-
-    if(Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy)){
-      blocked = true;
-      __resetModalSheetGesture(sheet);
-      return;
-    }
-
-    if(dy <= 0){
-      lastDy = 0;
-      sheet.style.transform = "translateY(0px)";
-      sheet.style.opacity = "1";
-      return;
-    }
-
-    lastDy = dy;
-
-    try{ e.preventDefault(); }catch(_){}
-
-    const clamped = Math.min(180, dy);
-    const opacity = Math.max(0.84, 1 - (clamped / 600));
-
-    sheet.style.transform = `translateY(${Math.round(clamped)}px)`;
-    sheet.style.opacity = String(opacity);
-  }
-
-  function onEnd(){
-    if(!tracking){
-      __resetModalSheetGesture(sheet);
-      return;
-    }
-
-    tracking = false;
-
-    if(blocked){
-      blocked = false;
-      __resetModalSheetGesture(sheet);
-      return;
-    }
-
-    sheet.style.transition = "transform .18s ease, opacity .18s ease";
-
-    if(lastDy >= 96){
-      Modal.close();
-      return;
-    }
-
-    __resetModalSheetGesture(sheet);
-  }
-
-  function onCancel(){
-    tracking = false;
-    blocked = false;
-    sheet.style.transition = "transform .18s ease, opacity .18s ease";
-    __resetModalSheetGesture(sheet);
-  }
-
-  header.addEventListener("touchstart", onStart, { passive:true });
-  document.addEventListener("touchmove", onMove, { passive:false });
-  document.addEventListener("touchend", onEnd, { passive:true });
-  document.addEventListener("touchcancel", onCancel, { passive:true });
-
-  __modalGestureCleanup = () => {
-    cleanup();
-    __resetModalSheetGesture(sheet);
-  };
 }
 
 export const Modal = {
@@ -344,8 +219,6 @@ export const Modal = {
     setTimeout(() => {
       try { first && first.focus && first.focus(); } catch(e){}
     }, 0);
-
-    __bindModalSwipeDismiss(host, sheet);
 
     __modalKeydownHandler = (e) => {
       if(!host.classList.contains("show")) return;
@@ -397,12 +270,6 @@ export const Modal = {
 
     if(sheet){
       sheet.classList.remove("sm", "md", "lg");
-      __resetModalSheetGesture(sheet);
-    }
-
-    if(__modalGestureCleanup){
-      try{ __modalGestureCleanup(); }catch(_){}
-      __modalGestureCleanup = null;
     }
 
     unlockBodyScroll();
