@@ -9299,7 +9299,7 @@ root.appendChild(el("div", { class:"card" }, [
         .filter(Boolean)
     ));
 
-    const consistencyMetric = isOwnProfile
+        const consistencyMetric = isOwnProfile
       ? currentConsistencyMetric(ownRoutineSnapshot, ownCompletedWorkoutDateISOs, {
           loading: false,
           noRoutineMeta: "Create or set a routine"
@@ -9308,14 +9308,6 @@ root.appendChild(el("div", { class:"card" }, [
           loading: sharedLoading,
           noRoutineMeta: "Routine not shared"
         });
-
-    const sharedRoutine = !isOwnProfile
-      ? (ui.profileRoutineById?.[String(profileUserId || "")] || null)
-      : null;
-
-    const sharedRoutineSnapshot = (!isOwnProfile && sharedRoutine?.enabled && sharedRoutine?.routinePayload)
-      ? sharedRoutine.routinePayload
-      : null;
 
     function toOwnRoutineSnapshot(routine){
   if(!routine) return null;
