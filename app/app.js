@@ -86,6 +86,21 @@ const SOCIAL_OUTBOX_KEY = "pc.social.outbox.v1";
 const SOCIAL_PENDING_WORKOUT_SHARE_KEY = "pc.social.pendingWorkoutShare.v1";
 let __pendingWorkoutShareReplayBusy = false;
 
+const SOCIAL_WORKOUT_HISTORY_SYNC_KEY = "pc.social.workoutHistorySync.v1";
+
+function readWorkoutHistorySyncStamp(){
+  try{
+    return JSON.parse(localStorage.getItem(SOCIAL_WORKOUT_HISTORY_SYNC_KEY) || "{}");
+  }catch(_){
+    return {};
+  }
+}
+
+function writeWorkoutHistorySyncStamp(next){
+  try{
+    localStorage.setItem(SOCIAL_WORKOUT_HISTORY_SYNC_KEY, JSON.stringify(next || {}));
+  }catch(_){}
+}
 // ─────────────────────────────
 // Friends (Option B): baked-in Supabase config
 // - Sets defaults only if user has NOT configured anything yet
@@ -1711,7 +1726,7 @@ function queueSocialOp(op){
   }catch(_){}
 }
 
-  async function backfillWorkoutHistoryFromLocalLogs(){
+    async function backfillWorkoutHistoryFromLocalLogs(){
     const sb = await ensureClient();
     if(!sb || !_user) return;
 
@@ -1729,9 +1744,15 @@ function queueSocialOp(op){
         )
         .map(entry => String(entry.dateISO || "").trim())
         .filter(Boolean)
-    ));
+    )).sort();
 
     if(!completedDates.length) return;
+
+    const latestDateISO = completedDates[completedDates.length - 1] || "";
+    const nextStamp = `${completedDates.length}|${latestDateISO}`;
+    const stampCache = readWorkoutHistorySyncStamp();
+
+    if(String(stampCache?.[_user.id] || "") === nextStamp) return;
 
     try{
       const rows = completedDates.map(dateISO => ({
@@ -1744,6 +1765,10 @@ function queueSocialOp(op){
         .upsert(rows, { onConflict: "user_id,date_iso" });
 
       if(error) throw error;
+
+      const nextCache = { ...(stampCache || {}) };
+      nextCache[_user.id] = nextStamp;
+      writeWorkoutHistorySyncStamp(nextCache);
     }catch(_){}
   }
   
