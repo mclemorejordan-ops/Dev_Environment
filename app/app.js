@@ -16193,11 +16193,8 @@ const Router = initRouter({
 });
 
 // Pull router funcs, but DO NOT redeclare `navigate` (we already defined it above).
-const { Routes, renderNav, renderView, getCurrentRoute, goBack, canGoBack, bindSwipeBack } = Router;
-navigate = Router.navigate;
-try{
-  bindSwipeBack && bindSwipeBack();
-}catch(_){}
+const { Routes, renderNav, renderView, getCurrentRoute } = Router;
+
 
 // ✅ Friends/Social: auto-refresh UI after OAuth redirect (and during feed polling)
 // Only re-render on Friends or Settings routes to avoid extra work elsewhere.
