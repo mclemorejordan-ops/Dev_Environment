@@ -171,22 +171,6 @@ export function unlockBodyScroll(){
  ********************/
 let __modalLastFocus = null;
 let __modalKeydownHandler = null;
-
-function __getModalFocusables(sheet){
-  if(!sheet) return [];
-  const nodes = sheet.querySelectorAll(
-    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  );
-  return Array.from(nodes).filter(el => {
-    const style = window.getComputedStyle(el);
-    if(style.visibility === "hidden" || style.display === "none") return false;
-    if(el.hasAttribute("disabled")) return false;
-    return true;
-  });
-}
-
-let __modalLastFocus = null;
-let __modalKeydownHandler = null;
 let __modalGestureCleanup = null;
 
 function __getModalFocusables(sheet){
