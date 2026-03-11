@@ -16255,7 +16255,7 @@ const Router = initRouter({
 });
 
 // Pull router funcs, but DO NOT redeclare `navigate` (we already defined it above).
-const { Routes, renderNav, renderView, getCurrentRoute } = Router;
+const { Routes, renderNav, renderView, getCurrentRoute, navigate: routerNavigate } = Router;
 
 // ✅ Critical fix:
 // Rebind the early placeholder navigate() to the real router navigate function.
