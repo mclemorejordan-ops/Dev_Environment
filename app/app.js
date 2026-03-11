@@ -11952,14 +11952,61 @@ function buildWorkoutHighlightPills(ev){
         }
       }
 
-      function getWorkoutItemsFromEvent(ev){
-        try{
-          const items = ev?.payload?.details?.items;
-          return Array.isArray(items) ? items.slice() : [];
-        }catch(_){
-          return [];
-        }
+      function sanitizeShareTopText(raw, type=""){
+  try{
+    let s = String(raw || "").trim();
+    if(!s) return "";
+
+    const t = String(type || "").trim().toLowerCase();
+
+    // Weightlifting: preserve the strongest readable share value only.
+    // Examples:
+    // "225×5 • Vol 3375"     -> "225×5"
+    // "Top 225 • Vol 3375"   -> "225"
+    // "225×5 | Vol: 3375"    -> "225×5"
+    if(t === "weightlifting"){
+      const setMatch = s.match(/(\d+(?:\.\d+)?)\s*[×x]\s*(\d+)/i);
+      if(setMatch){
+        return `${setMatch[1]}×${setMatch[2]}`;
       }
+
+      const topMatch = s.match(/\bTop\s+(\d+(?:\.\d+)?)/i);
+      if(topMatch){
+        return String(topMatch[1]);
+      }
+    }
+
+    // Generic cleanup for older payloads that appended volume text.
+    // Keeps the rest of the metric string intact.
+    s = s.replace(
+      /(?:\s*[|•-]\s*|\s+)(?:Vol|Volume)\s*:?\s*[\d,.]+(?:\b|$)/gi,
+      ""
+    );
+
+    s = s
+      .replace(/\s+/g, " ")
+      .replace(/\s*[|•-]\s*$/g, "")
+      .trim();
+
+    return s;
+  }catch(_){
+    return String(raw || "").trim();
+  }
+}
+
+function getWorkoutItemsFromEvent(ev){
+  try{
+    const items = ev?.payload?.details?.items;
+    if(!Array.isArray(items)) return [];
+
+    return items.map(it => ({
+      ...it,
+      topText: sanitizeShareTopText(it?.topText || "", it?.type || "")
+    }));
+  }catch(_){
+    return [];
+  }
+}
 
                         function pickWeightliftingPRs(items){
         try{
