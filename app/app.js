@@ -10291,11 +10291,119 @@ function openProfileStrengthPRModal(opts = {}){
     ? getOwnAllStrengthAndCorePRs()
     : getSharedStrengthAndCorePRsFromEvents(sharedEvents);
 
+  function buildStrengthRows(mode){
+    const list = el("div", { class:"list" });
+
+    const rows = (Array.isArray(items) ? items : [])
+      .map(item => {
+        const weight = Number(item?.weight || 0);
+        const reps = Number(item?.reps || 0);
+        const est1RM = (weight > 0 && reps > 0)
+          ? Math.round(weight * (1 + (reps / 30)))
+          : 0;
+
+        return {
+          ...item,
+          weight,
+          reps,
+          est1RM
+        };
+      })
+      .filter(item => item.weight > 0)
+      .sort((a, b) => {
+        if(mode === "1rm"){
+          if(b.est1RM !== a.est1RM) return b.est1RM - a.est1RM;
+          if(b.weight !== a.weight) return b.weight - a.weight;
+          if(b.reps !== a.reps) return b.reps - a.reps;
+          return String(a.name || "").localeCompare(String(b.name || ""));
+        }
+
+        if(b.weight !== a.weight) return b.weight - a.weight;
+        if(b.reps !== a.reps) return b.reps - a.reps;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      });
+
+    if(!rows.length){
+      list.appendChild(el("div", {
+        class:"note",
+        text: isOwnProfile
+          ? "No weightlifting PRs from your logs yet."
+          : `No shared weightlifting PRs from ${profileDisplayName} yet.`
+      }));
+      return list;
+    }
+
+    rows.forEach(item => {
+      const valueText = mode === "1rm"
+        ? `${fmtNum(item.est1RM)} lb`
+        : `${fmtNum(item.weight)} × ${item.reps}`;
+
+      const metaText = mode === "1rm"
+        ? `${item.name} • from ${fmtNum(item.weight)} × ${item.reps}`
+        : item.name;
+
+      list.appendChild(el("div", { class:"item" }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: item.name || "Exercise" }),
+          el("div", { class:"meta", text: metaText })
+        ]),
+        el("div", { class:"right" }, [
+          el("div", {
+            style:"font-weight:1000; font-size:14px; white-space:nowrap;"
+          }, [valueText])
+        ])
+      ]));
+    });
+
+    return list;
+  }
+
+  const tabs = el("div", {
+    style:"display:flex; gap:8px; margin:0 0 10px 0;"
+  });
+
+  const content = el("div");
+
+  function renderTab(mode){
+    content.innerHTML = "";
+    content.appendChild(buildStrengthRows(mode));
+  }
+
+  const weightBtn = el("button", {
+    class:"btn",
+    style:"flex:1;",
+    onClick: () => {
+      weightBtn.classList.add("primary");
+      rmBtn.classList.remove("primary");
+      renderTab("weight");
+    }
+  }, ["Weight"]);
+
+  const rmBtn = el("button", {
+    class:"btn",
+    style:"flex:1;",
+    onClick: () => {
+      rmBtn.classList.add("primary");
+      weightBtn.classList.remove("primary");
+      renderTab("1rm");
+    }
+  }, ["1RM"]);
+
+  weightBtn.classList.add("primary");
+
+  tabs.appendChild(weightBtn);
+  tabs.appendChild(rmBtn);
+
+  const noteText = isOwnProfile
+    ? "Browse your weightlifting PRs by top weight or estimated 1RM."
+    : `Browse ${profileDisplayName}'s shared weightlifting PRs by top weight or estimated 1RM.`;
+
   Modal.open({
-    title: "Best Strength PRs",
+    title: "Best Strength",
     bodyNode: el("div", { class:"grid" }, [
-      el("div", { class:"note", text:isOwnProfile ? "All weightlifting and core PRs from your logs." : `Best known weightlifting and core PRs from ${profileDisplayName}'s shared history.` }),
-      buildPRListRows(items, "strength"),
+      el("div", { class:"note", text: noteText }),
+      tabs,
+      content,
       el("div", { class:"btnrow" }, [
         el("button", {
           class:"btn",
@@ -10309,6 +10417,8 @@ function openProfileStrengthPRModal(opts = {}){
       ])
     ])
   });
+
+  renderTab("weight");
 }
 
 function openProfileCardioPRModal(opts = {}){
@@ -10321,11 +10431,154 @@ function openProfileCardioPRModal(opts = {}){
     ? getOwnAllCardioPRs()
     : getSharedCardioPRsFromEvents(sharedEvents);
 
+  const noteText = isOwnProfile
+    ? "Your cardio bests by pace, distance, and time."
+    : `Best known cardio results from ${profileDisplayName}'s shared history.`;
+
+  const tabs = el("div", { class:"seg tabs" }, [
+    el("button", {
+      type:"button",
+      class:"chip active",
+      dataset:{ tab:"pace" }
+    }, ["Pace"]),
+    el("button", {
+      type:"button",
+      class:"chip",
+      dataset:{ tab:"distance" }
+    }, ["Distance"]),
+    el("button", {
+      type:"button",
+      class:"chip",
+      dataset:{ tab:"time" }
+    }, ["Time"])
+  ]);
+
+  const tabContent = el("div", { class:"list" });
+
+  function getCardioSortValue(item, mode){
+    if(mode === "pace"){
+      return Number.isFinite(item?.pace) && item.pace > 0 ? item.pace : Infinity;
+    }
+    if(mode === "distance"){
+      return -(Number(item?.distance) || 0);
+    }
+    if(mode === "time"){
+      return -(Number(item?.timeSec) || 0);
+    }
+    return Infinity;
+  }
+
+  function getCardioValueText(item, mode){
+    if(mode === "pace"){
+      return Number.isFinite(item?.pace) && item.pace > 0
+        ? fmtPaceSafe(item.pace)
+        : "—";
+    }
+    if(mode === "distance"){
+      const distance = Number(item?.distance) || 0;
+      return distance > 0 ? `${fmtNum(distance)} mi` : "—";
+    }
+    if(mode === "time"){
+      const timeSec = Number(item?.timeSec) || 0;
+      return timeSec > 0 ? fmtTimeSafe(timeSec) : "—";
+    }
+    return "—";
+  }
+
+  function getCardioMetaText(item, mode){
+    if(mode === "pace"){
+      const distance = Number(item?.distance) || 0;
+      const timeSec = Number(item?.timeSec) || 0;
+      if(distance > 0 && timeSec > 0){
+        return `${fmtNum(distance)} mi • ${fmtTimeSafe(timeSec)}`;
+      }
+      if(distance > 0) return `${fmtNum(distance)} mi`;
+      if(timeSec > 0) return fmtTimeSafe(timeSec);
+      return "No pace result";
+    }
+    if(mode === "distance"){
+      if(Number.isFinite(item?.pace) && item.pace > 0){
+        return fmtPaceSafe(item.pace);
+      }
+      const timeSec = Number(item?.timeSec) || 0;
+      return timeSec > 0 ? fmtTimeSafe(timeSec) : "No distance result";
+    }
+    if(mode === "time"){
+      const distance = Number(item?.distance) || 0;
+      if(distance > 0){
+        return `${fmtNum(distance)} mi`;
+      }
+      if(Number.isFinite(item?.pace) && item.pace > 0){
+        return fmtPaceSafe(item.pace);
+      }
+      return "No time result";
+    }
+    return "";
+  }
+
+  function renderCardioTab(mode){
+    tabContent.innerHTML = "";
+
+    const filtered = (Array.isArray(items) ? items : [])
+      .filter(item => {
+        if(mode === "pace") return Number.isFinite(item?.pace) && item.pace > 0;
+        if(mode === "distance") return (Number(item?.distance) || 0) > 0;
+        if(mode === "time") return (Number(item?.timeSec) || 0) > 0;
+        return false;
+      })
+      .sort((a, b) => {
+        const av = getCardioSortValue(a, mode);
+        const bv = getCardioSortValue(b, mode);
+        if(av < bv) return -1;
+        if(av > bv) return 1;
+        return String(a?.name || "").localeCompare(String(b?.name || ""));
+      });
+
+    if(!filtered.length){
+      const emptyLabel =
+        mode === "pace" ? "pace" :
+        mode === "distance" ? "distance" :
+        "time";
+
+      tabContent.appendChild(
+        el("div", { class:"note", text:`No cardio ${emptyLabel} results available yet.` })
+      );
+      return;
+    }
+
+    filtered.forEach(item => {
+      tabContent.appendChild(
+        el("div", { class:"item" }, [
+          el("div", { class:"left" }, [
+            el("div", { class:"name", text:item?.name || "Exercise" }),
+            el("div", { class:"meta", text:getCardioMetaText(item, mode) })
+          ]),
+          el("div", { class:"right" }, [
+            el("div", {
+              style:"font-weight:1000; font-size:14px; white-space:nowrap;"
+            }, [getCardioValueText(item, mode)])
+          ])
+        ])
+      );
+    });
+  }
+
+  tabs.querySelectorAll("[data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      tabs.querySelectorAll("[data-tab]").forEach(node => node.classList.remove("active"));
+      btn.classList.add("active");
+      renderCardioTab(String(btn.dataset.tab || "pace"));
+    });
+  });
+
+  renderCardioTab("pace");
+
   Modal.open({
     title: "Best Cardio PRs",
     bodyNode: el("div", { class:"grid" }, [
-      el("div", { class:"note", text:isOwnProfile ? "All cardio PRs from your logs." : `Best known cardio PRs from ${profileDisplayName}'s shared history.` }),
-      buildPRListRows(items, "cardio"),
+      el("div", { class:"note", text:noteText }),
+      tabs,
+      tabContent,
       el("div", { class:"btnrow" }, [
         el("button", {
           class:"btn",
