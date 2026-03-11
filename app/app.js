@@ -7286,10 +7286,20 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   ui.profileRoutineById = ui.profileRoutineById || {};
   ui.profileLoadById = ui.profileLoadById || {};
 
-  const root = el("div", { class:"grid" });
+    const root = el("div", { class:"grid" });
 
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
+
+  function openFriendProfileView(friendId){
+    const id = String(friendId || "").trim();
+    if(!id) return;
+
+    ui.friendId = id;
+    ui.view = "profile";
+
+    try{ renderView(); }catch(_){}
+  }
 
   // ✅ Live Online/Offline pill updates (only re-render on Friends route)
 if(!ui.__netSub){
@@ -13290,9 +13300,11 @@ onClick: () => openExerciseHistoryFromFeed(
   }catch(_){}
 }
         
-        // Avatar (initial)
+         // Avatar (initial) — clickable to open profile
         const initial = (String(who || "U").trim()[0] || "U").toUpperCase();
-        const avatar = el("div", {
+        const avatar = el("button", {
+          type:"button",
+          "aria-label": `Open ${who || "user"} profile`,
           style:[
             "width:36px",
             "height:36px",
@@ -13304,10 +13316,16 @@ onClick: () => openExerciseHistoryFromFeed(
             "justify-content:center",
             "font-weight:900",
             "letter-spacing:.2px",
-            "flex:0 0 auto"
+            "flex:0 0 auto",
+            "padding:0",
+            "cursor:pointer",
+            "color:inherit"
           ].join(";"),
-          text: initial
-        });
+          onClick: (e) => {
+            try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+            openFriendProfileView(ev.actorId);
+          }
+        }, [initial]);
 
   const interactionsNode = (() => {
   const eventId = ev.id;
@@ -13416,19 +13434,55 @@ const feedLinkRow = el("div", {
   style:"min-width:0; flex:1; display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
 }, [
   el("div", { style:"min-width:0; flex:1;" }, [
-    el("div", {
+        el("div", {
       style:"display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap;"
     }, [
-      el("div", {
-        style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+      el("button", {
+        type:"button",
+        style:[
+          "background:transparent",
+          "border:0",
+          "padding:0",
+          "margin:0",
+          "color:inherit",
+          "cursor:pointer",
+          "font-weight:700",
+          "overflow:hidden",
+          "text-overflow:ellipsis",
+          "white-space:nowrap",
+          "flex:0 1 auto",
+          "min-width:0"
+        ].join(";"),
+        onClick: (e) => {
+          try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+          openFriendProfileView(ev.actorId);
+        }
       }, [who]),
 
       whoHandle ? el("div", {
         style:"opacity:.65; flex:0 0 auto;"
       }, ["|"]) : null,
 
-      whoHandle ? el("div", {
-        style:"font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; min-width:0;"
+      whoHandle ? el("button", {
+        type:"button",
+        style:[
+          "background:transparent",
+          "border:0",
+          "padding:0",
+          "margin:0",
+          "color:inherit",
+          "cursor:pointer",
+          "font-weight:700",
+          "overflow:hidden",
+          "text-overflow:ellipsis",
+          "white-space:nowrap",
+          "flex:0 1 auto",
+          "min-width:0"
+        ].join(";"),
+        onClick: (e) => {
+          try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+          openFriendProfileView(ev.actorId);
+        }
       }, [whoHandle]) : null
     ].filter(Boolean)),
 
