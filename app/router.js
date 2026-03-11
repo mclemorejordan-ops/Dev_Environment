@@ -44,19 +44,9 @@ export function initRouter({
     .filter(([,v]) => v.nav)
     .map(([k]) => k);
 
-    let currentRoute = "home";
-  let routeStack = ["home"];
-  let __swipeBackBound = false;
+  let currentRoute = "home";
 
   function getCurrentRoute(){ return currentRoute; }
-
-  function canGoBack(){
-    return routeStack.length > 1;
-  }
-
-  function getPreviousRoute(){
-    return canGoBack() ? routeStack[routeStack.length - 2] : null;
-  }
 
   function setChip(){
     const chip = $("#chipStatus");
@@ -119,39 +109,28 @@ export function initRouter({
     ]));
   }
 
-    function navigate(routeKey, opts = {}){
+  function navigate(routeKey){
     try{ destroyProgressChart && destroyProgressChart(); }catch(_){}
     try{ destroyWeightChart && destroyWeightChart(); }catch(_){}
 
+    // ✅ Route-name contract hardening:
+    // If someone calls navigate("typo_route"), never break rendering.
     const safeRoute = Routes?.[routeKey] ? routeKey : "home";
-
-    const replace = !!opts.replace;
-    const fromBack = !!opts.fromBack;
-    const skipRender = !!opts.skipRender;
-
-    if(fromBack){
-      currentRoute = safeRoute;
-    }else if(replace){
-      currentRoute = safeRoute;
-      routeStack[routeStack.length - 1] = safeRoute;
-    }else{
-      currentRoute = safeRoute;
-
-      const last = routeStack[routeStack.length - 1];
-      if(last !== safeRoute){
-        routeStack.push(safeRoute);
-      }
-    }
-
-    if(skipRender) return;
+    currentRoute = safeRoute;
 
     renderNav();
     renderView();
 
+    // Versioning pills: bind once, then keep the UI current
     bindHeaderPills && bindHeaderPills();
     setHeaderPills && setHeaderPills();
+
+    // Keep throttled background check, but don't spam
     checkForUpdates && checkForUpdates();
 
+    // ─────────────────────────────
+    // GA4: SPA route tracking (page_view)
+    // ─────────────────────────────
     try{
       if(typeof gtag === "function"){
         const label = (Routes?.[safeRoute]?.label) || safeRoute || "unknown";
@@ -168,243 +147,12 @@ export function initRouter({
     }
   }
 
-    function goBack(){
-    if(!canGoBack()) return false;
-
-    routeStack.pop();
-    const prev = routeStack[routeStack.length - 1] || "home";
-
-    navigate(prev, { fromBack:true });
-    return true;
-  }
-
-    function isInteractiveTarget(node){
-    const elNode = node instanceof Element ? node : null;
-    if(!elNode) return false;
-
-    return !!elNode.closest(
-      'input, textarea, select, option, button, a, label, [contenteditable="true"], [data-no-swipe-back]'
-    );
-  }
-
-  function hasOpenModalOrPopover(){
-    const modalHost = document.getElementById("modalHost");
-    const popHost = document.getElementById("popHost");
-
-    const modalOpen = !!(modalHost && modalHost.classList.contains("show"));
-    const popOpen = !!(popHost && popHost.classList.contains("show"));
-
-    return modalOpen || popOpen;
-  }
-
-  function findHorizontalScroller(node){
-    let cur = node instanceof Element ? node : null;
-
-    while(cur && cur !== document.body){
-      try{
-        const style = window.getComputedStyle(cur);
-        const overflowX = style?.overflowX || "";
-        const canScrollX = cur.scrollWidth > cur.clientWidth + 2;
-
-        if(canScrollX && (overflowX === "auto" || overflowX === "scroll")){
-          return cur;
-        }
-      }catch(_){}
-      cur = cur.parentElement;
-    }
-
-    return null;
-  }
-
-    function ensureSwipeBackAffordance(){
-    let host = document.getElementById("swipeBackAffordance");
-    if(host) return host;
-
-    host = document.createElement("div");
-    host.id = "swipeBackAffordance";
-    host.setAttribute("aria-hidden", "true");
-    host.style.cssText = [
-      "position:fixed",
-      "left:8px",
-      "top:50%",
-      "transform:translateY(-50%) translateX(-10px) scale(.98)",
-      "width:42px",
-      "height:42px",
-      "border-radius:999px",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "pointer-events:none",
-      "opacity:0",
-      "z-index:85",
-      "background:rgba(16,20,30,.78)",
-      "border:1px solid rgba(255,255,255,.12)",
-      "backdrop-filter:blur(14px)",
-      "-webkit-backdrop-filter:blur(14px)",
-      "box-shadow:0 14px 34px rgba(0,0,0,.36)",
-      "transition:opacity .14s ease, transform .14s ease"
-    ].join(";");
-
-    const glyph = document.createElement("div");
-    glyph.textContent = "‹";
-    glyph.style.cssText = [
-      "font-size:24px",
-      "line-height:1",
-      "font-weight:900",
-      "color:rgba(255,255,255,.92)",
-      "transform:translateX(-1px)"
-    ].join(";");
-
-    host.appendChild(glyph);
-    document.body.appendChild(host);
-    return host;
-  }
-
-  function paintSwipeBackAffordance(dx){
-    const host = ensureSwipeBackAffordance();
-    const progress = Math.max(0, Math.min(1, (Number(dx) || 0) / 72));
-
-    host.style.opacity = String(Math.max(0, Math.min(.98, 0.16 + (progress * 0.82))));
-    host.style.transform =
-      `translateY(-50%) translateX(${Math.round((-10) + (progress * 12))}px) scale(${(0.98 + (progress * 0.04)).toFixed(3)})`;
-
-    host.style.background = progress >= 1
-      ? "rgba(124,92,255,.26)"
-      : "rgba(16,20,30,.78)";
-    host.style.borderColor = progress >= 1
-      ? "rgba(124,92,255,.34)"
-      : "rgba(255,255,255,.12)";
-  }
-
-  function resetSwipeBackAffordance(){
-    const host = document.getElementById("swipeBackAffordance");
-    if(!host) return;
-
-    host.style.opacity = "0";
-    host.style.transform = "translateY(-50%) translateX(-10px) scale(.98)";
-    host.style.background = "rgba(16,20,30,.78)";
-    host.style.borderColor = "rgba(255,255,255,.12)";
-  }
-
-  function bindSwipeBack(){
-    if(__swipeBackBound) return;
-    __swipeBackBound = true;
-
-    const EDGE_PX = 28;
-    const TRIGGER_PX = 72;
-    const MAX_VERTICAL_DRIFT = 36;
-
-    let tracking = false;
-    let blocked = false;
-    let startX = 0;
-    let startY = 0;
-    let scroller = null;
-
-    ensureSwipeBackAffordance();
-    resetSwipeBackAffordance();
-
-    document.addEventListener("touchstart", (e) => {
-      const t = e.changedTouches && e.changedTouches[0];
-      if(!t) return;
-
-      tracking = false;
-      blocked = false;
-      scroller = null;
-      startX = t.clientX;
-      startY = t.clientY;
-      resetSwipeBackAffordance();
-
-      if(startX > EDGE_PX) return;
-      if(hasOpenModalOrPopover()) return;
-      if(isInteractiveTarget(e.target)) return;
-      if(!canGoBack()) return;
-
-      scroller = findHorizontalScroller(e.target);
-      if(scroller && scroller.scrollLeft > 0){
-        return;
-      }
-
-      tracking = true;
-      paintSwipeBackAffordance(0);
-    }, { passive:true });
-
-    document.addEventListener("touchmove", (e) => {
-      if(!tracking || blocked) return;
-
-      const t = e.changedTouches && e.changedTouches[0];
-      if(!t) return;
-
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
-
-      if(Math.abs(dy) > MAX_VERTICAL_DRIFT && Math.abs(dy) > Math.abs(dx)){
-        blocked = true;
-        resetSwipeBackAffordance();
-        return;
-      }
-
-      if(scroller){
-        try{
-          if(scroller.scrollLeft > 0){
-            blocked = true;
-            resetSwipeBackAffordance();
-            return;
-          }
-        }catch(_){}
-      }
-
-      paintSwipeBackAffordance(Math.max(0, dx));
-    }, { passive:true });
-
-    document.addEventListener("touchend", (e) => {
-      if(!tracking || blocked){
-        tracking = false;
-        blocked = false;
-        scroller = null;
-        resetSwipeBackAffordance();
-        return;
-      }
-
-      const t = e.changedTouches && e.changedTouches[0];
-      if(!t){
-        tracking = false;
-        blocked = false;
-        scroller = null;
-        resetSwipeBackAffordance();
-        return;
-      }
-
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
-
-      tracking = false;
-      blocked = false;
-      scroller = null;
-      resetSwipeBackAffordance();
-
-      if(dx >= TRIGGER_PX && Math.abs(dy) <= MAX_VERTICAL_DRIFT){
-        goBack();
-      }
-    }, { passive:true });
-
-    document.addEventListener("touchcancel", () => {
-      tracking = false;
-      blocked = false;
-      scroller = null;
-      resetSwipeBackAffordance();
-    }, { passive:true });
-  }
-
-    return {
+  return {
     Routes,
     NAV_KEYS,
     renderNav,
     renderView,
     navigate,
-    goBack,
-    canGoBack,
-    getPreviousRoute,
-    bindSwipeBack,
     getCurrentRoute
   };
 }
