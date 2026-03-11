@@ -2427,6 +2427,30 @@ async function consumePendingWorkoutShareAfterAuth(){
   }
 }
 
+async function syncImportedProfileHistoryAfterImport(){
+  try{
+    if(!(Social && typeof Social.isConfigured === "function" && Social.isConfigured())){
+      return { ok:false, reason:"not_configured" };
+    }
+
+    if(!(Social && typeof Social.refreshUser === "function")){
+      return { ok:false, reason:"no_refresh" };
+    }
+
+    await Social.refreshUser();
+
+    if(!(Social && typeof Social.getUser === "function" && Social.getUser())){
+      return { ok:false, reason:"signed_out" };
+    }
+
+    try{ await Social.fetchFeed?.(); }catch(_){}
+
+    return { ok:true };
+  }catch(_){
+    return { ok:false, reason:"sync_failed" };
+  }
+}
+
 async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
   try{
     if(!Social) return;
@@ -13826,40 +13850,58 @@ if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
 }
 
         function openImportFileModal(){
-          const input = el("input", { type:"file", accept:"application/json,.json" });
-          const err = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
+  const input = el("input", { type:"file", accept:"application/json,.json" });
+  const err = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
-          Modal.open({
-            title: "Import from file",
-            bodyNode: el("div", {}, [
-              el("div", { class:"note", text:"Choose a .json backup file. Import overwrites current data." }),
-              el("div", { style:"height:10px" }),
-              input,
-              err,
-              el("div", { style:"height:12px" }),
-              el("div", { class:"btnrow" }, [
-                el("button", {
-                  class:"btn danger",
-                  onClick: async () => {
-                    err.style.display = "none";
-                    try{
-                      const f = input.files?.[0];
-                      if(!f) throw new Error("Select a JSON file first.");
-                      const txt = await f.text();
-                      importBackupJSON(txt);
-                      Modal.close();
-                      navigate("home");
-                    }catch(e){
-                      err.textContent = e.message || "Import failed.";
-                      err.style.display = "block";
-                    }
-                  }
-                }, ["Import (overwrite)"]),
-                el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
-              ])
-            ])
-          });
-        }
+  Modal.open({
+    title: "Import from file",
+    bodyNode: el("div", {}, [
+      el("div", { class:"note", text:"Choose a .json backup file. Import overwrites current data." }),
+      el("div", { style:"height:10px" }),
+      input,
+      err,
+      el("div", { style:"height:12px" }),
+      el("div", { class:"btnrow" }, [
+        el("button", {
+          class:"btn danger",
+          onClick: async () => {
+            err.style.display = "none";
+
+            try{
+              const f = input.files?.[0];
+              if(!f) throw new Error("Select a JSON file first.");
+
+              const txt = await f.text();
+
+              // 1) Local import always happens first
+              importBackupJSON(txt);
+
+              // 2) Best-effort remote profile history sync for Friends users
+              const sync = await syncImportedProfileHistoryAfterImport();
+
+              Modal.close();
+              navigate("home");
+
+              if(sync?.ok){
+                showToast("Imported backup + synced profile history");
+              }else if(sync?.reason === "signed_out" || sync?.reason === "not_configured"){
+                showToast("Imported backup. Sign in to Friends to sync profile history.");
+              }else{
+                showToast("Imported backup. Remote history sync could not finish.");
+              }
+
+              renderView();
+            }catch(e){
+              err.textContent = e?.message || "Import failed.";
+              err.style.display = "block";
+            }
+          }
+        }, ["Import (overwrite)"]),
+        el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
+      ])
+    ])
+  });
+}
 
         // --- Section bodies ---
 const profileBody = el("div", {}, [
