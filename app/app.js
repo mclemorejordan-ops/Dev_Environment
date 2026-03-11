@@ -1005,8 +1005,9 @@ async function signInWithOAuth(provider){
     // OAuth handoff is complete once we've refreshed user state
     _authInFlight = false;
 
-    if(_user){
+        if(_user){
       try{ await upsertMyProfile(); }catch(_){}
+      try{ await backfillWorkoutHistoryFromLocalLogs(); }catch(_){}
     }
 
     // ✅ Important: if we are already signed in on cold-open,
@@ -1710,6 +1711,42 @@ function queueSocialOp(op){
   }catch(_){}
 }
 
+  async function backfillWorkoutHistoryFromLocalLogs(){
+    const sb = await ensureClient();
+    if(!sb || !_user) return;
+
+    const s = stateRef ? stateRef() : null;
+    const logs = Array.isArray(s?.logs?.workouts) ? s.logs.workouts : [];
+    if(!logs.length) return;
+
+    const completedDates = Array.from(new Set(
+      logs
+        .filter(entry =>
+          !entry?.skipped &&
+          String(entry?.dateISO || "").trim() &&
+          String(entry?.routineId || "").trim() &&
+          String(entry?.dayId || "").trim()
+        )
+        .map(entry => String(entry.dateISO || "").trim())
+        .filter(Boolean)
+    ));
+
+    if(!completedDates.length) return;
+
+    try{
+      const rows = completedDates.map(dateISO => ({
+        user_id: _user.id,
+        date_iso: dateISO
+      }));
+
+      const { error } = await sb
+        .from("workout_history")
+        .upsert(rows, { onConflict: "user_id,date_iso" });
+
+      if(error) throw error;
+    }catch(_){}
+  }
+  
 async function upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
   if(!isConfigured()) return;
   await ensureClient();
