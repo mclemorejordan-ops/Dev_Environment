@@ -1479,15 +1479,31 @@ async function signInWithOAuth(provider){
   notify();
 }
 
-  function startFeed(){
+    function startFeed(){
     stopFeed();
     if(!_user) return;
-    fetchFeed();
-    _pollTimer = setInterval(fetchFeed, 12000); // 12s: feels live, low cost
+
+    const pollSocial = () => {
+      try{
+        Promise.allSettled([
+          fetchFeed(),
+          fetchNotifications()
+        ]).catch(() => {});
+      }catch(_){}
+    };
+
+    // Warm both feed + bell immediately
+    pollSocial();
+
+    // Keep both updated while app is open
+    _pollTimer = setInterval(pollSocial, 12000); // 12s: feels live, low cost
   }
 
   function stopFeed(){
-    if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
+    if(_pollTimer){
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+    }
   }
 
     async function resolveFollowTarget(target){
