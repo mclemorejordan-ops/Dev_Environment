@@ -7788,17 +7788,6 @@ statsHost.appendChild(el("div", { class:"pill" }, [
     ]);
   }
 
-         const friendsState = getState();
-  if(!normalizeUsername(friendsState?.profile?.username || "")){
-    requireFriendsUsernameOrPrompt().catch(() => {});
-    return el("div", { class:"grid" }, [
-      el("div", { class:"card" }, [
-        el("h2", { text:"Friends" }),
-        el("div", { class:"note", text:"Create a username to continue." })
-      ])
-    ]);
-  }
-
   function openFriendProfileView(friendId){
     const id = String(friendId || "").trim();
     if(!id) return;
@@ -7905,20 +7894,6 @@ function openFollowerNotifsModal(){
     })
   ]);
 
-  
-
-  // Back-compat: bell button currently calls openNotificationsModal()
-  function openNotificationsModal(){
-    return openFollowerNotifsModal();
-  }
-
-  const topLeft = el("div", { class:"igNotifTopLeft" }, [
-    el("div", { class:"igNotifTitle", text:"Notifications" }),
-    el("div", {
-      class:"igNotifSub",
-      text:"Likes, comments, and follows appear here."
-    })
-  ]);
 
   const refreshBtn = el("button", {
     class:"igNotifLinkBtn",
@@ -15911,13 +15886,6 @@ Views.RoutineEditor = function(){
     if(!requireFriendsUsernameOrPrompt()) return;
 
     const usernameInput = el("input", {
-      class:"connCodeInput",
-      type:"text",
-      placeholder:"@username",
-      autocapitalize:"off",
-      autocorrect:"off",
-      spellcheck:"false"
-    });
       class:"connCodeInput",
       type:"text",
       placeholder:"@username",
