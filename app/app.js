@@ -9293,18 +9293,13 @@ root.appendChild(el("div", { class:"card" }, [
   }
 
   const latestCompletedISO = completedList[completedList.length - 1];
-  const latestParts = latestCompletedISO.split("-").map(Number);
-  if(latestParts.length !== 3 || latestParts.some(n => !Number.isFinite(n))){
-    return { value: fallbackValue, meta: fallbackMeta };
-  }
-
   const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
   const completed = new Set(completedList);
 
   function dateFromISO(iso){
-    const [y, m, d] = String(iso || "").split("-").map(Number);
-    if(!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-    const dt = new Date(y, m - 1, d);
+    const parts = String(iso || "").split("-").map(Number);
+    if(parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return null;
+    const dt = new Date(parts[0], parts[1] - 1, parts[2]);
     dt.setHours(12, 0, 0, 0);
     return dt;
   }
@@ -9312,27 +9307,21 @@ root.appendChild(el("div", { class:"card" }, [
   if(!days.length){
     let streak = 0;
     let cursor = dateFromISO(latestCompletedISO);
-    if(!cursor){
-      return { value: fallbackValue, meta: fallbackMeta };
-    }
+    if(!cursor) return { value: fallbackValue, meta: fallbackMeta };
 
     for(let i = 0; i < 366; i++){
       const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
-
       if(completed.has(iso)){
         streak += 1;
         cursor.setDate(cursor.getDate() - 1);
         continue;
       }
-
       break;
     }
 
     return {
       value: String(streak),
-      meta: streak === 1
-        ? "Current workout day streak"
-        : "Current workout days streak"
+      meta: streak === 1 ? "Current workout day streak" : "Current workout days streak"
     };
   }
 
@@ -9349,13 +9338,11 @@ root.appendChild(el("div", { class:"card" }, [
 
   let streak = 0;
   let cursor = dateFromISO(latestCompletedISO);
-  if(!cursor){
-    return { value: fallbackValue, meta: fallbackMeta };
-  }
+  if(!cursor) return { value: fallbackValue, meta: fallbackMeta };
 
   for(let i = 0; i < 366; i++){
     const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
-    const order = cursor.getDay(); // 0=Sun..6=Sat (matches routine day order)
+    const order = cursor.getDay(); // 0=Sun..6=Sat
 
     if(!trainingOrders.has(order)){
       cursor.setDate(cursor.getDate() - 1);
