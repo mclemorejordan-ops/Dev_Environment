@@ -9752,12 +9752,12 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
 )
     ];
 
-    cards.push(metricCard(
-      "Total PRs",
-      String(totalPRs),
+        cards.push(metricCard(
+      "Consistency",
+      "—",
       isOwnProfile
-        ? (totalPRs === 1 ? "PR across all logs" : "PRs across all logs")
-        : (totalPRs === 1 ? "PR from shared activity" : "PRs from shared activity")
+        ? "Current routine streak coming next"
+        : "Shared consistency coming next"
     ));
 
     return el("div", { class:"card" }, [
