@@ -10295,87 +10295,186 @@ function openCompareProfilePRModal(opts = {}){
   }
 
   function openSplitCompareModal(row, compareStrength, compareCardio){
-    const leftStrength = Array.isArray(opts?.baseStrengthItems) ? opts.baseStrengthItems : [];
-    const leftCardio = Array.isArray(opts?.baseCardioItems) ? opts.baseCardioItems : [];
-    const rightStrength = Array.isArray(compareStrength) ? compareStrength : [];
-    const rightCardio = Array.isArray(compareCardio) ? compareCardio : [];
+  const leftStrength = Array.isArray(opts?.baseStrengthItems) ? opts.baseStrengthItems : [];
+  const leftCardio = Array.isArray(opts?.baseCardioItems) ? opts.baseCardioItems : [];
+  const rightStrength = Array.isArray(compareStrength) ? compareStrength : [];
+  const rightCardio = Array.isArray(compareCardio) ? compareCardio : [];
 
-    const mergedRows = [
-      ...buildCompareRows(leftStrength, rightStrength, "strength"),
-      ...buildCompareRows(leftCardio, rightCardio, "cardio")
-    ].sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+  const mergedRows = [
+    ...buildCompareRows(leftStrength, rightStrength, "strength"),
+    ...buildCompareRows(leftCardio, rightCardio, "cardio")
+  ].sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
 
-    const listHost = el("div", { class:"grid" });
+  const listHost = el("div", { class:"grid" });
 
-    function buildSideCard(nameText, valueText, metaText, align){
-      return el("div", {
+  function compareMetricScore(item, kind){
+    if(!item) return null;
+
+    if(kind === "strength"){
+      const weight = Number(item?.weight || 0);
+      const reps = Number(item?.reps || 0);
+      if(weight <= 0) return null;
+      return { value: weight, tie: reps, lowerIsBetter: false };
+    }
+
+    if(Number.isFinite(item?.pace) && item.pace > 0){
+      return { value: Number(item.pace), tie: 0, lowerIsBetter: true };
+    }
+
+    const distance = Number(item?.distance || 0);
+    if(distance > 0){
+      return { value: distance, tie: Number(item?.timeSec || 0), lowerIsBetter: false };
+    }
+
+    const timeSec = Number(item?.timeSec || 0);
+    if(timeSec > 0){
+      return { value: timeSec, tie: 0, lowerIsBetter: false };
+    }
+
+    return null;
+  }
+
+  function getCompareOutcome(leftItem, rightItem, kind){
+    const leftScore = compareMetricScore(leftItem, kind);
+    const rightScore = compareMetricScore(rightItem, kind);
+
+    if(!leftScore && !rightScore){
+      return { left:"", right:"", winner:"none" };
+    }
+    if(leftScore && !rightScore){
+      return { left:"Lead", right:"Trail", winner:"left" };
+    }
+    if(!leftScore && rightScore){
+      return { left:"Trail", right:"Lead", winner:"right" };
+    }
+
+    if(leftScore.lowerIsBetter || rightScore.lowerIsBetter){
+      if(leftScore.value < rightScore.value) return { left:"Lead", right:"Trail", winner:"left" };
+      if(leftScore.value > rightScore.value) return { left:"Trail", right:"Lead", winner:"right" };
+      return { left:"Tied", right:"Tied", winner:"tie" };
+    }
+
+    if(leftScore.value > rightScore.value) return { left:"Lead", right:"Trail", winner:"left" };
+    if(leftScore.value < rightScore.value) return { left:"Trail", right:"Lead", winner:"right" };
+
+    if((leftScore.tie || 0) > (rightScore.tie || 0)) return { left:"Lead", right:"Trail", winner:"left" };
+    if((leftScore.tie || 0) < (rightScore.tie || 0)) return { left:"Trail", right:"Lead", winner:"right" };
+
+    return { left:"Tied", right:"Tied", winner:"tie" };
+  }
+
+  function buildSideCard(nameText, valueText, metaText, statusText, isWinner){
+    return el("div", {
+      class:"card",
+      style:[
+        "padding:12px",
+        isWinner
+          ? "border:1px solid rgba(46,204,113,.28)"
+          : "border:1px solid rgba(255,255,255,.10)",
+        isWinner
+          ? "background:linear-gradient(180deg, rgba(46,204,113,.12), rgba(255,255,255,.05))"
+          : "background:rgba(255,255,255,.05)",
+        "border-radius:16px",
+        "min-height:116px"
+      ].join(";")
+    }, [
+      el("div", {
+        style:[
+          "font-size:11px",
+          "font-weight:900",
+          "letter-spacing:.22px",
+          "opacity:.68",
+          "text-transform:uppercase"
+        ].join(";")
+      }, [nameText]),
+      el("div", {
+        style:[
+          "margin-top:10px",
+          "font-size:18px",
+          "font-weight:1000",
+          "line-height:1.1",
+          "overflow:hidden",
+          "text-overflow:ellipsis",
+          "white-space:nowrap"
+        ].join(";")
+      }, [valueText]),
+      el("div", {
+        class:"note",
+        style:[
+          "margin-top:6px",
+          "overflow:hidden",
+          "text-overflow:ellipsis",
+          "white-space:nowrap"
+        ].join(";")
+      }, [metaText]),
+      el("div", {
+        style:[
+          "margin-top:10px",
+          "display:inline-flex",
+          "align-items:center",
+          "justify-content:center",
+          "padding:4px 8px",
+          "border-radius:999px",
+          statusText === "Lead"
+            ? "background:rgba(46,204,113,.14); border:1px solid rgba(46,204,113,.24); color:rgba(46,204,113,.98);"
+            : statusText === "Trail"
+              ? "background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10); color:rgba(255,255,255,.78);"
+              : statusText === "Tied"
+                ? "background:rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.24); color:rgba(214,204,255,.96);"
+                : "background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); color:rgba(255,255,255,.62);",
+          "font-size:11px",
+          "font-weight:900",
+          "letter-spacing:.2px",
+          "text-transform:uppercase"
+        ].join(";")
+      }, [statusText || "—"])
+    ]);
+  }
+
+  function repaintCompare(filterText){
+    const q = normalizeCompareName(filterText || "");
+    listHost.innerHTML = "";
+
+    const filtered = mergedRows.filter(rowItem =>
+      !q || normalizeCompareName(rowItem?.name || "").includes(q)
+    );
+
+    if(!filtered.length){
+      listHost.appendChild(el("div", {
+        class:"note",
+        text:"No matching exercises found."
+      }));
+      return;
+    }
+
+    filtered.forEach(rowItem => {
+      const leftValue = buildCompareValue(rowItem.left, rowItem.kind);
+      const rightValue = buildCompareValue(rowItem.right, rowItem.kind);
+      const leftMeta = buildCompareMeta(rowItem.left, rowItem.kind);
+      const rightMeta = buildCompareMeta(rowItem.right, rowItem.kind);
+      const outcome = getCompareOutcome(rowItem.left, rowItem.right, rowItem.kind);
+
+      listHost.appendChild(el("div", {
         class:"card",
         style:[
           "padding:12px",
           "border:1px solid rgba(255,255,255,.10)",
-          "background:rgba(255,255,255,.05)",
-          "border-radius:16px",
-          "min-height:102px"
+          "background:rgba(255,255,255,.04)",
+          "border-radius:18px"
         ].join(";")
       }, [
         el("div", {
           style:[
-            "font-size:11px",
-            "font-weight:900",
-            "letter-spacing:.22px",
-            "opacity:.68",
-            "text-transform:uppercase",
-            `text-align:${align}`
-          ].join(";")
-        }, [nameText]),
-        el("div", {
-          style:[
-            "margin-top:8px",
-            "font-size:16px",
+            "margin-bottom:10px",
+            "font-size:13px",
             "font-weight:1000",
             "line-height:1.15",
-            `text-align:${align}`,
             "overflow:hidden",
             "text-overflow:ellipsis",
             "white-space:nowrap"
           ].join(";")
-        }, [valueText]),
+        }, [rowItem.name || "Exercise"]),
         el("div", {
-          class:"note",
-          style:[
-            "margin-top:6px",
-            `text-align:${align}`,
-            "overflow:hidden",
-            "text-overflow:ellipsis",
-            "white-space:nowrap"
-          ].join(";")
-        }, [metaText])
-      ]);
-    }
-
-    function repaintCompare(filterText){
-      const q = normalizeCompareName(filterText || "");
-      listHost.innerHTML = "";
-
-      const filtered = mergedRows.filter(rowItem =>
-        !q || normalizeCompareName(rowItem?.name || "").includes(q)
-      );
-
-      if(!filtered.length){
-        listHost.appendChild(el("div", {
-          class:"note",
-          text:"No matching exercises found."
-        }));
-        return;
-      }
-
-      filtered.forEach(rowItem => {
-        const leftValue = buildCompareValue(rowItem.left, rowItem.kind);
-        const rightValue = buildCompareValue(rowItem.right, rowItem.kind);
-        const leftMeta = buildCompareMeta(rowItem.left, rowItem.kind);
-        const rightMeta = buildCompareMeta(rowItem.right, rowItem.kind);
-
-        listHost.appendChild(el("div", {
           style:[
             "display:grid",
             "grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr)",
@@ -10383,69 +10482,69 @@ function openCompareProfilePRModal(opts = {}){
             "align-items:stretch"
           ].join(";")
         }, [
-          buildSideCard(baseDisplayName, leftValue, leftMeta, "left"),
+          buildSideCard(
+            baseDisplayName,
+            leftValue,
+            leftMeta,
+            outcome.left,
+            outcome.winner === "left"
+          ),
           el("div", {
             style:"background:rgba(255,255,255,.10); border-radius:999px;"
           }),
-          buildSideCard(row.displayName || "User", rightValue, rightMeta, "left")
-        ]));
+          buildSideCard(
+            row.displayName || "User",
+            rightValue,
+            rightMeta,
+            outcome.right,
+            outcome.winner === "right"
+          )
+        ])
+      ]));
+    });
+  }
 
-        listHost.appendChild(el("div", {
-          style:[
-            "margin-top:-4px",
-            "margin-bottom:6px",
-            "padding:0 4px",
-            "font-size:12px",
-            "font-weight:900",
-            "opacity:.78",
-            "text-transform:uppercase",
-            "letter-spacing:.2px"
-          ].join(";")
-        }, [rowItem.name || "Exercise"]));
-      });
-    }
+  const compareSearchWrap = el("div", { class:"addExSearch" }, [
+    el("div", { class:"ico", text:"🔎" }),
+    el("input", {
+      type:"text",
+      value:"",
+      placeholder:"Search compared exercises…",
+      onInput: (e) => repaintCompare(e?.target?.value || "")
+    })
+  ]);
 
-    const compareSearchWrap = el("div", { class:"addExSearch" }, [
-      el("div", { class:"ico", text:"🔎" }),
-      el("input", {
-        type:"text",
-        value:"",
-        placeholder:"Search compared exercises…",
-        onInput: (e) => repaintCompare(e?.target?.value || "")
-      })
-    ]);
-
-    const compareHeader = el("div", {
-      class:"card",
-      style:[
-        "padding:12px",
-        "border:1px solid rgba(255,255,255,.10)",
-        "background:rgba(255,255,255,.04)"
-      ].join(";")
+  const compareHeader = el("div", {
+    class:"card",
+    style:[
+      "padding:12px",
+      "border:1px solid rgba(255,255,255,.10)",
+      "background:rgba(255,255,255,.04)"
+    ].join(";")
+  }, [
+    el("div", {
+      style:"display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:center;"
     }, [
       el("div", {
-        style:"display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:center;"
-      }, [
-        el("div", {
-          style:"font-weight:1000; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-        }, [baseDisplayName]),
-        el("div", {
-          style:"font-weight:1000; font-size:14px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-        }, [row.displayName || "User"])
-      ])
-    ]);
+        style:"font-weight:1000; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [baseDisplayName]),
+      el("div", {
+        style:"font-weight:1000; font-size:14px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+      }, [row.displayName || "User"])
+    ])
+  ]);
 
-    Modal.open({
-      title: `Compare • ${baseDisplayName} vs ${row.displayName}`,
-      bodyNode: el("div", { class:"grid" }, [
-        compareHeader,
-        compareSearchWrap,
-        listHost
-      ])
-    });
+  Modal.open({
+    title: `Compare • ${baseDisplayName} vs ${row.displayName}`,
+    bodyNode: el("div", { class:"grid" }, [
+      compareHeader,
+      compareSearchWrap,
+      listHost
+    ])
+  });
 
-    repaintCompare("");
-  }
+  repaintCompare("");
+}
 
   async function runSearch(){
     const q = normalizeUsername(queryInput.value);
