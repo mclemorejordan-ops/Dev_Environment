@@ -1338,35 +1338,24 @@ async function signInWithOAuth(provider){
   }
 
   async function fetchProfileFollowCounts(userId){
-    const sb = await ensureClient();
-    const id = String(userId || "").trim();
-    if(!sb || !_user || !id) return { following:0, followers:0 };
+  const sb = await ensureClient();
+  const id = String(userId || "").trim();
+  if(!sb || !_user || !id) return { following:0, followers:0 };
 
-    try{
-      const [{ count: followingCount }, { count: followerCount }] = await Promise.all([
-        sb.from("follows").select("followee_id", { count:"exact", head:true }).eq("follower_id", id),
-        sb.from("follows").select("follower_id", { count:"exact", head:true }).eq("followee_id", id)
-      ]);
-
-      ui.profileWorkoutHistoryById = ui.profileWorkoutHistoryById || {};
-
-if(!isOwnProfile && profileUserId){
   try{
-    ui.profileWorkoutHistoryById[String(profileUserId)] =
-      await Social.fetchWorkoutHistoryDates(String(profileUserId));
+    const [{ count: followingCount }, { count: followerCount }] = await Promise.all([
+      sb.from("follows").select("followee_id", { count:"exact", head:true }).eq("follower_id", id),
+      sb.from("follows").select("follower_id", { count:"exact", head:true }).eq("followee_id", id)
+    ]);
+
+    return {
+      following: Number(followingCount || 0) || 0,
+      followers: Number(followerCount || 0) || 0
+    };
   }catch(_){
-    ui.profileWorkoutHistoryById[String(profileUserId)] = [];
+    return { following:0, followers:0 };
   }
 }
-
-      return {
-        following: Number(followingCount || 0) || 0,
-        followers: Number(followerCount || 0) || 0
-      };
-    }catch(_){
-      return { following:0, followers:0 };
-    }
-  }
 
   async function fetchProfileWorkoutHighlights(userId){
     const sb = await ensureClient();
@@ -8821,7 +8810,9 @@ root.appendChild(el("div", { class:"card" }, [
           routineName: null,
           routinePayload: null,
           updatedAt: null
-        };
+       };
+        ui.profileWorkoutHistoryById = ui.profileWorkoutHistoryById || {};
+        ui.profileWorkoutHistoryById[cacheId] = ui.profileWorkoutHistoryById[cacheId] || [];
       }).finally(() => {
         ui.profileLoadById[cacheId] = false;
         try{
