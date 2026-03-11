@@ -10291,10 +10291,12 @@ function openProfileStrengthPRModal(opts = {}){
     ? getOwnAllStrengthAndCorePRs()
     : getSharedStrengthAndCorePRsFromEvents(sharedEvents);
 
-  function buildStrengthRows(mode){
-    const list = el("div", { class:"list" });
+  const noteText = isOwnProfile
+    ? "Browse your weightlifting PRs by top weight or estimated 1RM."
+    : `Browse ${profileDisplayName}'s shared weightlifting PRs by top weight or estimated 1RM.`;
 
-    const rows = (Array.isArray(items) ? items : [])
+  function getStrengthRows(mode){
+    return (Array.isArray(items) ? items : [])
       .map(item => {
         const weight = Number(item?.weight || 0);
         const reps = Number(item?.reps || 0);
@@ -10322,6 +10324,43 @@ function openProfileStrengthPRModal(opts = {}){
         if(b.reps !== a.reps) return b.reps - a.reps;
         return String(a.name || "").localeCompare(String(b.name || ""));
       });
+  }
+
+  function getStrengthValueText(item, mode){
+    if(mode === "1rm"){
+      return item.est1RM > 0 ? `${fmtNum(item.est1RM)} lb` : "—";
+    }
+    return item.weight > 0 ? `${fmtNum(item.weight)} lb` : "—";
+  }
+
+  function getStrengthMetaText(item, mode){
+    if(mode === "1rm"){
+      return `${item.name || "Exercise"} • from ${fmtNum(item.weight)} × ${item.reps}`;
+    }
+    return item.reps > 0
+      ? `${fmtNum(item.weight)} × ${item.reps}`
+      : `${fmtNum(item.weight)} lb`;
+  }
+
+  function getStrengthDeltaText(rows, idx, mode){
+    if(idx === 0) return "Top result";
+    const prev = rows[idx - 1];
+    if(!prev) return "";
+
+    if(mode === "1rm"){
+      const delta = Number(prev.est1RM || 0) - Number(rows[idx].est1RM || 0);
+      return delta > 0 ? `${fmtNum(delta)} lb behind #${idx}` : "";
+    }
+
+    const delta = Number(prev.weight || 0) - Number(rows[idx].weight || 0);
+    return delta > 0 ? `${fmtNum(delta)} lb behind #${idx}` : "";
+  }
+
+  function openStrengthFullListModal(mode){
+    const rows = getStrengthRows(mode);
+    const titleText = mode === "1rm" ? "All Strength • 1RM" : "All Strength • Weight";
+
+    const list = el("div", { class:"grid" });
 
     if(!rows.length){
       list.appendChild(el("div", {
@@ -10330,32 +10369,54 @@ function openProfileStrengthPRModal(opts = {}){
           ? "No weightlifting PRs from your logs yet."
           : `No shared weightlifting PRs from ${profileDisplayName} yet.`
       }));
-      return list;
+    }else{
+      rows.forEach((item, idx) => {
+        list.appendChild(el("div", {
+          class:"card",
+          style:[
+            "padding:12px",
+            "border:1px solid rgba(255,255,255,.10)",
+            "background:rgba(255,255,255,.05)",
+            "border-radius:14px"
+          ].join(";")
+        }, [
+          el("div", {
+            style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
+          }, [
+            el("div", { style:"min-width:0;" }, [
+              el("div", {
+                style:"font-size:11px; font-weight:900; opacity:.7; text-transform:uppercase; letter-spacing:.25px;"
+              }, [`#${idx + 1}`]),
+              el("div", {
+                style:"font-size:16px; font-weight:1000; line-height:1.15; margin-top:4px;"
+              }, [item.name || "Exercise"]),
+              el("div", {
+                class:"note",
+                style:"margin-top:4px;"
+              }, [getStrengthMetaText(item, mode)])
+            ]),
+            el("div", {
+              style:"text-align:right; flex:0 0 auto;"
+            }, [
+              el("div", {
+                style:"font-size:18px; font-weight:1000; line-height:1.1; white-space:nowrap;"
+              }, [getStrengthValueText(item, mode)]),
+              el("div", {
+                style:"margin-top:6px; font-size:11px; opacity:.72; white-space:nowrap;"
+              }, [getStrengthDeltaText(rows, idx, mode) || ""])
+            ])
+          ])
+        ]));
+      });
     }
 
-    rows.forEach(item => {
-      const valueText = mode === "1rm"
-        ? `${fmtNum(item.est1RM)} lb`
-        : `${fmtNum(item.weight)} × ${item.reps}`;
-
-      const metaText = mode === "1rm"
-        ? `${item.name} • from ${fmtNum(item.weight)} × ${item.reps}`
-        : item.name;
-
-      list.appendChild(el("div", { class:"item" }, [
-        el("div", { class:"left" }, [
-          el("div", { class:"name", text: item.name || "Exercise" }),
-          el("div", { class:"meta", text: metaText })
-        ]),
-        el("div", { class:"right" }, [
-          el("div", {
-            style:"font-weight:1000; font-size:14px; white-space:nowrap;"
-          }, [valueText])
-        ])
-      ]));
+    Modal.open({
+      title: titleText,
+      bodyNode: el("div", { class:"grid" }, [
+        el("div", { class:"note", text: noteText }),
+        list
+      ])
     });
-
-    return list;
   }
 
   const tabs = el("div", {
@@ -10363,11 +10424,6 @@ function openProfileStrengthPRModal(opts = {}){
   });
 
   const content = el("div");
-
-  function renderTab(mode){
-    content.innerHTML = "";
-    content.appendChild(buildStrengthRows(mode));
-  }
 
   const weightBtn = el("button", {
     class:"btn",
@@ -10390,13 +10446,130 @@ function openProfileStrengthPRModal(opts = {}){
   }, ["1RM"]);
 
   weightBtn.classList.add("primary");
-
   tabs.appendChild(weightBtn);
   tabs.appendChild(rmBtn);
 
-  const noteText = isOwnProfile
-    ? "Browse your weightlifting PRs by top weight or estimated 1RM."
-    : `Browse ${profileDisplayName}'s shared weightlifting PRs by top weight or estimated 1RM.`;
+  function renderTab(mode){
+    const rows = getStrengthRows(mode);
+    const top4 = rows.slice(0, 4);
+
+    content.innerHTML = "";
+
+    const summaryCard = el("div", {
+      class:"card",
+      style:[
+        "padding:12px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background:rgba(255,255,255,.04)"
+      ].join(";")
+    });
+
+    if(rows.length){
+      const leader = rows[0];
+      const leaderValue = getStrengthValueText(leader, mode);
+      const exercisesTracked = rows.length;
+      const nextGap = rows[1]
+        ? (mode === "1rm"
+            ? Math.max(0, Number(leader.est1RM || 0) - Number(rows[1].est1RM || 0))
+            : Math.max(0, Number(leader.weight || 0) - Number(rows[1].weight || 0)))
+        : 0;
+
+      summaryCard.appendChild(el("div", {
+        style:"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;"
+      }, [
+        el("div", {}, [
+          el("div", { style:"font-size:11px; font-weight:900; opacity:.68; text-transform:uppercase;" }, ["Top Record"]),
+          el("div", { style:"font-size:14px; font-weight:1000; line-height:1.15; margin-top:4px;" }, [leader.name || "Exercise"]),
+          el("div", { class:"note", style:"margin-top:4px;" }, [leaderValue])
+        ]),
+        el("div", {}, [
+          el("div", { style:"font-size:11px; font-weight:900; opacity:.68; text-transform:uppercase;" }, ["Tracked"]),
+          el("div", { style:"font-size:14px; font-weight:1000; line-height:1.15; margin-top:4px;" }, [`${exercisesTracked}`]),
+          el("div", { class:"note", style:"margin-top:4px;" }, ["Exercises"])
+        ]),
+        el("div", {}, [
+          el("div", { style:"font-size:11px; font-weight:900; opacity:.68; text-transform:uppercase;" }, ["Lead"]),
+          el("div", { style:"font-size:14px; font-weight:1000; line-height:1.15; margin-top:4px;" }, [
+            nextGap > 0 ? `${fmtNum(nextGap)} lb` : "—"
+          ]),
+          el("div", { class:"note", style:"margin-top:4px;" }, [rows[1] ? "Ahead of #2" : "Only record"])
+        ])
+      ]));
+    }else{
+      summaryCard.appendChild(el("div", {
+        class:"note",
+        text: isOwnProfile
+          ? "No weightlifting PRs from your logs yet."
+          : `No shared weightlifting PRs from ${profileDisplayName} yet.`
+      }));
+    }
+
+    content.appendChild(summaryCard);
+
+    if(top4.length){
+      const cardsWrap = el("div", {
+        style:"display:grid; gap:10px; margin-top:10px;"
+      });
+
+      top4.forEach((item, idx) => {
+        cardsWrap.appendChild(el("div", {
+          class:"card",
+          style:[
+            "padding:12px",
+            "border-radius:16px",
+            idx === 0
+              ? "background:linear-gradient(180deg, rgba(124,92,255,.18), rgba(255,255,255,.05))"
+              : "background:rgba(255,255,255,.05)",
+            "border:1px solid rgba(255,255,255,.10)"
+          ].join(";")
+        }, [
+          el("div", {
+            style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
+          }, [
+            el("div", { style:"min-width:0;" }, [
+              el("div", {
+                style:"display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.08); font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.25px;"
+              }, [idx === 0 ? "🏆 #1" : `#${idx + 1}`]),
+              el("div", {
+                style:"font-size:16px; font-weight:1000; line-height:1.15; margin-top:10px;"
+              }, [item.name || "Exercise"]),
+              el("div", {
+                class:"note",
+                style:"margin-top:5px;"
+              }, [getStrengthMetaText(item, mode)]),
+              el("div", {
+                style:"margin-top:8px; font-size:11px; opacity:.74;"
+              }, [getStrengthDeltaText(top4, idx, mode) || ""])
+            ]),
+            el("div", {
+              style:"text-align:right; flex:0 0 auto;"
+            }, [
+              el("div", {
+                style:"font-size:22px; font-weight:1000; line-height:1.05; white-space:nowrap;"
+              }, [getStrengthValueText(item, mode)]),
+              el("div", {
+                style:"margin-top:8px; font-size:11px; opacity:.74; white-space:nowrap;"
+              }, [mode === "1rm" ? "Estimated 1RM" : "Top weight"])
+            ])
+          ])
+        ]));
+      });
+
+      content.appendChild(cardsWrap);
+    }
+
+    if(rows.length > 4){
+      content.appendChild(el("div", {
+        style:"margin-top:10px;"
+      }, [
+        el("button", {
+          class:"btn",
+          style:"width:100%;",
+          onClick: () => openStrengthFullListModal(mode)
+        }, [`View All (${rows.length})`])
+      ]));
+    }
+  }
 
   Modal.open({
     title: "Best Strength",
@@ -10453,19 +10626,34 @@ function openProfileCardioPRModal(opts = {}){
     }, ["Time"])
   ]);
 
-  const tabContent = el("div", { class:"list" });
+  const tabContent = el("div");
 
-  function getCardioSortValue(item, mode){
-    if(mode === "pace"){
-      return Number.isFinite(item?.pace) && item.pace > 0 ? item.pace : Infinity;
-    }
-    if(mode === "distance"){
-      return -(Number(item?.distance) || 0);
-    }
-    if(mode === "time"){
-      return -(Number(item?.timeSec) || 0);
-    }
-    return Infinity;
+  function getCardioRows(mode){
+    return (Array.isArray(items) ? items : [])
+      .filter(item => {
+        if(mode === "pace") return Number.isFinite(item?.pace) && item.pace > 0;
+        if(mode === "distance") return (Number(item?.distance) || 0) > 0;
+        if(mode === "time") return (Number(item?.timeSec) || 0) > 0;
+        return false;
+      })
+      .sort((a, b) => {
+        if(mode === "pace"){
+          const av = Number.isFinite(a?.pace) ? a.pace : Infinity;
+          const bv = Number.isFinite(b?.pace) ? b.pace : Infinity;
+          if(av !== bv) return av - bv;
+          return String(a?.name || "").localeCompare(String(b?.name || ""));
+        }
+        if(mode === "distance"){
+          const av = Number(a?.distance || 0);
+          const bv = Number(b?.distance || 0);
+          if(bv !== av) return bv - av;
+          return String(a?.name || "").localeCompare(String(b?.name || ""));
+        }
+        const av = Number(a?.timeSec || 0);
+        const bv = Number(b?.timeSec || 0);
+        if(bv !== av) return bv - av;
+        return String(a?.name || "").localeCompare(String(b?.name || ""));
+      });
   }
 
   function getCardioValueText(item, mode){
@@ -10478,89 +10666,274 @@ function openProfileCardioPRModal(opts = {}){
       const distance = Number(item?.distance) || 0;
       return distance > 0 ? `${fmtNum(distance)} mi` : "—";
     }
-    if(mode === "time"){
-      const timeSec = Number(item?.timeSec) || 0;
-      return timeSec > 0 ? fmtTimeSafe(timeSec) : "—";
-    }
-    return "—";
+    const timeSec = Number(item?.timeSec) || 0;
+    return timeSec > 0 ? fmtTimeSafe(timeSec) : "—";
   }
 
   function getCardioMetaText(item, mode){
+    const distance = Number(item?.distance) || 0;
+    const timeSec = Number(item?.timeSec) || 0;
+    const paceText = Number.isFinite(item?.pace) && item.pace > 0 ? fmtPaceSafe(item.pace) : null;
+
     if(mode === "pace"){
-      const distance = Number(item?.distance) || 0;
-      const timeSec = Number(item?.timeSec) || 0;
-      if(distance > 0 && timeSec > 0){
-        return `${fmtNum(distance)} mi • ${fmtTimeSafe(timeSec)}`;
-      }
+      if(distance > 0 && timeSec > 0) return `${fmtNum(distance)} mi • ${fmtTimeSafe(timeSec)}`;
       if(distance > 0) return `${fmtNum(distance)} mi`;
       if(timeSec > 0) return fmtTimeSafe(timeSec);
-      return "No pace result";
+      return item?.name || "Cardio";
     }
+
     if(mode === "distance"){
-      if(Number.isFinite(item?.pace) && item.pace > 0){
-        return fmtPaceSafe(item.pace);
-      }
-      const timeSec = Number(item?.timeSec) || 0;
-      return timeSec > 0 ? fmtTimeSafe(timeSec) : "No distance result";
+      if(paceText && timeSec > 0) return `${paceText} • ${fmtTimeSafe(timeSec)}`;
+      if(paceText) return paceText;
+      if(timeSec > 0) return fmtTimeSafe(timeSec);
+      return item?.name || "Cardio";
     }
-    if(mode === "time"){
-      const distance = Number(item?.distance) || 0;
-      if(distance > 0){
-        return `${fmtNum(distance)} mi`;
-      }
-      if(Number.isFinite(item?.pace) && item.pace > 0){
-        return fmtPaceSafe(item.pace);
-      }
-      return "No time result";
-    }
-    return "";
+
+    if(distance > 0 && paceText) return `${fmtNum(distance)} mi • ${paceText}`;
+    if(distance > 0) return `${fmtNum(distance)} mi`;
+    if(paceText) return paceText;
+    return item?.name || "Cardio";
   }
 
-  function renderCardioTab(mode){
-    tabContent.innerHTML = "";
+  function getCardioDeltaText(rows, idx, mode){
+    if(idx === 0) return "Top result";
+    const prev = rows[idx - 1];
+    if(!prev) return "";
 
-    const filtered = (Array.isArray(items) ? items : [])
-      .filter(item => {
-        if(mode === "pace") return Number.isFinite(item?.pace) && item.pace > 0;
-        if(mode === "distance") return (Number(item?.distance) || 0) > 0;
-        if(mode === "time") return (Number(item?.timeSec) || 0) > 0;
-        return false;
-      })
-      .sort((a, b) => {
-        const av = getCardioSortValue(a, mode);
-        const bv = getCardioSortValue(b, mode);
-        if(av < bv) return -1;
-        if(av > bv) return 1;
-        return String(a?.name || "").localeCompare(String(b?.name || ""));
-      });
+    if(mode === "pace"){
+      const delta = (Number(rows[idx].pace || 0) > 0 && Number(prev.pace || 0) > 0)
+        ? Number(rows[idx].pace || 0) - Number(prev.pace || 0)
+        : 0;
+      return delta > 0 ? `${fmtPaceSafe(delta)} slower than #${idx}` : "";
+    }
 
-    if(!filtered.length){
+    if(mode === "distance"){
+      const delta = Number(prev.distance || 0) - Number(rows[idx].distance || 0);
+      return delta > 0 ? `${fmtNum(delta)} mi behind #${idx}` : "";
+    }
+
+    const delta = Number(prev.timeSec || 0) - Number(rows[idx].timeSec || 0);
+    return delta > 0 ? `${fmtTimeSafe(delta)} behind #${idx}` : "";
+  }
+
+  function openCardioFullListModal(mode){
+    const rows = getCardioRows(mode);
+    const titleText =
+      mode === "pace" ? "All Cardio • Pace" :
+      mode === "distance" ? "All Cardio • Distance" :
+      "All Cardio • Time";
+
+    const list = el("div", { class:"grid" });
+
+    if(!rows.length){
       const emptyLabel =
         mode === "pace" ? "pace" :
         mode === "distance" ? "distance" :
         "time";
 
-      tabContent.appendChild(
-        el("div", { class:"note", text:`No cardio ${emptyLabel} results available yet.` })
-      );
-      return;
+      list.appendChild(el("div", {
+        class:"note",
+        text:`No cardio ${emptyLabel} results available yet.`
+      }));
+    }else{
+      rows.forEach((item, idx) => {
+        list.appendChild(el("div", {
+          class:"card",
+          style:[
+            "padding:12px",
+            "border:1px solid rgba(255,255,255,.10)",
+            "background:rgba(255,255,255,.05)",
+            "border-radius:14px"
+          ].join(";")
+        }, [
+          el("div", {
+            style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
+          }, [
+            el("div", { style:"min-width:0;" }, [
+              el("div", {
+                style:"font-size:11px; font-weight:900; opacity:.7; text-transform:uppercase; letter-spacing:.25px;"
+              }, [`#${idx + 1}`]),
+              el("div", {
+                style:"font-size:16px; font-weight:1000; line-height:1.15; margin-top:4px;"
+              }, [item?.name || "Exercise"]),
+              el("div", {
+                class:"note",
+                style:"margin-top:4px;"
+              }, [getCardioMetaText(item, mode)])
+            ]),
+            el("div", {
+              style:"text-align:right; flex:0 0 auto;"
+            }, [
+              el("div", {
+                style:"font-size:18px; font-weight:1000; line-height:1.1; white-space:nowrap;"
+              }, [getCardioValueText(item, mode)]),
+              el("div", {
+                style:"margin-top:6px; font-size:11px; opacity:.72; white-space:nowrap;"
+              }, [getCardioDeltaText(rows, idx, mode) || ""])
+            ])
+          ])
+        ]));
+      });
     }
 
-    filtered.forEach(item => {
-      tabContent.appendChild(
-        el("div", { class:"item" }, [
-          el("div", { class:"left" }, [
-            el("div", { class:"name", text:item?.name || "Exercise" }),
-            el("div", { class:"meta", text:getCardioMetaText(item, mode) })
-          ]),
-          el("div", { class:"right" }, [
-            el("div", {
-              style:"font-weight:1000; font-size:14px; white-space:nowrap;"
-            }, [getCardioValueText(item, mode)])
-          ])
-        ])
-      );
+    Modal.open({
+      title: titleText,
+      bodyNode: el("div", { class:"grid" }, [
+        el("div", { class:"note", text: noteText }),
+        list
+      ])
     });
+  }
+
+  function renderCardioTab(mode){
+    const rows = getCardioRows(mode);
+    const top4 = rows.slice(0, 4);
+
+    tabContent.innerHTML = "";
+
+    const summaryCard = el("div", {
+      class:"card",
+      style:[
+        "padding:12px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background:rgba(255,255,255,.04)"
+      ].join(";")
+    });
+
+    if(rows.length){
+      const leader = rows[0];
+      let leadValue = "—";
+      let leadGap = "—";
+      let leadLabel = "Ahead of #2";
+
+      if(mode === "pace"){
+        leadValue = getCardioValueText(leader, mode);
+        if(rows[1] && Number(rows[1].pace || 0) > 0 && Number(leader.pace || 0) > 0){
+          leadGap = fmtPaceSafe(Number(rows[1].pace || 0) - Number(leader.pace || 0));
+        }else{
+          leadGap = "—";
+          leadLabel = "Only record";
+        }
+      }else if(mode === "distance"){
+        leadValue = getCardioValueText(leader, mode);
+        if(rows[1]){
+          const gap = Number(leader.distance || 0) - Number(rows[1].distance || 0);
+          leadGap = gap > 0 ? `${fmtNum(gap)} mi` : "—";
+          if(!(gap > 0)) leadLabel = "Only record";
+        }else{
+          leadLabel = "Only record";
+        }
+      }else{
+        leadValue = getCardioValueText(leader, mode);
+        if(rows[1]){
+          const gap = Number(leader.timeSec || 0) - Number(rows[1].timeSec || 0);
+          leadGap = gap > 0 ? fmtTimeSafe(gap) : "—";
+          if(!(gap > 0)) leadLabel = "Only record";
+        }else{
+          leadLabel = "Only record";
+        }
+      }
+
+      summaryCard.appendChild(el("div", {
+        style:"display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;"
+      }, [
+        el("div", {}, [
+          el("div", { style:"font-size:11px; font-weight:900; opacity:.68; text-transform:uppercase;" }, ["Top Record"]),
+          el("div", { style:"font-size:14px; font-weight:1000; line-height:1.15; margin-top:4px;" }, [leader?.name || "Exercise"]),
+          el("div", { class:"note", style:"margin-top:4px;" }, [leadValue])
+        ]),
+        el("div", {}, [
+          el("div", { style:"font-size:11px; font-weight:900; opacity:.68; text-transform:uppercase;" }, ["Tracked"]),
+          el("div", { style:"font-size:14px; font-weight:1000; line-height:1.15; margin-top:4px;" }, [`${rows.length}`]),
+          el("div", { class:"note", style:"margin-top:4px;" }, ["Exercises"])
+        ]),
+        el("div", {}, [
+          el("div", { style:"font-size:11px; font-weight:900; opacity:.68; text-transform:uppercase;" }, ["Lead"]),
+          el("div", { style:"font-size:14px; font-weight:1000; line-height:1.15; margin-top:4px;" }, [leadGap]),
+          el("div", { class:"note", style:"margin-top:4px;" }, [leadLabel])
+        ])
+      ]));
+    }else{
+      const emptyLabel =
+        mode === "pace" ? "pace" :
+        mode === "distance" ? "distance" :
+        "time";
+
+      summaryCard.appendChild(el("div", {
+        class:"note",
+        text:`No cardio ${emptyLabel} results available yet.`
+      }));
+    }
+
+    tabContent.appendChild(summaryCard);
+
+    if(top4.length){
+      const cardsWrap = el("div", {
+        style:"display:grid; gap:10px; margin-top:10px;"
+      });
+
+      top4.forEach((item, idx) => {
+        cardsWrap.appendChild(el("div", {
+          class:"card",
+          style:[
+            "padding:12px",
+            "border-radius:16px",
+            idx === 0
+              ? "background:linear-gradient(180deg, rgba(55,214,122,.16), rgba(255,255,255,.05))"
+              : "background:rgba(255,255,255,.05)",
+            "border:1px solid rgba(255,255,255,.10)"
+          ].join(";")
+        }, [
+          el("div", {
+            style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px;"
+          }, [
+            el("div", { style:"min-width:0;" }, [
+              el("div", {
+                style:"display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.08); font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.25px;"
+              }, [idx === 0 ? "🏆 #1" : `#${idx + 1}`]),
+              el("div", {
+                style:"font-size:16px; font-weight:1000; line-height:1.15; margin-top:10px;"
+              }, [item?.name || "Exercise"]),
+              el("div", {
+                class:"note",
+                style:"margin-top:5px;"
+              }, [getCardioMetaText(item, mode)]),
+              el("div", {
+                style:"margin-top:8px; font-size:11px; opacity:.74;"
+              }, [getCardioDeltaText(top4, idx, mode) || ""])
+            ]),
+            el("div", {
+              style:"text-align:right; flex:0 0 auto;"
+            }, [
+              el("div", {
+                style:"font-size:22px; font-weight:1000; line-height:1.05; white-space:nowrap;"
+              }, [getCardioValueText(item, mode)]),
+              el("div", {
+                style:"margin-top:8px; font-size:11px; opacity:.74; white-space:nowrap;"
+              }, [
+                mode === "pace" ? "Best pace" :
+                mode === "distance" ? "Longest distance" :
+                "Longest time"
+              ])
+            ])
+          ])
+        ]));
+      });
+
+      tabContent.appendChild(cardsWrap);
+    }
+
+    if(rows.length > 4){
+      tabContent.appendChild(el("div", {
+        style:"margin-top:10px;"
+      }, [
+        el("button", {
+          class:"btn",
+          style:"width:100%;",
+          onClick: () => openCardioFullListModal(mode)
+        }, [`View All (${rows.length})`])
+      ]));
+    }
   }
 
   tabs.querySelectorAll("[data-tab]").forEach(btn => {
@@ -10570,8 +10943,6 @@ function openProfileCardioPRModal(opts = {}){
       renderCardioTab(String(btn.dataset.tab || "pace"));
     });
   });
-
-  renderCardioTab("pace");
 
   Modal.open({
     title: "Best Cardio PRs",
@@ -10592,6 +10963,8 @@ function openProfileCardioPRModal(opts = {}){
       ])
     ])
   });
+
+  renderCardioTab("pace");
 }
               
 function openProfileRoutineModal(snapshot, noteText, opts = {}){
