@@ -911,12 +911,59 @@ async function fetchNotifications(){
   }
 
   async function requireFriendsUsernameOrPrompt(){
-  const state = getState();
-  const existing = normalizeUsername(state?.profile?.username || "");
+  const liveState = getState();
+  const existing = normalizeUsername(liveState?.profile?.username || "");
   if(existing) return true;
 
   if(requireFriendsUsernameOrPrompt.__open) return false;
   requireFriendsUsernameOrPrompt.__open = true;
+
+  let checkSeq = 0;
+  let checkTimer = null;
+  let usernameState = "idle"; // idle | checking | available | taken | invalid
+  let usernameOwnerId = null;
+
+  const wrap = el("div", {
+    class:"grid",
+    style:"gap:14px;"
+  });
+
+  const hero = el("div", {
+    style:[
+      "padding:16px",
+      "border-radius:20px",
+      "background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04))",
+      "border:1px solid rgba(255,255,255,.10)",
+      "box-shadow:0 10px 30px rgba(0,0,0,.22)"
+    ].join(";")
+  });
+
+  const title = el("div", {
+    style:"font-size:20px; font-weight:950; letter-spacing:.2px; text-align:center;"
+  }, ["Create Username"]);
+
+  const subtitle = el("div", {
+    class:"note",
+    style:"text-align:center; margin-top:6px;"
+  }, ["Pick how friends will find you."]);
+
+  const inputShell = el("div", {
+    style:[
+      "display:flex",
+      "align-items:center",
+      "gap:10px",
+      "margin-top:14px",
+      "padding:0 14px",
+      "height:56px",
+      "border-radius:16px",
+      "background:rgba(0,0,0,.18)",
+      "border:1px solid rgba(255,255,255,.12)"
+    ].join(";")
+  });
+
+  const atNode = el("div", {
+    style:"font-weight:950; opacity:.88; flex:0 0 auto;"
+  }, ["@"]);
 
   const input = el("input", {
     type:"text",
@@ -924,51 +971,106 @@ async function fetchNotifications(){
     value:"",
     autocapitalize:"off",
     autocorrect:"off",
-    spellcheck:"false"
+    spellcheck:"false",
+    style:[
+      "flex:1 1 auto",
+      "min-width:0",
+      "background:transparent",
+      "border:0",
+      "outline:none",
+      "color:inherit",
+      "font-size:16px",
+      "font-weight:850"
+    ].join(";")
   });
+
+  const badge = el("div", {
+    style:[
+      "flex:0 0 auto",
+      "min-width:24px",
+      "height:24px",
+      "display:flex",
+      "align-items:center",
+      "justify-content:center",
+      "font-size:14px",
+      "font-weight:950",
+      "border-radius:999px",
+      "border:1px solid rgba(255,255,255,.10)",
+      "background:rgba(255,255,255,.06)",
+      "opacity:.88"
+    ].join(";")
+  }, [""]);
 
   const status = el("div", {
-    class:"meta",
-    style:"min-height:18px; margin-top:6px;"
-  });
-
-  const err = el("div", {
     class:"note",
-    style:"display:none; color: rgba(255,92,122,.95);"
+    style:"min-height:18px; margin-top:10px; text-align:center;"
   });
 
-  let checkSeq = 0;
-  let checkTimer = null;
-  let usernameState = "idle"; // idle | checking | available | taken | invalid
-  let ownerId = null;
+  const helper = el("div", {
+    class:"note",
+    style:"text-align:center;"
+  }, ["This is how you’ll appear in Friends and search."]);
+
+  const saveErr = el("div", {
+    class:"note",
+    style:"display:none; color:rgba(255,92,122,.95); text-align:center;"
+  });
 
   function paint(){
     const current = normalizeUsername(input.value);
+
+    badge.textContent = "";
+    badge.style.color = "";
+    badge.style.background = "rgba(255,255,255,.06)";
+    badge.style.borderColor = "rgba(255,255,255,.10)";
+    inputShell.style.borderColor = "rgba(255,255,255,.12)";
+
     if(!current){
-      status.textContent = "Choose a username to use Friends.";
+      status.textContent = "Shown in Friends as @username.";
       status.style.color = "";
       return;
     }
+
     if(usernameState === "invalid"){
-      status.textContent = "Use 3–20 lowercase letters, numbers, or underscores.";
+      badge.textContent = "!";
+      badge.style.color = "rgba(255,92,122,.95)";
+      badge.style.background = "rgba(255,92,122,.10)";
+      badge.style.borderColor = "rgba(255,92,122,.24)";
+      inputShell.style.borderColor = "rgba(255,92,122,.24)";
+      status.textContent = "Use 3–20 letters, numbers, or underscores.";
       status.style.color = "rgba(255,92,122,.95)";
       return;
     }
+
     if(usernameState === "checking"){
+      badge.textContent = "…";
       status.textContent = "Checking availability…";
       status.style.color = "";
       return;
     }
+
     if(usernameState === "taken"){
-      status.textContent = "Username is already taken.";
+      badge.textContent = "!";
+      badge.style.color = "rgba(255,92,122,.95)";
+      badge.style.background = "rgba(255,92,122,.10)";
+      badge.style.borderColor = "rgba(255,92,122,.24)";
+      inputShell.style.borderColor = "rgba(255,92,122,.24)";
+      status.textContent = "That username is already taken.";
       status.style.color = "rgba(255,92,122,.95)";
       return;
     }
+
     if(usernameState === "available"){
-      status.textContent = "Username is available.";
+      badge.textContent = "✓";
+      badge.style.color = "rgba(46,204,113,.95)";
+      badge.style.background = "rgba(46,204,113,.10)";
+      badge.style.borderColor = "rgba(46,204,113,.24)";
+      inputShell.style.borderColor = "rgba(46,204,113,.24)";
+      status.textContent = "Available";
       status.style.color = "rgba(46,204,113,.95)";
       return;
     }
+
     status.textContent = "Shown in Friends as @username.";
     status.style.color = "";
   }
@@ -983,99 +1085,114 @@ async function fetchNotifications(){
 
     if(!current){
       usernameState = "idle";
-      ownerId = null;
+      usernameOwnerId = null;
       paint();
       return;
     }
 
     if(!isValidUsername(current)){
       usernameState = "invalid";
-      ownerId = null;
+      usernameOwnerId = null;
       paint();
       return;
     }
 
     usernameState = "checking";
-    ownerId = null;
+    usernameOwnerId = null;
     paint();
 
-    const foundOwnerId = await getUsernameOwnerId(current);
+    const ownerId = await getUsernameOwnerId(current);
     if(seq !== checkSeq) return;
 
-    ownerId = foundOwnerId;
+    usernameOwnerId = ownerId;
     usernameState = ownerId ? "taken" : "available";
     paint();
   }
 
   input.addEventListener("input", () => {
     input.value = normalizeUsername(input.value);
-    err.style.display = "none";
+    saveErr.style.display = "none";
     if(checkTimer) clearTimeout(checkTimer);
     checkTimer = setTimeout(() => {
       checkNow().catch(() => {});
     }, 250);
   });
 
+  hero.appendChild(title);
+  hero.appendChild(subtitle);
+  inputShell.appendChild(atNode);
+  inputShell.appendChild(input);
+  inputShell.appendChild(badge);
+  hero.appendChild(inputShell);
+  hero.appendChild(status);
+
+  const continueBtn = el("button", {
+    class:"btn primary",
+    style:"width:100%; min-height:50px; border-radius:16px; font-weight:900;",
+    onClick: async () => {
+      const nextUsername = normalizeUsername(input.value);
+
+      saveErr.style.display = "none";
+
+      if(checkTimer){
+        clearTimeout(checkTimer);
+        checkTimer = null;
+      }
+
+      await checkNow({ force:true });
+
+      if(!isValidUsername(nextUsername)){
+        saveErr.textContent = "Username must be 3–20 letters, numbers, or underscores.";
+        saveErr.style.display = "block";
+        return;
+      }
+
+      if(usernameState === "taken" || usernameOwnerId){
+        saveErr.textContent = "That username is already taken.";
+        saveErr.style.display = "block";
+        return;
+      }
+
+      const s = getState();
+      s.profile = s.profile || {};
+      s.profile.username = nextUsername;
+      Storage.save(s);
+
+      try{ await Social.refreshUser?.(); }catch(_){}
+
+      requireFriendsUsernameOrPrompt.__open = false;
+      Modal.close();
+      try{ showToast("Username saved"); }catch(_){}
+      try{ renderView(); }catch(_){}
+    }
+  }, ["Continue"]);
+
+  const laterBtn = el("button", {
+    class:"btn",
+    style:"width:100%; min-height:46px; border-radius:16px;",
+    onClick: () => {
+      requireFriendsUsernameOrPrompt.__open = false;
+      Modal.close();
+      try{ navigate("home"); }catch(_){}
+    }
+  }, ["Maybe later"]);
+
+  wrap.appendChild(hero);
+  wrap.appendChild(helper);
+  wrap.appendChild(saveErr);
+  wrap.appendChild(continueBtn);
+  wrap.appendChild(laterBtn);
+
   paint();
 
   Modal.open({
-    title:"Create username",
-    bodyNode: el("div", { class:"grid" }, [
-      el("div", { class:"note", text:"Friends requires a username so other users can find and interact with you." }),
-      input,
-      status,
-      err,
-      el("div", { class:"btnrow" }, [
-        el("button", {
-          class:"btn primary",
-          onClick: async () => {
-            const nextUsername = normalizeUsername(input.value);
-
-            err.style.display = "none";
-
-            if(checkTimer){
-              clearTimeout(checkTimer);
-              checkTimer = null;
-            }
-
-            await checkNow({ force:true });
-
-            if(!isValidUsername(nextUsername)){
-              err.textContent = "Username must be 3–20 letters, numbers, or underscores.";
-              err.style.display = "block";
-              return;
-            }
-
-            if(usernameState === "taken" || ownerId){
-              err.textContent = "That username is already taken.";
-              err.style.display = "block";
-              return;
-            }
-
-            const liveState = getState();
-            liveState.profile = liveState.profile || {};
-            liveState.profile.username = nextUsername;
-
-            Storage.save(liveState);
-            try{ await Social.refreshUser?.(); }catch(_){}
-
-            requireFriendsUsernameOrPrompt.__open = false;
-            Modal.close();
-            try{ renderView(); }catch(_){}
-            try{ showToast("Username saved"); }catch(_){}
-          }
-        }, ["Save username"]),
-        el("button", {
-          class:"btn",
-          onClick: () => {
-            requireFriendsUsernameOrPrompt.__open = false;
-            Modal.close();
-            try{ navigate("home"); }catch(_){}
-          }
-        }, ["Not now"])
-      ])
-    ])
+    title:"Friends",
+    bodyNode: wrap
   });
+
+  setTimeout(() => {
+    try{ input.focus(); }catch(_){}
+  }, 0);
 
   return false;
 }
@@ -7663,7 +7780,8 @@ statsHost.appendChild(el("div", { class:"pill" }, [
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
 
-       if(!normalizeUsername(state?.profile?.username || "")){
+         const friendsState = getState();
+  if(!normalizeUsername(friendsState?.profile?.username || "")){
     requireFriendsUsernameOrPrompt().catch(() => {});
     return el("div", { class:"grid" }, [
       el("div", { class:"card" }, [
