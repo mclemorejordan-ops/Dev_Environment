@@ -595,10 +595,75 @@ if(_user){
 
   
   function getUser(){ return _user; }
-function getFeed(){ return _feed.slice(); }
-function getFollows(){ return _follows.slice(); }
-function getFollowers(){ return _followers.slice(); }
-  
+  function getFeed(){ return _feed.slice(); }
+  function getFollows(){ return _follows.slice(); }
+  function getFollowers(){ return _followers.slice(); }
+
+  const SOCIAL_DISMISSED_NOTIFS_KEY = "pc.social.dismissedNotifications.v1";
+
+  function notifStableKey(n){
+    const type = String(n?.type || "");
+    const actorId = String(n?.actorId || "");
+    const eventId = (n?.eventId === null || n?.eventId === undefined) ? "" : String(n.eventId);
+    const body = String(n?.body || "");
+    const createdAt = String(n?.createdAt || "");
+    return [type, actorId, eventId, body, createdAt].join("|");
+  }
+
+  function readDismissedNotifMap(){
+    try{
+      const raw = localStorage.getItem(SOCIAL_DISMISSED_NOTIFS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return (parsed && typeof parsed === "object") ? parsed : {};
+    }catch(_){
+      return {};
+    }
+  }
+
+  function writeDismissedNotifMap(map){
+    try{
+      localStorage.setItem(
+        SOCIAL_DISMISSED_NOTIFS_KEY,
+        JSON.stringify((map && typeof map === "object") ? map : {})
+      );
+    }catch(_){}
+  }
+
+  function isNotifDismissed(n){
+    try{
+      const map = readDismissedNotifMap();
+      return !!map[notifStableKey(n)];
+    }catch(_){
+      return false;
+    }
+  }
+
+  function dismissNotification(n){
+    try{
+      const key = notifStableKey(n);
+      if(!key) return;
+      const map = readDismissedNotifMap();
+      map[key] = Date.now();
+      writeDismissedNotifMap(map);
+      _notifications = (_notifications || []).filter(x => notifStableKey(x) !== key);
+      notify();
+    }catch(_){}
+  }
+
+  function dismissAllNotifications(list){
+    try{
+      const arr = Array.isArray(list) ? list : (_notifications || []);
+      const map = readDismissedNotifMap();
+      arr.forEach(n => {
+        const key = notifStableKey(n);
+        if(key) map[key] = Date.now();
+      });
+      writeDismissedNotifMap(map);
+      _notifications = [];
+      notify();
+    }catch(_){}
+  }
+
   function getNotifications(){ return _notifications.slice(); }
 
 async function fetchNotifications(){
@@ -717,7 +782,9 @@ async function fetchNotifications(){
       return (tb - ta);
     });
 
-    _notifications = notifs.slice(0, 60);
+     const visibleNotifs = notifs.filter(n => !isNotifDismissed(n));
+
+    _notifications = visibleNotifs.slice(0, 60);
   }catch(_){
     // keep last known
   }
@@ -1921,9 +1988,10 @@ async function publishWorkoutCompletedEvent({ dateISO, routineId, dayId, highlig
     getNotifications,
     fetchNotifications,
 
-    // UI-only helpers (no storage)
+     // UI-only helpers (no storage)
     __setNotifications: (arr) => { _notifications = Array.isArray(arr) ? arr : []; notify(); },
-    __clearNotifications: () => { _notifications = []; notify(); },
+    __clearNotifications: () => { dismissAllNotifications(_notifications || []); },
+    __dismissNotification: (n) => { dismissNotification(n); },
     fetchNames,
     searchProfilesByUsername,
     nameFor,
@@ -7541,10 +7609,12 @@ function openFollowerNotifsModal(){
     }
   }, ["Refresh"]);
 
-  const clearBtn = el("button", {
+    const clearBtn = el("button", {
     class:"igNotifLinkBtn",
     onClick: () => {
-      try{ Social.__clearNotifications && Social.__clearNotifications(); }catch(_){}
+      try{
+        Social.__clearNotifications && Social.__clearNotifications();
+      }catch(_){}
       showToast("Cleared");
       repaint();
     }
@@ -7675,12 +7745,17 @@ function openFollowerNotifsModal(){
     try{ navigate("friends"); }catch(_){}
   }
 
-  function removeNotifAt(idx){
+   function removeNotifAt(idx){
     try{
       const arr = Social.getNotifications ? Social.getNotifications() : [];
-      const next = arr.slice();
-      next.splice(idx, 1);
-      if(Social.__setNotifications) Social.__setNotifications(next);
+      const target = arr[idx] || null;
+      if(target && Social.__dismissNotification){
+        Social.__dismissNotification(target);
+      }else{
+        const next = arr.slice();
+        next.splice(idx, 1);
+        if(Social.__setNotifications) Social.__setNotifications(next);
+      }
     }catch(_){}
     repaint();
   }
