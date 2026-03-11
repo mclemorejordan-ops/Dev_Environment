@@ -9903,6 +9903,444 @@ function buildRoutineModalBodyFromSnapshot(snapshot, noteText, opts = {}){
   return root;
 }
 
+
+function getOwnAllStrengthAndCorePRs(){
+  const workouts = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+  const byExercise = new Map();
+
+  workouts.forEach(entry => {
+    if(!entry || entry.skipped) return;
+
+    const type = String(entry.type || "");
+    if(type !== "weightlifting" && type !== "core") return;
+
+    const exerciseId = String(entry.exerciseId || "");
+    if(!exerciseId) return;
+
+    const name = resolveExerciseName(type, entry.exerciseId, entry.nameSnap || "Exercise");
+
+    if(type === "weightlifting"){
+      const sets = Array.isArray(entry.sets) ? entry.sets : [];
+      let bestWeight = 0;
+      let bestRepsAtBestWeight = 0;
+
+      sets.forEach(s => {
+        const w = Number(s?.weight) || 0;
+        const r = Number(s?.reps) || 0;
+        if(w > bestWeight || (w === bestWeight && r > bestRepsAtBestWeight)){
+          bestWeight = w;
+          bestRepsAtBestWeight = r;
+        }
+      });
+
+      if(bestWeight <= 0) return;
+
+      const prev = byExercise.get(exerciseId);
+      if(!prev || bestWeight > prev.weight || (bestWeight === prev.weight && bestRepsAtBestWeight > prev.reps)){
+        byExercise.set(exerciseId, {
+          type,
+          exerciseId,
+          name,
+          weight: bestWeight,
+          reps: bestRepsAtBestWeight
+        });
+      }
+      return;
+    }
+
+    // core
+    const summary = entry.summary || {};
+    const totalVolume = Number(summary.totalVolume) || 0;
+    const reps = Number(summary.reps) || 0;
+    const timeSec = Number(summary.timeSec) || 0;
+    const weight = Number(summary.weight) || 0;
+
+    const prev = byExercise.get(exerciseId);
+    const score = totalVolume || reps || timeSec || weight;
+    if(score <= 0) return;
+
+    if(!prev || score > prev.score){
+      byExercise.set(exerciseId, {
+        type,
+        exerciseId,
+        name,
+        score,
+        reps,
+        timeSec,
+        weight,
+        totalVolume
+      });
+    }
+  });
+
+  return Array.from(byExercise.values())
+    .sort((a, b) => {
+      const aKey = Number(a.weight || a.score || 0);
+      const bKey = Number(b.weight || b.score || 0);
+      return bKey - aKey || String(a.name || "").localeCompare(String(b.name || ""));
+    });
+}
+
+function getOwnAllCardioPRs(){
+  const workouts = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+  const byExercise = new Map();
+
+  workouts.forEach(entry => {
+    if(!entry || entry.skipped || String(entry.type || "") !== "cardio") return;
+
+    const exerciseId = String(entry.exerciseId || "");
+    if(!exerciseId) return;
+
+    const name = resolveExerciseName("cardio", entry.exerciseId, entry.nameSnap || "Exercise");
+    const summary = entry.summary || {};
+
+    const pace = Number(summary.paceSecPerUnit);
+    const distance = Number(summary.distance) || 0;
+    const timeSec = Number(summary.timeSec) || 0;
+
+    const prev = byExercise.get(exerciseId);
+
+    if(Number.isFinite(pace) && pace > 0){
+      if(!prev || !Number.isFinite(prev.pace) || pace < prev.pace){
+        byExercise.set(exerciseId, { exerciseId, name, pace, distance, timeSec });
+      }
+      return;
+    }
+
+    if(distance > 0){
+      if(!prev || distance > (Number(prev.distance) || 0)){
+        byExercise.set(exerciseId, { exerciseId, name, pace:null, distance, timeSec });
+      }
+      return;
+    }
+
+    if(timeSec > 0){
+      if(!prev || timeSec > (Number(prev.timeSec) || 0)){
+        byExercise.set(exerciseId, { exerciseId, name, pace:null, distance, timeSec });
+      }
+    }
+  });
+
+  return Array.from(byExercise.values())
+    .sort((a, b) => {
+      const aP = Number.isFinite(a?.pace) ? a.pace : Infinity;
+      const bP = Number.isFinite(b?.pace) ? b.pace : Infinity;
+      if(aP !== bP) return aP - bP;
+
+      const aD = Number(a?.distance || 0);
+      const bD = Number(b?.distance || 0);
+      if(bD !== aD) return bD - aD;
+
+      const aT = Number(a?.timeSec || 0);
+      const bT = Number(b?.timeSec || 0);
+      return bT - aT;
+    });
+}
+
+function getSharedStrengthAndCorePRsFromEvents(sharedEvents){
+  const byName = new Map();
+
+  (sharedEvents || []).forEach(ev => {
+    const items = Array.isArray(ev?.payload?.details?.items) ? ev.payload.details.items : [];
+    items.forEach(item => {
+      const type = String(item?.type || "");
+      if(type !== "weightlifting" && type !== "core") return;
+
+      const name = String(item?.name || "").trim();
+      if(!name) return;
+
+      const topText = String(item?.topText || "");
+      const m = topText.match(/(\d+(?:\.\d+)?)\s*×\s*(\d+)/);
+
+      if(type === "weightlifting" && m){
+        const weight = Number(m[1]) || 0;
+        const reps = Number(m[2]) || 0;
+        if(weight <= 0) return;
+
+        const prev = byName.get(name);
+        if(!prev || weight > prev.weight || (weight === prev.weight && reps > prev.reps)){
+          byName.set(name, { type, name, weight, reps });
+        }
+        return;
+      }
+
+      if(type === "core"){
+        const badges = Array.isArray(item?.prBadges) ? item.prBadges : [];
+        const score =
+          Number(item?.lifetime?.bestVolume) ||
+          (badges.length ? 1 : 0);
+
+        if(score <= 0) return;
+
+        const prev = byName.get(name);
+        if(!prev || score > (Number(prev.score) || 0)){
+          byName.set(name, { type, name, score });
+        }
+      }
+    });
+  });
+
+  return Array.from(byName.values()).sort((a, b) => {
+    const aKey = Number(a.weight || a.score || 0);
+    const bKey = Number(b.weight || b.score || 0);
+    return bKey - aKey || String(a.name || "").localeCompare(String(b.name || ""));
+  });
+}
+
+function getSharedCardioPRsFromEvents(sharedEvents){
+  const byName = new Map();
+
+  (sharedEvents || []).forEach(ev => {
+    const items = Array.isArray(ev?.payload?.details?.items) ? ev.payload.details.items : [];
+    items.forEach(item => {
+      if(String(item?.type || "") !== "cardio") return;
+
+      const name = String(item?.name || "").trim();
+      if(!name) return;
+
+      const topText = String(item?.topText || "");
+      const paceMatch = topText.match(/Pace\s+(\d+):(\d+)/i);
+      const distMatch = topText.match(/Dist\s+(\d+(?:\.\d+)?)/i);
+      const timeMatch = topText.match(/Time\s+(\d+):(\d+)/i);
+
+      const pace = paceMatch ? ((Number(paceMatch[1]) * 60) + Number(paceMatch[2])) : null;
+      const distance = distMatch ? (Number(distMatch[1]) || 0) : 0;
+      const timeSec = timeMatch ? ((Number(timeMatch[1]) * 60) + Number(timeMatch[2])) : 0;
+
+      const prev = byName.get(name);
+
+      if(Number.isFinite(pace) && pace > 0){
+        if(!prev || !Number.isFinite(prev.pace) || pace < prev.pace){
+          byName.set(name, { name, pace, distance, timeSec });
+        }
+        return;
+      }
+
+      if(distance > 0){
+        if(!prev || distance > (Number(prev.distance) || 0)){
+          byName.set(name, { name, pace:null, distance, timeSec });
+        }
+        return;
+      }
+
+      if(timeSec > 0){
+        if(!prev || timeSec > (Number(prev.timeSec) || 0)){
+          byName.set(name, { name, pace:null, distance, timeSec });
+        }
+      }
+    });
+  });
+
+  return Array.from(byName.values()).sort((a, b) => {
+    const aP = Number.isFinite(a?.pace) ? a.pace : Infinity;
+    const bP = Number.isFinite(b?.pace) ? b.pace : Infinity;
+    if(aP !== bP) return aP - bP;
+
+    const aD = Number(a?.distance || 0);
+    const bD = Number(b?.distance || 0);
+    if(bD !== aD) return bD - aD;
+
+    const aT = Number(a?.timeSec || 0);
+    const bT = Number(b?.timeSec || 0);
+    return bT - aT;
+  });
+}
+
+function buildPRListRows(items, kind){
+  const rows = el("div", { class:"list" }, []);
+
+  if(!Array.isArray(items) || !items.length){
+    rows.appendChild(el("div", { class:"note", text:`No ${kind} PRs available yet.` }));
+    return rows;
+  }
+
+  items.forEach(item => {
+    let valueText = "—";
+
+    if(kind === "strength"){
+      if(item?.type === "weightlifting"){
+        valueText = `${fmtNum(item.weight)} × ${item.reps}`;
+      }else{
+        valueText =
+          item?.totalVolume ? `${fmtNum(item.totalVolume)} volume` :
+          item?.reps ? `${fmtNum(item.reps)} reps` :
+          item?.timeSec ? fmtTimeSafe(item.timeSec) :
+          item?.weight ? `${fmtNum(item.weight)} lb` :
+          "PR";
+      }
+    }else{
+      valueText =
+        Number.isFinite(item?.pace) ? fmtPaceSafe(item.pace) :
+        (Number(item?.distance || 0) > 0 ? `${fmtNum(item.distance)} units` :
+        (Number(item?.timeSec || 0) > 0 ? fmtTimeSafe(item.timeSec) : "PR"));
+    }
+
+    rows.appendChild(el("div", { class:"item" }, [
+      el("div", { class:"left" }, [
+        el("div", { class:"name", text: item?.name || "Exercise" }),
+        el("div", { class:"meta", text: item?.type === "core" ? "Core PR" : (kind === "cardio" ? "Cardio PR" : "Strength PR") })
+      ]),
+      el("div", { class:"right" }, [
+        el("div", {
+          style:"font-weight:1000; font-size:14px; white-space:nowrap;"
+        }, [valueText])
+      ])
+    ]));
+  });
+
+  return rows;
+}
+
+function openCompareProfilePRModal(opts = {}){
+  const baseUserId = String(opts?.baseUserId || "");
+  const baseDisplayName = String(opts?.baseDisplayName || "User");
+
+  let selectedUser = null;
+  let searchTimer = null;
+
+  const queryInput = el("input", {
+    type:"text",
+    placeholder:"Search @username",
+    autocapitalize:"off",
+    autocorrect:"off",
+    spellcheck:"false"
+  });
+
+  const resultsHost = el("div", { class:"list" });
+  const compareBody = el("div", { class:"grid" }, [
+    el("div", { class:"note", text:`Compare ${baseDisplayName}'s PRs with another user.` }),
+    queryInput,
+    resultsHost
+  ]);
+
+  async function runSearch(){
+    const q = normalizeUsername(queryInput.value);
+    resultsHost.innerHTML = "";
+
+    if(!q){
+      resultsHost.appendChild(el("div", { class:"note", text:"Start typing a username." }));
+      return;
+    }
+
+    const rows = await Social.searchProfilesByUsername(q, { limit: 8 });
+    const filtered = rows.filter(r => String(r?.id || "") !== baseUserId);
+
+    if(!filtered.length){
+      resultsHost.appendChild(el("div", { class:"note", text:"No users found." }));
+      return;
+    }
+
+    filtered.forEach(row => {
+      resultsHost.appendChild(el("button", {
+        type:"button",
+        class:"item",
+        style:"width:100%; text-align:left; color:inherit;",
+        onClick: async () => {
+          selectedUser = row;
+          Modal.close();
+
+          const compareEvents = await Social.fetchProfileWorkoutHighlights(row.id);
+          const compareStrength = getSharedStrengthAndCorePRsFromEvents(compareEvents);
+          const compareCardio = getSharedCardioPRsFromEvents(compareEvents);
+
+          Modal.open({
+            title: `Compare • ${baseDisplayName} vs ${row.displayName}`,
+            bodyNode: el("div", { class:"grid" }, [
+              el("div", { class:"card" }, [
+                el("div", { style:"font-weight:1000; margin-bottom:8px;" }, [baseDisplayName]),
+                buildPRListRows(Array.isArray(opts?.baseStrengthItems) ? opts.baseStrengthItems : [], "strength"),
+                el("div", { style:"height:10px" }),
+                buildPRListRows(Array.isArray(opts?.baseCardioItems) ? opts.baseCardioItems : [], "cardio")
+              ]),
+              el("div", { class:"card" }, [
+                el("div", { style:"font-weight:1000; margin-bottom:8px;" }, [row.displayName || "User"]),
+                buildPRListRows(compareStrength, "strength"),
+                el("div", { style:"height:10px" }),
+                buildPRListRows(compareCardio, "cardio")
+              ])
+            ])
+          });
+        }
+      }, [
+        el("div", { class:"left" }, [
+          el("div", { class:"name", text: row.displayName || "User" }),
+          el("div", { class:"meta", text: `@${row.username}` })
+        ])
+      ]));
+    });
+  }
+
+  queryInput.addEventListener("input", () => {
+    if(searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { runSearch().catch(() => {}); }, 180);
+  });
+
+  Modal.open({
+    title: "Compare PRs",
+    bodyNode: compareBody
+  });
+}
+
+function openProfileStrengthPRModal(opts = {}){
+  const profileUserId = String(opts?.profileUserId || "");
+  const profileDisplayName = String(opts?.profileDisplayName || "User");
+  const isOwnProfile = !!opts?.isOwnProfile;
+  const sharedEvents = Array.isArray(opts?.sharedEvents) ? opts.sharedEvents : [];
+
+  const items = isOwnProfile
+    ? getOwnAllStrengthAndCorePRs()
+    : getSharedStrengthAndCorePRsFromEvents(sharedEvents);
+
+  Modal.open({
+    title: "Best Strength PRs",
+    bodyNode: el("div", { class:"grid" }, [
+      el("div", { class:"note", text:isOwnProfile ? "All weightlifting and core PRs from your logs." : `Best known weightlifting and core PRs from ${profileDisplayName}'s shared history.` }),
+      buildPRListRows(items, "strength"),
+      el("div", { class:"btnrow" }, [
+        el("button", {
+          class:"btn",
+          onClick: () => openCompareProfilePRModal({
+            baseUserId: profileUserId,
+            baseDisplayName: profileDisplayName,
+            baseStrengthItems: items,
+            baseCardioItems: isOwnProfile ? getOwnAllCardioPRs() : getSharedCardioPRsFromEvents(sharedEvents)
+          })
+        }, ["Compare"])
+      ])
+    ])
+  });
+}
+
+function openProfileCardioPRModal(opts = {}){
+  const profileUserId = String(opts?.profileUserId || "");
+  const profileDisplayName = String(opts?.profileDisplayName || "User");
+  const isOwnProfile = !!opts?.isOwnProfile;
+  const sharedEvents = Array.isArray(opts?.sharedEvents) ? opts.sharedEvents : [];
+
+  const items = isOwnProfile
+    ? getOwnAllCardioPRs()
+    : getSharedCardioPRsFromEvents(sharedEvents);
+
+  Modal.open({
+    title: "Best Cardio PRs",
+    bodyNode: el("div", { class:"grid" }, [
+      el("div", { class:"note", text:isOwnProfile ? "All cardio PRs from your logs." : `Best known cardio PRs from ${profileDisplayName}'s shared history.` }),
+      buildPRListRows(items, "cardio"),
+      el("div", { class:"btnrow" }, [
+        el("button", {
+          class:"btn",
+          onClick: () => openCompareProfilePRModal({
+            baseUserId: profileUserId,
+            baseDisplayName: profileDisplayName,
+            baseStrengthItems: isOwnProfile ? getOwnAllStrengthAndCorePRs() : getSharedStrengthAndCorePRsFromEvents(sharedEvents),
+            baseCardioItems: items
+          })
+        }, ["Compare"])
+      ])
+    ])
+  });
+}
+              
 function openProfileRoutineModal(snapshot, noteText, opts = {}){
   if(!snapshot){
     showToast("No routine available");
@@ -9967,16 +10405,32 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
     };
 
         const cards = [
-      metricCard(
-        "Best Strength PR",
-        strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : (sharedLoading ? "Loading…" : "—"),
-        strengthBest ? strengthBest.name : (isOwnProfile ? "No weightlifting logs yet" : "No shared strength PR yet")
-      ),
-      metricCard(
-        "Best Cardio PR",
-        cardioBest ? cardioBest.value : (sharedLoading ? "Loading…" : "—"),
-        cardioBest ? cardioBest.meta : (isOwnProfile ? "No cardio logs yet" : "No shared cardio PR yet")
-      ),
+  metricCard(
+    "Best Strength PR",
+    strengthBest ? `${fmtNum(strengthBest.weight)} × ${strengthBest.reps}` : (sharedLoading ? "Loading…" : "—"),
+    strengthBest ? strengthBest.name : (isOwnProfile ? "No weightlifting logs yet" : "No shared strength PR yet"),
+    {
+      onClick: () => openProfileStrengthPRModal({
+        profileUserId,
+        profileDisplayName: isOwnProfile ? (state?.profile?.name || "You") : (profileDisplayName || "User"),
+        isOwnProfile,
+        sharedEvents
+      })
+    }
+  ),
+  metricCard(
+    "Best Cardio PR",
+    cardioBest ? cardioBest.value : (sharedLoading ? "Loading…" : "—"),
+    cardioBest ? cardioBest.meta : (isOwnProfile ? "No cardio logs yet" : "No shared cardio PR yet"),
+    {
+      onClick: () => openProfileCardioPRModal({
+        profileUserId,
+        profileDisplayName: isOwnProfile ? (state?.profile?.name || "You") : (profileDisplayName || "User"),
+        isOwnProfile,
+        sharedEvents
+      })
+    }
+  ),
       metricCard(
   "Workout Routine",
   isOwnProfile
