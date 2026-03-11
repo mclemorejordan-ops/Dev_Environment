@@ -9173,10 +9173,13 @@ root.appendChild(el("div", { class:"card" }, [
 
     const sharedTotalPRs = sharedEvents.reduce((sum, ev) => {
   const items = Array.isArray(ev?.payload?.details?.items) ? ev.payload.details.items : [];
-  const hasWeightPR = items.some(item =>
-    Array.isArray(item?.prBadges) && item.prBadges.includes("PR W")
-  );
-  return sum + (hasWeightPR ? 1 : 0);
+
+  const weightPrCount = items.reduce((itemSum, item) => {
+    const prBadges = Array.isArray(item?.prBadges) ? item.prBadges : [];
+    return itemSum + (prBadges.includes("PR W") ? 1 : 0);
+  }, 0);
+
+  return sum + weightPrCount;
 }, 0);
 
     const strengthBest = isOwnProfile ? ownStrengthBest : sharedStrengthBest;
