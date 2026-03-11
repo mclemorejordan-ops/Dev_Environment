@@ -7518,12 +7518,28 @@ function openFollowerNotifsModal(){
 
   // Back-compat: bell button currently calls openNotificationsModal()
   function openNotificationsModal(){
-  return openFollowerNotifsModal();
-}
+    return openFollowerNotifsModal();
+  }
 
-  // Instagram-style shell
-  const topRow = el("div", { class:"igNotifTop" }, []);
-  const title = el("div", { class:"igNotifTitle", text:"Notifications" });
+  const topLeft = el("div", { class:"igNotifTopLeft" }, [
+    el("div", { class:"igNotifTitle", text:"Notifications" }),
+    el("div", {
+      class:"igNotifSub",
+      text:"Likes, comments, and follows appear here."
+    })
+  ]);
+
+  const refreshBtn = el("button", {
+    class:"igNotifLinkBtn",
+    onClick: async () => {
+      try{
+        if(Social.fetchNotifications) await Social.fetchNotifications();
+        repaint();
+      }catch(_){
+        showToast("Could not refresh");
+      }
+    }
+  }, ["Refresh"]);
 
   const clearBtn = el("button", {
     class:"igNotifLinkBtn",
@@ -7534,8 +7550,10 @@ function openFollowerNotifsModal(){
     }
   }, ["Clear all"]);
 
-  topRow.appendChild(title);
-  topRow.appendChild(clearBtn);
+  const topRow = el("div", { class:"igNotifTop" }, [
+    topLeft,
+    el("div", { class:"igNotifTopActions" }, [ refreshBtn, clearBtn ])
+  ]);
 
   const listHost = el("div", { class:"igNotifList" });
 
@@ -7557,7 +7575,9 @@ function openFollowerNotifsModal(){
       if(h < 24) return `${h}h`;
       const d = Math.floor(h / 24);
       return `${d}d`;
-    }catch(_){ return ""; }
+    }catch(_){
+      return "";
+    }
   }
 
   function avatarLetter(name){
@@ -7569,168 +7589,194 @@ function openFollowerNotifsModal(){
     try{
       const t = createdAt ? new Date(createdAt).getTime() : 0;
       if(!t || Number.isNaN(t)) return "Earlier";
-      const now = new Date();
+
+      const now = Date.now();
+      const ageMs = Math.max(0, now - t);
+
+      if(ageMs <= (60 * 60 * 1000)) return "New";
+
+      const nowDate = new Date();
       const dt = new Date(t);
-      const sameDay = now.toDateString() === dt.toDateString();
-      if(sameDay) return "Today";
-      const diffDays = Math.floor((now.getTime() - t) / (1000*60*60*24));
-      if(diffDays <= 7) return "This week";
+      if(nowDate.toDateString() === dt.toDateString()) return "Today";
+
       return "Earlier";
-    }catch(_){ return "Earlier"; }
+    }catch(_){
+      return "Earlier";
+    }
+  }
+
+  function previewChipText(n){
+    const type = String(n?.type || "");
+
+    if(type === "follow") return "New follower";
+    if(type === "like") return "Workout liked";
+
+    if(type === "comment"){
+      const body = String(n?.body || "").trim();
+      if(body) return body.length > 28 ? `${body.slice(0, 28)}…` : body;
+      return "New comment";
+    }
+
+    return "Activity";
+  }
+
+  function lineParts(n){
+    const type = String(n?.type || "");
+    const who = String(Social.nameFor?.(n?.actorId) || "Someone").trim() || "Someone";
+
+    if(type === "follow"){
+      return {
+        who,
+        msg: "started following you"
+      };
+    }
+
+    if(type === "like"){
+      return {
+        who,
+        msg: "liked your workout"
+      };
+    }
+
+    if(type === "comment"){
+      return {
+        who,
+        msg: "commented on your workout"
+      };
+    }
+
+    return {
+      who,
+      msg: "interacted with your profile"
+    };
   }
 
   function openFromNotif(n){
-    const type = String(n?.type || "");
-    const eventId = n?.eventId;
+    try{ Modal.close(); }catch(_){}
 
-    // Likes/comments → open the related workout/event modal (best-effort)
-    if((type === "like" || type === "comment") && (eventId !== null && eventId !== undefined)){
-      try{
-        const feed = Social.getFeed ? Social.getFeed() : [];
-        const ev = (feed || []).find(x => String(x?.id || "") === String(eventId));
-        if(ev){
-          const who = (Social.nameFor && Social.nameFor(ev.actorId)) || "User";
-          const when = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : "";
-          const title = (ev.payload?.details?.dayLabel) || (ev.type === "workout_completed" ? "Workout" : "Event");
-          openFeedEventModal(ev, title, who, when);
+    try{
+      const type = String(n?.type || "");
+      const eventId = n?.eventId;
+
+      // Best-effort: preserve navigation safety without introducing new contracts.
+      if(type === "follow"){
+        if(typeof openUserProfileModal === "function"){
+          openUserProfileModal(n?.actorId);
           return;
         }
-      }catch(_){}
-      showToast("Workout not found (refresh feed)");
-      return;
-    }
+      }else{
+        if(typeof openFeedEventModalById === "function" && eventId != null){
+          openFeedEventModalById(eventId);
+          return;
+        }
+      }
+    }catch(_){}
 
-    // Follow → open Connections modal on Followers tab
-    if(type === "follow"){
-      try{ openConnectionsModal("followers"); }catch(_){}
-      return;
-    }
+    try{ navigate("friends"); }catch(_){}
   }
 
-  function rowForNotif(n, follows){
-    const type = String(n?.type || "");
-    const actorId = String(n?.actorId || "");
-    const dn = (Social.nameFor && Social.nameFor(actorId)) || "User";
-    const alreadyFollowing = actorId ? follows.includes(actorId) : false;
+  function removeNotifAt(idx){
+    try{
+      const arr = Social.getNotifications ? Social.getNotifications() : [];
+      const next = arr.slice();
+      next.splice(idx, 1);
+      if(Social.__setNotifications) Social.__setNotifications(next);
+    }catch(_){}
+    repaint();
+  }
 
-    const timeTxt = relTimeISO(n?.createdAt);
-    const avatar = el("div", { class:"igNotifAvatar", text: avatarLetter(dn) });
+  function buildEmptyState(){
+    return el("div", { class:"igNotifEmpty" }, [
+      el("div", { class:"igNotifEmptyIcon", text:"🔔" }),
+      el("div", { class:"igNotifEmptyTitle", text:"No notifications yet" }),
+      el("div", {
+        class:"igNotifEmptySub",
+        text:"When people follow you, like your workouts, or comment on them, they’ll show up here."
+      })
+    ]);
+  }
 
-    const verb = (type === "like") ? " liked your workout"
-      : (type === "comment") ? " commented on your workout"
-      : " followed you";
+  function buildRow(n, idx){
+    const who = String(Social.nameFor?.(n?.actorId) || "Someone").trim() || "Someone";
+    const parts = lineParts(n);
+    const timeText = relTimeISO(n?.createdAt);
+    const chipText = previewChipText(n);
+    const isNew = bucketLabel(n?.createdAt) === "New";
 
-    const textBlock = el("div", { class:"igNotifText" }, [
+    const row = el("div", {
+      class:`igNotifRow${isNew ? " isNew" : ""}`,
+      onClick: () => openFromNotif(n)
+    }, []);
+
+    if(isNew){
+      row.appendChild(el("div", { class:"igNotifUnreadDot" }));
+    }
+
+    row.appendChild(el("div", {
+      class:"igNotifAvatar",
+      text: avatarLetter(who)
+    }));
+
+    row.appendChild(el("div", { class:"igNotifText" }, [
       el("div", { class:"igNotifLine" }, [
-        el("span", { class:"igNotifName", text: dn }),
-        el("span", { class:"igNotifMsg", text: verb }),
-        timeTxt ? el("span", { class:"igNotifTime", text:` • ${timeTxt}` }) : null
-      ].filter(Boolean)),
-      (type === "comment" && n?.body)
-        ? el("div", { class:"igNotifSub", text: String(n.body).slice(0, 90) })
-        : null
-    ].filter(Boolean));
+        el("span", { class:"igNotifName", text: parts.who }),
+        el("span", { class:"igNotifMsg", text: parts.msg })
+      ]),
+      el("div", { class:"igNotifMetaRow" }, [
+        el("div", { class:"igNotifTime", text: timeText || "now" }),
+        el("div", { class:"igNotifChip", text: chipText })
+      ])
+    ]));
 
-    const actions = el("div", { class:"igNotifActions" }, [
-      type === "follow"
-        ? (alreadyFollowing
-            ? el("button", {
-                class:"btn danger sm",
-                onClick: async (e) => {
-                  e?.stopPropagation?.();
-                  try{
-                    await Social.unfollow(actorId);
-                    showToast("Unfollowed");
-                    renderView();
-                    repaint();
-                  }catch(err){
-                    showToast(err?.message || "Couldn't unfollow");
-                  }
-                }
-              }, ["Unfollow"])
-            : el("button", {
-                class:"btn primary sm",
-                onClick: async (e) => {
-                  e?.stopPropagation?.();
-                  try{
-                    await Social.follow(actorId);
-                    showToast("Following");
-                    renderView();
-                    repaint();
-                  }catch(err){
-                    showToast(err?.message || "Follow failed");
-                  }
-                }
-              }, ["Follow back"]))
-        : el("button", { class:"btn sm", disabled:true, style:"opacity:.65; cursor:default;" }, ["View"]),
-
-      // Dismiss (UI-only)
+    row.appendChild(el("div", { class:"igNotifActions" }, [
       el("button", {
         class:"igNotifX",
         title:"Dismiss",
         onClick: (e) => {
-          e?.stopPropagation?.();
-          try{
-            const all = Social.getNotifications ? Social.getNotifications() : [];
-            const next = (all || []).filter(x => x !== n);
-            if(Social.__setNotifications) Social.__setNotifications(next);
-          }catch(_){}
-          showToast("Dismissed");
-          repaint();
+          try{ e.preventDefault(); e.stopPropagation(); }catch(_){}
+          removeNotifAt(idx);
         }
-      }, ["✕"])
-    ]);
+      }, ["×"])
+    ]));
 
-    return el("div", {
-      class:"igNotifRow",
-      onClick: () => openFromNotif(n)
-    }, [
-      avatar,
-      textBlock,
-      actions
-    ]);
+    return row;
   }
 
   function repaint(){
-    const follows = Social.getFollows ? Social.getFollows() : [];
-    const notifs = Social.getNotifications ? Social.getNotifications() : [];
-
     listHost.innerHTML = "";
 
-    if(!notifs.length){
-      listHost.appendChild(el("div", { class:"note", text:"No new notifications." }));
+    const items = (Social.getNotifications ? Social.getNotifications() : []).slice();
+
+    if(!items.length){
+      listHost.appendChild(buildEmptyState());
       return;
     }
 
-    // Group by time bucket (Today / This week / Earlier)
-    const buckets = {};
-    (notifs || []).forEach(n => {
-      const k = bucketLabel(n?.createdAt);
-      (buckets[k] = buckets[k] || []).push(n);
+    const groups = {
+      New: [],
+      Today: [],
+      Earlier: []
+    };
+
+    items.forEach((n, idx) => {
+      const key = bucketLabel(n?.createdAt);
+      if(!groups[key]) groups[key] = [];
+      groups[key].push({ n, idx });
     });
 
-    ["Today","This week","Earlier"].forEach(k => {
-      const items = buckets[k] || [];
-      if(!items.length) return;
+    ["New", "Today", "Earlier"].forEach(section => {
+      const rows = groups[section] || [];
+      if(!rows.length) return;
 
-      listHost.appendChild(el("div", { class:"igNotifSection", text:k }));
+      const group = el("div", { class:"igNotifGroup" }, [
+        el("div", { class:"igNotifSection", text: section })
+      ]);
 
-      // Within a bucket, group by type (Instagram-ish)
-      const order = ["follow","like","comment"];
-      order.forEach(t => {
-        const rows = items.filter(n => String(n?.type||"") === t);
-        if(!rows.length) return;
-
-        const head = (t === "follow") ? "New followers"
-          : (t === "like") ? "Likes"
-          : "Comments";
-
-        listHost.appendChild(el("div", { class:"igNotifGroup", text: head }));
-
-        rows.forEach(n => {
-          listHost.appendChild(rowForNotif(n, follows));
-        });
+      rows.forEach(({ n, idx }) => {
+        group.appendChild(buildRow(n, idx));
       });
+
+      listHost.appendChild(group);
     });
   }
 
