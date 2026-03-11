@@ -8826,15 +8826,9 @@ root.appendChild(el("div", { class:"card" }, [
     : myId;
   const isOwnProfile = !!myId && String(profileUserId || "") === String(myId || "");
 
-        const feedList = (() => {
+                const feedList = (() => {
       if(viewBody !== "profile" || !profileUserId){
         return (feedAll || []);
-      }
-
-      if(isOwnProfile){
-        return (feedAll || []).filter(ev =>
-          String(ev?.actorId || "") === String(profileUserId || "")
-        );
       }
 
       const cacheId = String(profileUserId || "");
@@ -8985,7 +8979,7 @@ root.appendChild(el("div", { class:"card" }, [
     ]));
   }
 
-    if(viewBody === "profile" && profileUserId && !isOwnProfile && configured && user){
+       if(viewBody === "profile" && profileUserId && configured && user){
     const cacheId = String(profileUserId || "");
     const hasCounts = !!ui.profileCountsById?.[cacheId];
     const hasShared = Array.isArray(ui.profileSharedById?.[cacheId]);
@@ -9028,7 +9022,12 @@ root.appendChild(el("div", { class:"card" }, [
       }).finally(() => {
         ui.profileLoadById[cacheId] = false;
         try{
-          if(String(ui.friendId || "") === cacheId && String(ui.view || "") === "profile") renderView();
+          if(
+            String(profileUserId || "") === cacheId &&
+            String(ui.view || "") === "profile"
+          ){
+            renderView();
+          }
         }catch(_){}
       });
     }
