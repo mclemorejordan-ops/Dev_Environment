@@ -1427,7 +1427,7 @@ async function signInWithOAuth(provider){
   }
 }
 
-  async function fetchFeed(){
+   async function fetchFeed(){
   const sb = await ensureClient();
 
   // 🛡 Guard: never attempt feed queries without a configured Supabase client
@@ -1437,43 +1437,47 @@ async function signInWithOAuth(provider){
     return;
   }
 
-      // Ensure we know who we're following + who follows us (UI header counts)
+  // Ensure we know who we're following + who follows us (UI header counts)
   await fetchFollows();
   await fetchFollowers();
 
-    try{
-      const { data, error } = await sb
-        .from("activity_events")
-        .select("id, actor_id, type, payload, created_at")
-        .order("created_at", { ascending: false })
-        .limit(50);
+  try{
+    const { data, error } = await sb
+      .from("activity_events")
+      .select("id, actor_id, type, payload, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-      if(error) throw error;
+    if(error) throw error;
 
-      _feed = (data || []).map(r => ({
+    _feed = (data || [])
+      .map(r => ({
         id: r.id,
         actorId: r.actor_id,
         type: r.type,
         payload: r.payload || {},
         createdAt: r.created_at
-      }));
-      try{
-  const ids = (_feed || []).map(x => x.id);
-  const actors = (_feed || []).map(x => x.actorId);
+      }))
+      // ✅ Historical profile-only events should never appear in the main feed.
+      .filter(ev => String(ev?.payload?.visibility || "").trim() !== "profile_only");
 
-  // ✅ Batch hydration (parallel): faster feed paint, same results
-  await Promise.all([
-    fetchNames(actors),
-    fetchFeedLikes(ids),
-    fetchFeedCommentCounts(ids)
-  ]);
-}catch(_){}
-      
-    }catch(_){
-      // keep last known feed if query fails
-    }
-    notify();
+    try{
+      const ids = (_feed || []).map(x => x.id);
+      const actors = (_feed || []).map(x => x.actorId);
+
+      // ✅ Batch hydration (parallel): faster feed paint, same results
+      await Promise.all([
+        fetchNames(actors),
+        fetchFeedLikes(ids),
+        fetchFeedCommentCounts(ids)
+      ]);
+    }catch(_){}
+  }catch(_){
+    // keep last known feed if query fails
   }
+
+  notify();
+}
 
   function startFeed(){
     stopFeed();
@@ -1772,16 +1776,28 @@ function queueSocialOp(op){
     }catch(_){}
   }
   
-async function upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details }){
+async function upsertWorkoutCompletedEvent({
+  dateISO,
+  routineId,
+  dayId,
+  highlights,
+  details,
+  profileOnly = false
+}){
   if(!isConfigured()) return;
   await ensureClient();
   if(!_user) return;
 
   const ev = formatWorkoutCompletedEvent({ dateISO, routineId, dayId, highlights, details });
+  const payload = { ...(ev.payload || {}) };
+
+  if(profileOnly) payload.visibility = "profile_only";
+  else delete payload.visibility;
+
   const row = {
     actor_id: _user.id,
     type: ev.eventType,
-    payload: ev.payload
+    payload
   };
 
   const todayISO = Dates.todayISO();
@@ -1792,24 +1808,27 @@ async function upsertWorkoutCompletedEvent({ dateISO, routineId, dayId, highligh
 
     const existing = await findExistingWorkoutCompletedEvent({ dateISO, routineId, dayId });
 
-          if(existing?.id != null){
-        const { error } = await sb
-          .from("activity_events")
-          .update({ payload: row.payload })
-          .eq("id", existing.id)
-          .eq("actor_id", _user.id);
+    if(existing?.id != null){
+      const { error } = await sb
+        .from("activity_events")
+        .update({ payload: row.payload })
+        .eq("id", existing.id)
+        .eq("actor_id", _user.id);
 
-        if(error) throw error;
-        await syncWorkoutHistoryDate(dateISO);
-        fetchFeed();
-        return;
-      }
+      if(error) throw error;
+      await syncWorkoutHistoryDate(dateISO);
+      fetchFeed();
+      return;
+    }
 
-    // Only create a brand-new workout feed event for the current calendar day.
-    if(String(dateISO || "") !== String(todayISO)) return;
+    // ✅ Normal feed posts are still today-only.
+    // ✅ Historical profile sync is allowed only when explicitly marked profileOnly.
+    const canInsertNew = (String(dateISO || "") === String(todayISO)) || !!profileOnly;
+    if(!canInsertNew) return;
 
-        const { error } = await sb.from("activity_events").insert(row);
+    const { error } = await sb.from("activity_events").insert(row);
     if(error) throw error;
+
     await syncWorkoutHistoryDate(dateISO);
     fetchFeed();
   }catch(_){
@@ -2548,6 +2567,81 @@ async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
     return true;
   }catch(_){
     return false;
+  }
+}
+
+async function syncHistoricalProfileEventsFromLocalLogs(){
+  try{
+    if(!(Social && typeof Social.isConfigured === "function" && Social.isConfigured())){
+      return { ok:false, reason:"not_configured", synced:0 };
+    }
+
+    if(!(Social && typeof Social.getUser === "function" && Social.getUser())){
+      return { ok:false, reason:"signed_out", synced:0 };
+    }
+
+    if(typeof Social.upsertWorkoutCompletedEvent !== "function"){
+      return { ok:false, reason:"no_upsert", synced:0 };
+    }
+
+    const logs = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
+    if(!logs.length){
+      return { ok:true, synced:0 };
+    }
+
+    const todayISO = String(Dates.todayISO() || "");
+    const groups = new Map();
+
+    logs.forEach(entry => {
+      if(entry?.skipped) return;
+
+      const dateISO = String(entry?.dateISO || "").trim();
+      const routineId = String(entry?.routineId || "").trim();
+      const dayId = String(entry?.dayId || "").trim();
+
+      if(!dateISO || !routineId || !dayId) return;
+      if(dateISO === todayISO) return; // today is handled by normal feed/event sync
+
+      const key = `${dateISO}__${routineId}__${dayId}`;
+      if(!groups.has(key)){
+        groups.set(key, { dateISO, routineId, dayId });
+      }
+    });
+
+    const jobs = Array.from(groups.values()).sort((a,b) => {
+      return String(a.dateISO || "").localeCompare(String(b.dateISO || ""));
+    });
+
+    let synced = 0;
+
+    for(const job of jobs){
+      const resolved = resolveRoutineAndDayForPendingShare(job.routineId, job.dayId);
+      const safeDay = resolved?.day || {
+        id: job.dayId,
+        label: null,
+        order: null,
+        exercises: []
+      };
+
+      const data = buildWorkoutEventData(job.dateISO, job.routineId, safeDay);
+
+      await Social.upsertWorkoutCompletedEvent({
+        dateISO: job.dateISO,
+        routineId: job.routineId,
+        dayId: job.dayId,
+        highlights: data?.highlights || {},
+        details: data?.details || null,
+        profileOnly: true
+      });
+
+      synced += 1;
+    }
+
+    try{ await Social.fetchFeed?.(); }catch(_){}
+
+    return { ok:true, synced };
+  }catch(_){
+    return { ok:false, reason:"sync_failed", synced:0 };
   }
 }
 
@@ -8732,9 +8826,26 @@ root.appendChild(el("div", { class:"card" }, [
     : myId;
   const isOwnProfile = !!myId && String(profileUserId || "") === String(myId || "");
 
-    const feedList = (viewBody === "profile" && profileUserId)
-    ? (feedAll || []).filter(ev => String(ev?.actorId || "") === String(profileUserId || ""))
-    : (feedAll || []);
+        const feedList = (() => {
+      if(viewBody !== "profile" || !profileUserId){
+        return (feedAll || []);
+      }
+
+      if(isOwnProfile){
+        return (feedAll || []).filter(ev =>
+          String(ev?.actorId || "") === String(profileUserId || "")
+        );
+      }
+
+      const cacheId = String(profileUserId || "");
+      if(Array.isArray(ui.profileSharedById?.[cacheId])){
+        return ui.profileSharedById[cacheId];
+      }
+
+      return (feedAll || []).filter(ev =>
+        String(ev?.actorId || "") === String(profileUserId || "")
+      );
+    })();
 
       if(configured && user && isOwnProfile && !ui._routineSharesLoading &&
     (!ui._routineSharesLoadedAt || (Date.now() - ui._routineSharesLoadedAt) > 15000)){
@@ -13849,50 +13960,49 @@ if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
   renderView();
 }
 
-       function openImportFileModal(){
-  const input = el("input", { type:"file", accept:"application/json,.json" });
-  const err = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
+               function openImportFileModal(){
+          const input = el("input", { type:"file", accept:"application/json,.json" });
+          const err = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
-  Modal.open({
-    title: "Import from file",
-    bodyNode: el("div", {}, [
-      el("div", { class:"note", text:"Choose a .json backup file. Import overwrites current data." }),
-      el("div", { style:"height:10px" }),
-      input,
-      err,
-      el("div", { style:"height:12px" }),
-      el("div", { class:"btnrow" }, [
-        el("button", {
-          class:"btn danger",
-          onClick: async () => {
-            err.style.display = "none";
-            try{
-              const f = input.files?.[0];
-              if(!f) throw new Error("Select a JSON file first.");
+          Modal.open({
+            title: "Import from file",
+            bodyNode: el("div", {}, [
+              el("div", { class:"note", text:"Choose a .json backup file. Import overwrites current data." }),
+              el("div", { style:"height:10px" }),
+              input,
+              err,
+              el("div", { style:"height:12px" }),
+              el("div", { class:"btnrow" }, [
+                el("button", {
+                  class:"btn danger",
+                  onClick: async () => {
+                    err.style.display = "none";
+                    try{
+                      const f = input.files?.[0];
+                      if(!f) throw new Error("Select a JSON file first.");
 
-              const txt = await f.text();
+                      const txt = await f.text();
 
-              // 1) Restore local state first
-              importBackupJSON(txt);
+                      importBackupJSON(txt);
 
-              // 2) Immediately refresh Friends session/history so imported dates can sync now
-              try{ await Social.refreshUser?.(); }catch(_){}
+                      try{ await Social.refreshUser?.(); }catch(_){}
+                      try{ await syncHistoricalProfileEventsFromLocalLogs(); }catch(_){}
 
-              Modal.close();
-              navigate("home");
-              showToast("Imported backup");
-              renderView();
-            }catch(e){
-              err.textContent = e.message || "Import failed.";
-              err.style.display = "block";
-            }
-          }
-        }, ["Import (overwrite)"]),
-        el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
-      ])
-    ])
-  });
-}
+                      Modal.close();
+                      navigate("home");
+                      showToast("Imported backup");
+                      renderView();
+                    }catch(e){
+                      err.textContent = e.message || "Import failed.";
+                      err.style.display = "block";
+                    }
+                  }
+                }, ["Import (overwrite)"]),
+                el("button", { class:"btn", onClick: Modal.close }, ["Cancel"])
+              ])
+            ])
+          });
+        }
 
         // --- Section bodies ---
 const profileBody = el("div", {}, [
@@ -16131,7 +16241,7 @@ try{
 const Bootstrap = initBootstrap({
   getState: () => state,
 
-   // Friends/Social: allow bootstrap to rehydrate OAuth session on app load
+  // Friends/Social: allow bootstrap to rehydrate OAuth session on app load
   Social,
 
   ExerciseLibrary,
@@ -16147,6 +16257,8 @@ const Bootstrap = initBootstrap({
 
   checkForUpdates,
   registerServiceWorker,
+
+  syncHistoricalProfileEvents: syncHistoricalProfileEventsFromLocalLogs,
 
   fatal: __fatal
 });
