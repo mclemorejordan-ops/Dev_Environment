@@ -910,6 +910,176 @@ async function fetchNotifications(){
     return { names:_names, usernames:_usernames };
   }
 
+  async function requireFriendsUsernameOrPrompt(){
+  const state = getState();
+  const existing = normalizeUsername(state?.profile?.username || "");
+  if(existing) return true;
+
+  if(requireFriendsUsernameOrPrompt.__open) return false;
+  requireFriendsUsernameOrPrompt.__open = true;
+
+  const input = el("input", {
+    type:"text",
+    placeholder:"jordand",
+    value:"",
+    autocapitalize:"off",
+    autocorrect:"off",
+    spellcheck:"false"
+  });
+
+  const status = el("div", {
+    class:"meta",
+    style:"min-height:18px; margin-top:6px;"
+  });
+
+  const err = el("div", {
+    class:"note",
+    style:"display:none; color: rgba(255,92,122,.95);"
+  });
+
+  let checkSeq = 0;
+  let checkTimer = null;
+  let usernameState = "idle"; // idle | checking | available | taken | invalid
+  let ownerId = null;
+
+  function paint(){
+    const current = normalizeUsername(input.value);
+    if(!current){
+      status.textContent = "Choose a username to use Friends.";
+      status.style.color = "";
+      return;
+    }
+    if(usernameState === "invalid"){
+      status.textContent = "Use 3–20 lowercase letters, numbers, or underscores.";
+      status.style.color = "rgba(255,92,122,.95)";
+      return;
+    }
+    if(usernameState === "checking"){
+      status.textContent = "Checking availability…";
+      status.style.color = "";
+      return;
+    }
+    if(usernameState === "taken"){
+      status.textContent = "Username is already taken.";
+      status.style.color = "rgba(255,92,122,.95)";
+      return;
+    }
+    if(usernameState === "available"){
+      status.textContent = "Username is available.";
+      status.style.color = "rgba(46,204,113,.95)";
+      return;
+    }
+    status.textContent = "Shown in Friends as @username.";
+    status.style.color = "";
+  }
+
+  async function checkNow(opts = {}){
+    const force = !!opts.force;
+    const current = normalizeUsername(input.value);
+
+    if(!force && usernameState === "available" && current) return;
+
+    const seq = ++checkSeq;
+
+    if(!current){
+      usernameState = "idle";
+      ownerId = null;
+      paint();
+      return;
+    }
+
+    if(!isValidUsername(current)){
+      usernameState = "invalid";
+      ownerId = null;
+      paint();
+      return;
+    }
+
+    usernameState = "checking";
+    ownerId = null;
+    paint();
+
+    const foundOwnerId = await getUsernameOwnerId(current);
+    if(seq !== checkSeq) return;
+
+    ownerId = foundOwnerId;
+    usernameState = ownerId ? "taken" : "available";
+    paint();
+  }
+
+  input.addEventListener("input", () => {
+    input.value = normalizeUsername(input.value);
+    err.style.display = "none";
+    if(checkTimer) clearTimeout(checkTimer);
+    checkTimer = setTimeout(() => {
+      checkNow().catch(() => {});
+    }, 250);
+  });
+
+  paint();
+
+  Modal.open({
+    title:"Create username",
+    bodyNode: el("div", { class:"grid" }, [
+      el("div", { class:"note", text:"Friends requires a username so other users can find and interact with you." }),
+      input,
+      status,
+      err,
+      el("div", { class:"btnrow" }, [
+        el("button", {
+          class:"btn primary",
+          onClick: async () => {
+            const nextUsername = normalizeUsername(input.value);
+
+            err.style.display = "none";
+
+            if(checkTimer){
+              clearTimeout(checkTimer);
+              checkTimer = null;
+            }
+
+            await checkNow({ force:true });
+
+            if(!isValidUsername(nextUsername)){
+              err.textContent = "Username must be 3–20 letters, numbers, or underscores.";
+              err.style.display = "block";
+              return;
+            }
+
+            if(usernameState === "taken" || ownerId){
+              err.textContent = "That username is already taken.";
+              err.style.display = "block";
+              return;
+            }
+
+            const liveState = getState();
+            liveState.profile = liveState.profile || {};
+            liveState.profile.username = nextUsername;
+
+            Storage.save(liveState);
+            try{ await Social.refreshUser?.(); }catch(_){}
+
+            requireFriendsUsernameOrPrompt.__open = false;
+            Modal.close();
+            try{ renderView(); }catch(_){}
+            try{ showToast("Username saved"); }catch(_){}
+          }
+        }, ["Save username"]),
+        el("button", {
+          class:"btn",
+          onClick: () => {
+            requireFriendsUsernameOrPrompt.__open = false;
+            Modal.close();
+            try{ navigate("home"); }catch(_){}
+          }
+        }, ["Not now"])
+      ])
+    ])
+  });
+
+  return false;
+}
+
   async function searchProfilesByUsername(query, opts={}){
     const sb = await ensureClient();
     if(!sb || !_user) return [];
@@ -7492,6 +7662,16 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
   const user = Social.getUser && Social.getUser();
   const configured = Social.isConfigured && Social.isConfigured();
+
+       if(!normalizeUsername(state?.profile?.username || "")){
+    requireFriendsUsernameOrPrompt().catch(() => {});
+    return el("div", { class:"grid" }, [
+      el("div", { class:"card" }, [
+        el("h2", { text:"Friends" }),
+        el("div", { class:"note", text:"Create a username to continue." })
+      ])
+    ]);
+  }
 
   function openFriendProfileView(friendId){
     const id = String(friendId || "").trim();
