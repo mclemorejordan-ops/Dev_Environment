@@ -8790,8 +8790,9 @@ root.appendChild(el("div", { class:"card" }, [
         Social.fetchProfileFollowCounts ? Social.fetchProfileFollowCounts(cacheId) : Promise.resolve({ following:0, followers:0 }),
         Social.fetchProfileWorkoutHighlights ? Social.fetchProfileWorkoutHighlights(cacheId) : Promise.resolve([]),
         Social.fetchProfileRoutine ? Social.fetchProfileRoutine(cacheId) : Promise.resolve(null),
-        Social.fetchNames ? Social.fetchNames([cacheId]) : Promise.resolve(null)
-      ]).then(([counts, shared, routine]) => {
+        Social.fetchNames ? Social.fetchNames([cacheId]) : Promise.resolve(null),
+        Social.fetchWorkoutHistoryDates ? Social.fetchWorkoutHistoryDates(cacheId) : Promise.resolve([])
+      ]).then(([counts, shared, routine, _names, workoutHistoryDates]) => {
         ui.profileCountsById[cacheId] = counts || { following:0, followers:0 };
         ui.profileSharedById[cacheId] = Array.isArray(shared) ? shared : [];
         ui.profileRoutineById[cacheId] = routine || {
@@ -8801,6 +8802,9 @@ root.appendChild(el("div", { class:"card" }, [
           routinePayload: null,
           updatedAt: null
         };
+
+        ui.profileWorkoutHistoryById = ui.profileWorkoutHistoryById || {};
+        ui.profileWorkoutHistoryById[cacheId] = Array.isArray(workoutHistoryDates) ? workoutHistoryDates : [];
       }).catch(() => {
         ui.profileCountsById[cacheId] = ui.profileCountsById[cacheId] || { following:0, followers:0 };
         ui.profileSharedById[cacheId] = ui.profileSharedById[cacheId] || [];
@@ -8810,7 +8814,8 @@ root.appendChild(el("div", { class:"card" }, [
           routineName: null,
           routinePayload: null,
           updatedAt: null
-       };
+        };
+
         ui.profileWorkoutHistoryById = ui.profileWorkoutHistoryById || {};
         ui.profileWorkoutHistoryById[cacheId] = ui.profileWorkoutHistoryById[cacheId] || [];
       }).finally(() => {
