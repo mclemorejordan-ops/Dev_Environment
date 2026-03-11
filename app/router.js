@@ -44,9 +44,19 @@ export function initRouter({
     .filter(([,v]) => v.nav)
     .map(([k]) => k);
 
-  let currentRoute = "home";
+    let currentRoute = "home";
+  let routeStack = ["home"];
+  let __swipeBackBound = false;
 
   function getCurrentRoute(){ return currentRoute; }
+
+  function canGoBack(){
+    return routeStack.length > 1;
+  }
+
+  function getPreviousRoute(){
+    return canGoBack() ? routeStack[routeStack.length - 2] : null;
+  }
 
   function setChip(){
     const chip = $("#chipStatus");
@@ -109,28 +119,39 @@ export function initRouter({
     ]));
   }
 
-  function navigate(routeKey){
+    function navigate(routeKey, opts = {}){
     try{ destroyProgressChart && destroyProgressChart(); }catch(_){}
     try{ destroyWeightChart && destroyWeightChart(); }catch(_){}
 
-    // ✅ Route-name contract hardening:
-    // If someone calls navigate("typo_route"), never break rendering.
     const safeRoute = Routes?.[routeKey] ? routeKey : "home";
-    currentRoute = safeRoute;
+
+    const replace = !!opts.replace;
+    const fromBack = !!opts.fromBack;
+    const skipRender = !!opts.skipRender;
+
+    if(fromBack){
+      currentRoute = safeRoute;
+    }else if(replace){
+      currentRoute = safeRoute;
+      routeStack[routeStack.length - 1] = safeRoute;
+    }else{
+      currentRoute = safeRoute;
+
+      const last = routeStack[routeStack.length - 1];
+      if(last !== safeRoute){
+        routeStack.push(safeRoute);
+      }
+    }
+
+    if(skipRender) return;
 
     renderNav();
     renderView();
 
-    // Versioning pills: bind once, then keep the UI current
     bindHeaderPills && bindHeaderPills();
     setHeaderPills && setHeaderPills();
-
-    // Keep throttled background check, but don't spam
     checkForUpdates && checkForUpdates();
 
-    // ─────────────────────────────
-    // GA4: SPA route tracking (page_view)
-    // ─────────────────────────────
     try{
       if(typeof gtag === "function"){
         const label = (Routes?.[safeRoute]?.label) || safeRoute || "unknown";
@@ -147,12 +168,159 @@ export function initRouter({
     }
   }
 
-  return {
+    function goBack(){
+    if(!canGoBack()) return false;
+
+    routeStack.pop();
+    const prev = routeStack[routeStack.length - 1] || "home";
+
+    navigate(prev, { fromBack:true });
+    return true;
+  }
+
+    function isInteractiveTarget(node){
+    const elNode = node instanceof Element ? node : null;
+    if(!elNode) return false;
+
+    return !!elNode.closest(
+      'input, textarea, select, option, button, a, label, [contenteditable="true"], [data-no-swipe-back]'
+    );
+  }
+
+  function hasOpenModalOrPopover(){
+    const modalHost = document.getElementById("modalHost");
+    const popHost = document.getElementById("popHost");
+
+    const modalOpen = !!(modalHost && modalHost.classList.contains("show"));
+    const popOpen = !!(popHost && popHost.classList.contains("show"));
+
+    return modalOpen || popOpen;
+  }
+
+  function findHorizontalScroller(node){
+    let cur = node instanceof Element ? node : null;
+
+    while(cur && cur !== document.body){
+      try{
+        const style = window.getComputedStyle(cur);
+        const overflowX = style?.overflowX || "";
+        const canScrollX = cur.scrollWidth > cur.clientWidth + 2;
+
+        if(canScrollX && (overflowX === "auto" || overflowX === "scroll")){
+          return cur;
+        }
+      }catch(_){}
+      cur = cur.parentElement;
+    }
+
+    return null;
+  }
+
+  function bindSwipeBack(){
+    if(__swipeBackBound) return;
+    __swipeBackBound = true;
+
+    const EDGE_PX = 28;
+    const TRIGGER_PX = 72;
+    const MAX_VERTICAL_DRIFT = 36;
+
+    let tracking = false;
+    let blocked = false;
+    let startX = 0;
+    let startY = 0;
+    let scroller = null;
+
+    document.addEventListener("touchstart", (e) => {
+      const t = e.changedTouches && e.changedTouches[0];
+      if(!t) return;
+
+      tracking = false;
+      blocked = false;
+      scroller = null;
+      startX = t.clientX;
+      startY = t.clientY;
+
+      if(startX > EDGE_PX) return;
+      if(hasOpenModalOrPopover()) return;
+      if(isInteractiveTarget(e.target)) return;
+      if(!canGoBack()) return;
+
+      scroller = findHorizontalScroller(e.target);
+      if(scroller && scroller.scrollLeft > 0){
+        return;
+      }
+
+      tracking = true;
+    }, { passive:true });
+
+    document.addEventListener("touchmove", (e) => {
+      if(!tracking || blocked) return;
+
+      const t = e.changedTouches && e.changedTouches[0];
+      if(!t) return;
+
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+
+      if(Math.abs(dy) > MAX_VERTICAL_DRIFT && Math.abs(dy) > Math.abs(dx)){
+        blocked = true;
+        return;
+      }
+
+      if(scroller){
+        try{
+          if(scroller.scrollLeft > 0){
+            blocked = true;
+          }
+        }catch(_){}
+      }
+    }, { passive:true });
+
+    document.addEventListener("touchend", (e) => {
+      if(!tracking || blocked) {
+        tracking = false;
+        blocked = false;
+        scroller = null;
+        return;
+      }
+
+      const t = e.changedTouches && e.changedTouches[0];
+      if(!t){
+        tracking = false;
+        blocked = false;
+        scroller = null;
+        return;
+      }
+
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+
+      tracking = false;
+      blocked = false;
+      scroller = null;
+
+      if(dx >= TRIGGER_PX && Math.abs(dy) <= MAX_VERTICAL_DRIFT){
+        goBack();
+      }
+    }, { passive:true });
+
+    document.addEventListener("touchcancel", () => {
+      tracking = false;
+      blocked = false;
+      scroller = null;
+    }, { passive:true });
+  }
+
+    return {
     Routes,
     NAV_KEYS,
     renderNav,
     renderView,
     navigate,
+    goBack,
+    canGoBack,
+    getPreviousRoute,
+    bindSwipeBack,
     getCurrentRoute
   };
 }
