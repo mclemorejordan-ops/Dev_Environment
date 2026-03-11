@@ -13849,7 +13849,7 @@ if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
   renderView();
 }
 
-        function openImportFileModal(){
+       function openImportFileModal(){
   const input = el("input", { type:"file", accept:"application/json,.json" });
   const err = el("div", { class:"note", style:"display:none; color: rgba(255,92,122,.95);" });
 
@@ -13866,33 +13866,24 @@ if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
           class:"btn danger",
           onClick: async () => {
             err.style.display = "none";
-
             try{
               const f = input.files?.[0];
               if(!f) throw new Error("Select a JSON file first.");
 
               const txt = await f.text();
 
-              // 1) Local import always happens first
+              // 1) Restore local state first
               importBackupJSON(txt);
 
-              // 2) Best-effort remote profile history sync for Friends users
-              const sync = await syncImportedProfileHistoryAfterImport();
+              // 2) Immediately refresh Friends session/history so imported dates can sync now
+              try{ await Social.refreshUser?.(); }catch(_){}
 
               Modal.close();
               navigate("home");
-
-              if(sync?.ok){
-                showToast("Imported backup + synced profile history");
-              }else if(sync?.reason === "signed_out" || sync?.reason === "not_configured"){
-                showToast("Imported backup. Sign in to Friends to sync profile history.");
-              }else{
-                showToast("Imported backup. Remote history sync could not finish.");
-              }
-
+              showToast("Imported backup");
               renderView();
             }catch(e){
-              err.textContent = e?.message || "Import failed.";
+              err.textContent = e.message || "Import failed.";
               err.style.display = "block";
             }
           }
