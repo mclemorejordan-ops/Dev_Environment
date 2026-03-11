@@ -9885,12 +9885,10 @@ function openProfileRoutineModal(snapshot, noteText, opts = {}){
 )
     ];
 
-        cards.push(metricCard(
+            cards.push(metricCard(
       "Consistency",
-      "—",
-      isOwnProfile
-        ? "Current routine streak coming next"
-        : "Shared consistency coming next"
+      consistencyMetric.value,
+      consistencyMetric.meta
     ));
 
     return el("div", { class:"card" }, [
