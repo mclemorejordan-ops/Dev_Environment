@@ -9182,13 +9182,132 @@ root.appendChild(el("div", { class:"card" }, [
   return sum + weightPrCount;
 }, 0);
 
-    const strengthBest = isOwnProfile ? ownStrengthBest : sharedStrengthBest;
+        const strengthBest = isOwnProfile ? ownStrengthBest : sharedStrengthBest;
     const cardioBest = isOwnProfile ? ownCardioBest : sharedCardioBest;
-    const totalPRs = isOwnProfile ? ownTotalPRs : sharedTotalPRs;
 
         const activeRoutine = isOwnProfile && Routines && typeof Routines.getActive === "function"
       ? Routines.getActive()
       : null;
+
+    const sharedRoutine = !isOwnProfile
+      ? (ui.profileRoutineById?.[String(profileUserId || "")] || null)
+      : null;
+
+    const sharedRoutineSnapshot = (!isOwnProfile && sharedRoutine?.enabled && sharedRoutine?.routinePayload)
+      ? sharedRoutine.routinePayload
+      : null;
+
+    function toOwnRoutineSnapshot(routine){
+  if(!routine) return null;
+  return {
+    routineId: routine?.id || null,
+    name: routine?.name || "Routine",
+    days: (routine.days || [])
+      .slice()
+      .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
+      .map((day, idx) => ({
+        id: day?.id || null,
+        order: Number(day?.order ?? idx) || 0,
+        label: day?.label || `Day ${idx + 1}`,
+        isRest: !!day?.isRest,
+        exercises: (day?.exercises || []).map((rx, exIdx) => ({
+          id: rx?.id || null,
+          order: exIdx,
+          type: String(rx?.type || ""),
+          exerciseId: rx?.exerciseId || null,
+          name: resolveExerciseName(rx?.type, rx?.exerciseId, rx?.nameSnap || "Exercise"),
+          plan: rx?.plan || null,
+          notes: String(rx?.notes || "")
+        }))
+      }))
+  };
+}
+
+    function currentConsistencyMetric(snapshot, completedDateISOs, opts = {}){
+      const fallbackValue = opts?.loading ? "Loading…" : "—";
+      const fallbackMeta = opts?.loading
+        ? "Loading consistency…"
+        : (opts?.noRoutineMeta || "No routine available");
+
+      const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+      if(!days.length){
+        return { value: fallbackValue, meta: fallbackMeta };
+      }
+
+      const trainingOrders = new Set(
+        days
+          .filter(day => !day?.isRest)
+          .map(day => Number(day?.order))
+          .filter(Number.isFinite)
+      );
+
+      if(!trainingOrders.size){
+        return { value: "—", meta: "Routine has only rest days" };
+      }
+
+      const completed = new Set(
+        (completedDateISOs || [])
+          .map(v => String(v || "").trim())
+          .filter(Boolean)
+      );
+
+      let streak = 0;
+      let cursor = new Date();
+      cursor.setHours(12, 0, 0, 0);
+
+      for(let i = 0; i < 366; i++){
+        const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
+        const order = cursor.getDay(); // 0=Sun..6=Sat (matches routine day order)
+
+        if(!trainingOrders.has(order)){
+          cursor.setDate(cursor.getDate() - 1);
+          continue;
+        }
+
+        if(completed.has(iso)){
+          streak += 1;
+          cursor.setDate(cursor.getDate() - 1);
+          continue;
+        }
+
+        break;
+      }
+
+      return {
+        value: String(streak),
+        meta: streak === 1 ? "Current training day streak" : "Current training days streak"
+      };
+    }
+
+    const ownRoutineSnapshot = isOwnProfile ? toOwnRoutineSnapshot(activeRoutine) : null;
+
+    const ownCompletedWorkoutDateISOs = Array.from(new Set(
+      ownWorkoutLogs
+        .filter(entry => !entry?.skipped)
+        .map(entry => String(entry?.dateISO || "").trim())
+        .filter(Boolean)
+    ));
+
+    const sharedCompletedWorkoutDateISOs = Array.from(new Set(
+      sharedEvents
+        .filter(ev => String(ev?.type || "") === "workout_completed")
+        .map(ev => String(
+          ev?.payload?.details?.dateISO ||
+          ev?.payload?.dateISO ||
+          ""
+        ).trim())
+        .filter(Boolean)
+    ));
+
+    const consistencyMetric = isOwnProfile
+      ? currentConsistencyMetric(ownRoutineSnapshot, ownCompletedWorkoutDateISOs, {
+          loading: false,
+          noRoutineMeta: "Create or set a routine"
+        })
+      : currentConsistencyMetric(sharedRoutineSnapshot, sharedCompletedWorkoutDateISOs, {
+          loading: sharedLoading,
+          noRoutineMeta: "Routine not shared"
+        });
 
     const sharedRoutine = !isOwnProfile
       ? (ui.profileRoutineById?.[String(profileUserId || "")] || null)
