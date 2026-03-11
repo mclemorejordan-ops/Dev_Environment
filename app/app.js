@@ -10431,30 +10431,75 @@ function openCompareProfilePRModal(opts = {}){
     ]);
   }
 
-  function repaintCompare(filterText){
-    const q = normalizeCompareName(filterText || "");
-    listHost.innerHTML = "";
+  function buildCompareValue(item, kind){
+    if(!item) return "—";
 
-    const filtered = mergedRows.filter(rowItem =>
-      !q || normalizeCompareName(rowItem?.name || "").includes(q)
-    );
+    if(kind === "strength"){
+      const weight = Number(item?.weight || 0);
+      const reps = Number(item?.reps || 0);
+      if(weight > 0 && reps > 0) return `${fmtNum(weight)} × ${reps}`;
+      if(weight > 0) return `${fmtNum(weight)} lb`;
+      return "—";
+    }
 
-    if(!filtered.length){
-      listHost.appendChild(el("div", {
+    if(Number.isFinite(item?.pace) && item.pace > 0){
+      return fmtPaceSafe(item.pace);
+    }
+
+    const distance = Number(item?.distance || 0);
+    if(distance > 0) return `${fmtNum(distance)} mi`;
+
+    const timeSec = Number(item?.timeSec || 0);
+    if(timeSec > 0) return fmtTimeSafe(timeSec);
+
+    return "—";
+  }
+
+  function buildCompareMeta(item, kind){
+    if(!item) return "No result";
+
+    if(kind === "strength"){
+      const weight = Number(item?.weight || 0);
+      const reps = Number(item?.reps || 0);
+      if(weight > 0 && reps > 0) return `Top weight • ${fmtNum(weight)} × ${reps}`;
+      if(weight > 0) return `Top weight • ${fmtNum(weight)} lb`;
+      return "No result";
+    }
+
+    const distance = Number(item?.distance || 0);
+    const timeSec = Number(item?.timeSec || 0);
+    const paceText = (Number.isFinite(item?.pace) && item.pace > 0) ? fmtPaceSafe(item.pace) : "";
+
+    if(paceText && distance > 0 && timeSec > 0){
+      return `${fmtNum(distance)} mi • ${fmtTimeSafe(timeSec)}`;
+    }
+    if(paceText && distance > 0) return `${fmtNum(distance)} mi`;
+    if(distance > 0 && timeSec > 0) return `${fmtNum(distance)} mi • ${fmtTimeSafe(timeSec)}`;
+    if(distance > 0) return `${fmtNum(distance)} mi`;
+    if(timeSec > 0) return fmtTimeSafe(timeSec);
+
+    return paceText || "No result";
+  }
+
+  function renderCompareRows(host, rows){
+    host.innerHTML = "";
+
+    if(!rows.length){
+      host.appendChild(el("div", {
         class:"note",
         text:"No matching exercises found."
       }));
       return;
     }
 
-    filtered.forEach(rowItem => {
+    rows.forEach(rowItem => {
       const leftValue = buildCompareValue(rowItem.left, rowItem.kind);
       const rightValue = buildCompareValue(rowItem.right, rowItem.kind);
       const leftMeta = buildCompareMeta(rowItem.left, rowItem.kind);
       const rightMeta = buildCompareMeta(rowItem.right, rowItem.kind);
       const outcome = getCompareOutcome(rowItem.left, rowItem.right, rowItem.kind);
 
-      listHost.appendChild(el("div", {
+      host.appendChild(el("div", {
         class:"card",
         style:[
           "padding:12px",
@@ -10502,6 +10547,54 @@ function openCompareProfilePRModal(opts = {}){
         ])
       ]));
     });
+  }
+
+  function openCompareFullListModal(filteredRows){
+    const fullListHost = el("div", { class:"grid" });
+
+    Modal.open({
+      title: `All Comparisons • ${baseDisplayName} vs ${row.displayName}`,
+      bodyNode: el("div", { class:"grid" }, [
+        compareHeader.cloneNode(true),
+        el("div", { class:"note", text:`Showing all ${filteredRows.length} compared exercises.` }),
+        fullListHost
+      ])
+    });
+
+    renderCompareRows(fullListHost, filteredRows);
+  }
+
+  function repaintCompare(filterText){
+    const q = normalizeCompareName(filterText || "");
+
+    const filtered = mergedRows.filter(rowItem =>
+      !q || normalizeCompareName(rowItem?.name || "").includes(q)
+    );
+
+    const topRows = filtered.slice(0, 4);
+    renderCompareRows(listHost, topRows);
+
+    const existingWrap = listHost.parentNode?.querySelector?.("[data-compare-view-all-wrap]");
+    if(existingWrap) existingWrap.remove();
+
+    if(filtered.length > 4 && listHost.parentNode){
+      listHost.parentNode.appendChild(
+        el("div", {
+          "data-compare-view-all-wrap":"1",
+          style:"margin-top:10px;"
+        }, [
+          el("button", {
+            class:"btn",
+            style:"width:100%;",
+            onClick: () => openCompareFullListModal(filtered)
+          }, [`View All (${filtered.length})`])
+        ])
+      );
+    }
+  }
+
+  function normalizeCompareName(v){
+    return normName ? normName(v) : String(v || "").trim().toLowerCase();
   }
 
   const compareSearchWrap = el("div", { class:"addExSearch" }, [
