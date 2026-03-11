@@ -16257,6 +16257,10 @@ const Router = initRouter({
 // Pull router funcs, but DO NOT redeclare `navigate` (we already defined it above).
 const { Routes, renderNav, renderView, getCurrentRoute } = Router;
 
+// ✅ Critical fix:
+// Rebind the early placeholder navigate() to the real router navigate function.
+// Without this, UI links like "Manage Routine" only update location.hash and do not render.
+navigate = routerNavigate;
 
 // ✅ Friends/Social: auto-refresh UI after OAuth redirect (and during feed polling)
 // Only re-render on Friends or Settings routes to avoid extra work elsewhere.
