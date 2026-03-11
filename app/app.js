@@ -9277,82 +9277,105 @@ root.appendChild(el("div", { class:"card" }, [
 }
 
     function currentConsistencyMetric(snapshot, completedDateISOs, opts = {}){
-      const fallbackValue = opts?.loading ? "Loading…" : "—";
-      const fallbackMeta = opts?.loading
-        ? "Loading consistency…"
-        : (opts?.noRoutineMeta || "No routine available");
+  const fallbackValue = opts?.loading ? "Loading…" : "—";
+  const fallbackMeta = opts?.loading
+    ? "Loading consistency…"
+    : (opts?.noRoutineMeta || "No routine available");
 
-      const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  const completedList = Array.from(new Set(
+    (completedDateISOs || [])
+      .map(v => String(v || "").trim())
+      .filter(Boolean)
+  )).sort();
 
-      const completed = new Set(
-        (completedDateISOs || [])
-          .map(v => String(v || "").trim())
-          .filter(Boolean)
-      );
+  if(!completedList.length){
+    return { value: fallbackValue, meta: fallbackMeta };
+  }
 
-      if(!days.length){
-        let streak = 0;
-        let cursor = new Date();
-        cursor.setHours(12, 0, 0, 0);
+  const latestCompletedISO = completedList[completedList.length - 1];
+  const latestParts = latestCompletedISO.split("-").map(Number);
+  if(latestParts.length !== 3 || latestParts.some(n => !Number.isFinite(n))){
+    return { value: fallbackValue, meta: fallbackMeta };
+  }
 
-        for(let i = 0; i < 366; i++){
-          const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  const completed = new Set(completedList);
 
-          if(completed.has(iso)){
-            streak += 1;
-            cursor.setDate(cursor.getDate() - 1);
-            continue;
-          }
+  function dateFromISO(iso){
+    const [y, m, d] = String(iso || "").split("-").map(Number);
+    if(!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+    const dt = new Date(y, m - 1, d);
+    dt.setHours(12, 0, 0, 0);
+    return dt;
+  }
 
-          break;
-        }
-
-        return {
-          value: String(streak),
-          meta: streak === 1
-            ? "Current workout day streak"
-            : "Current workout days streak"
-        };
-      }
-
-      const trainingOrders = new Set(
-        days
-          .filter(day => !day?.isRest)
-          .map(day => Number(day?.order))
-          .filter(Number.isFinite)
-      );
-
-      if(!trainingOrders.size){
-        return { value: "—", meta: "Routine has only rest days" };
-      }
-
-      let streak = 0;
-      let cursor = new Date();
-      cursor.setHours(12, 0, 0, 0);
-
-      for(let i = 0; i < 366; i++){
-        const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
-        const order = cursor.getDay(); // 0=Sun..6=Sat (matches routine day order)
-
-        if(!trainingOrders.has(order)){
-          cursor.setDate(cursor.getDate() - 1);
-          continue;
-        }
-
-        if(completed.has(iso)){
-          streak += 1;
-          cursor.setDate(cursor.getDate() - 1);
-          continue;
-        }
-
-        break;
-      }
-
-      return {
-        value: String(streak),
-        meta: streak === 1 ? "Current training day streak" : "Current training days streak"
-      };
+  if(!days.length){
+    let streak = 0;
+    let cursor = dateFromISO(latestCompletedISO);
+    if(!cursor){
+      return { value: fallbackValue, meta: fallbackMeta };
     }
+
+    for(let i = 0; i < 366; i++){
+      const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
+
+      if(completed.has(iso)){
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+        continue;
+      }
+
+      break;
+    }
+
+    return {
+      value: String(streak),
+      meta: streak === 1
+        ? "Current workout day streak"
+        : "Current workout days streak"
+    };
+  }
+
+  const trainingOrders = new Set(
+    days
+      .filter(day => !day?.isRest)
+      .map(day => Number(day?.order))
+      .filter(Number.isFinite)
+  );
+
+  if(!trainingOrders.size){
+    return { value: "—", meta: "Routine has only rest days" };
+  }
+
+  let streak = 0;
+  let cursor = dateFromISO(latestCompletedISO);
+  if(!cursor){
+    return { value: fallbackValue, meta: fallbackMeta };
+  }
+
+  for(let i = 0; i < 366; i++){
+    const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
+    const order = cursor.getDay(); // 0=Sun..6=Sat (matches routine day order)
+
+    if(!trainingOrders.has(order)){
+      cursor.setDate(cursor.getDate() - 1);
+      continue;
+    }
+
+    if(completed.has(iso)){
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+      continue;
+    }
+
+    break;
+  }
+
+  return {
+    value: String(streak),
+    meta: streak === 1 ? "Current training day streak" : "Current training days streak"
+  };
+}
 
     const ownRoutineSnapshot = isOwnProfile ? toOwnRoutineSnapshot(activeRoutine) : null;
 
