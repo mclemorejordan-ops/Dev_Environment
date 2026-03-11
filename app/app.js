@@ -7777,6 +7777,9 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
     const root = el("div", { class:"grid" });
 
+     const user = Social.getUser && Social.getUser();
+const configured = Social.isConfigured && Social.isConfigured();
+
     const friendsState = getState();
   if(!normalizeUsername(friendsState?.profile?.username || "")){
     requireFriendsUsernameOrPrompt();
