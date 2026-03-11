@@ -9230,8 +9230,36 @@ root.appendChild(el("div", { class:"card" }, [
         : (opts?.noRoutineMeta || "No routine available");
 
       const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+
+      const completed = new Set(
+        (completedDateISOs || [])
+          .map(v => String(v || "").trim())
+          .filter(Boolean)
+      );
+
       if(!days.length){
-        return { value: fallbackValue, meta: fallbackMeta };
+        let streak = 0;
+        let cursor = new Date();
+        cursor.setHours(12, 0, 0, 0);
+
+        for(let i = 0; i < 366; i++){
+          const iso = `${cursor.getFullYear()}-${pad2(cursor.getMonth() + 1)}-${pad2(cursor.getDate())}`;
+
+          if(completed.has(iso)){
+            streak += 1;
+            cursor.setDate(cursor.getDate() - 1);
+            continue;
+          }
+
+          break;
+        }
+
+        return {
+          value: String(streak),
+          meta: streak === 1
+            ? "Current workout day streak"
+            : "Current workout days streak"
+        };
       }
 
       const trainingOrders = new Set(
@@ -9244,12 +9272,6 @@ root.appendChild(el("div", { class:"card" }, [
       if(!trainingOrders.size){
         return { value: "—", meta: "Routine has only rest days" };
       }
-
-      const completed = new Set(
-        (completedDateISOs || [])
-          .map(v => String(v || "").trim())
-          .filter(Boolean)
-      );
 
       let streak = 0;
       let cursor = new Date();
