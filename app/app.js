@@ -10362,6 +10362,20 @@ function openProfileStrengthPRModal(opts = {}){
 
     const list = el("div", { class:"grid" });
 
+    const searchWrap = el("div", { class:"addExSearch" }, [
+  el("div", { class:"ico", text:"🔎" }),
+  el("input", {
+    type:"text",
+    placeholder:"Search exercises…",
+    onInput: (e) => {
+      const q = normName(e.target.value || "");
+      list.querySelectorAll("[data-pr-name]").forEach(node => {
+        node.style.display = !q || normName(node.dataset.prName || "").includes(q) ? "" : "none";
+      });
+    }
+  })
+]);
+
     if(!rows.length){
       list.appendChild(el("div", {
         class:"note",
@@ -10372,8 +10386,9 @@ function openProfileStrengthPRModal(opts = {}){
     }else{
       rows.forEach((item, idx) => {
         list.appendChild(el("div", {
-          class:"card",
-          style:[
+  class:"card",
+  "data-pr-name": item.name || "Exercise",
+  style:[
             "padding:12px",
             "border:1px solid rgba(255,255,255,.10)",
             "background:rgba(255,255,255,.05)",
@@ -10411,12 +10426,13 @@ function openProfileStrengthPRModal(opts = {}){
     }
 
     Modal.open({
-      title: titleText,
-      bodyNode: el("div", { class:"grid" }, [
-        el("div", { class:"note", text: noteText }),
-        list
-      ])
-    });
+  title: titleText,
+  bodyNode: el("div", { class:"grid" }, [
+    el("div", { class:"note", text: noteText }),
+    searchWrap,
+    list
+  ])
+});
   }
 
   const tabs = el("div", {
@@ -10725,6 +10741,20 @@ function openProfileCardioPRModal(opts = {}){
 
     const list = el("div", { class:"grid" });
 
+    const searchWrap = el("div", { class:"addExSearch" }, [
+  el("div", { class:"ico", text:"🔎" }),
+  el("input", {
+    type:"text",
+    placeholder:"Search exercises…",
+    onInput: (e) => {
+      const q = normName(e.target.value || "");
+      list.querySelectorAll("[data-pr-name]").forEach(node => {
+        node.style.display = !q || normName(node.dataset.prName || "").includes(q) ? "" : "none";
+      });
+    }
+  })
+]);
+
     if(!rows.length){
       const emptyLabel =
         mode === "pace" ? "pace" :
@@ -10738,8 +10768,9 @@ function openProfileCardioPRModal(opts = {}){
     }else{
       rows.forEach((item, idx) => {
         list.appendChild(el("div", {
-          class:"card",
-          style:[
+  class:"card",
+  "data-pr-name": item.name || "Exercise",
+  style:[
             "padding:12px",
             "border:1px solid rgba(255,255,255,.10)",
             "background:rgba(255,255,255,.05)",
@@ -10777,12 +10808,13 @@ function openProfileCardioPRModal(opts = {}){
     }
 
     Modal.open({
-      title: titleText,
-      bodyNode: el("div", { class:"grid" }, [
-        el("div", { class:"note", text: noteText }),
-        list
-      ])
-    });
+  title: titleText,
+  bodyNode: el("div", { class:"grid" }, [
+    el("div", { class:"note", text: noteText }),
+    searchWrap,
+    list
+  ])
+});
   }
 
   function renderCardioTab(mode){
