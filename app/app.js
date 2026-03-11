@@ -10195,7 +10195,6 @@ function openCompareProfilePRModal(opts = {}){
   const baseUserId = String(opts?.baseUserId || "");
   const baseDisplayName = String(opts?.baseDisplayName || "User");
 
-  let selectedUser = null;
   let searchTimer = null;
 
   const queryInput = el("input", {
@@ -10212,6 +10211,241 @@ function openCompareProfilePRModal(opts = {}){
     queryInput,
     resultsHost
   ]);
+
+  function normalizeCompareName(v){
+    return normName ? normName(v) : String(v || "").trim().toLowerCase();
+  }
+
+  function buildCompareValue(item, kind){
+    if(!item) return "—";
+
+    if(kind === "strength"){
+      const weight = Number(item?.weight || 0);
+      const reps = Number(item?.reps || 0);
+      if(weight > 0 && reps > 0) return `${fmtNum(weight)} × ${reps}`;
+      if(weight > 0) return `${fmtNum(weight)} lb`;
+      return "—";
+    }
+
+    if(Number.isFinite(item?.pace) && item.pace > 0){
+      return fmtPaceSafe(item.pace);
+    }
+
+    const distance = Number(item?.distance || 0);
+    if(distance > 0) return `${fmtNum(distance)} mi`;
+
+    const timeSec = Number(item?.timeSec || 0);
+    if(timeSec > 0) return fmtTimeSafe(timeSec);
+
+    return "—";
+  }
+
+  function buildCompareMeta(item, kind){
+    if(!item) return "No result";
+
+    if(kind === "strength"){
+      const weight = Number(item?.weight || 0);
+      const reps = Number(item?.reps || 0);
+      if(weight > 0 && reps > 0) return `Top weight • ${fmtNum(weight)} × ${reps}`;
+      if(weight > 0) return `Top weight • ${fmtNum(weight)} lb`;
+      return "No result";
+    }
+
+    const distance = Number(item?.distance || 0);
+    const timeSec = Number(item?.timeSec || 0);
+    const paceText = (Number.isFinite(item?.pace) && item.pace > 0) ? fmtPaceSafe(item.pace) : "";
+
+    if(paceText && distance > 0 && timeSec > 0){
+      return `${fmtNum(distance)} mi • ${fmtTimeSafe(timeSec)}`;
+    }
+    if(paceText && distance > 0) return `${fmtNum(distance)} mi`;
+    if(distance > 0 && timeSec > 0) return `${fmtNum(distance)} mi • ${fmtTimeSafe(timeSec)}`;
+    if(distance > 0) return `${fmtNum(distance)} mi`;
+    if(timeSec > 0) return fmtTimeSafe(timeSec);
+
+    return paceText || "No result";
+  }
+
+  function buildCompareRows(leftItems, rightItems, kind){
+    const leftMap = new Map();
+    const rightMap = new Map();
+
+    (Array.isArray(leftItems) ? leftItems : []).forEach(item => {
+      const key = normalizeCompareName(item?.name || "");
+      if(key) leftMap.set(key, item);
+    });
+
+    (Array.isArray(rightItems) ? rightItems : []).forEach(item => {
+      const key = normalizeCompareName(item?.name || "");
+      if(key) rightMap.set(key, item);
+    });
+
+    const allKeys = Array.from(new Set([
+      ...leftMap.keys(),
+      ...rightMap.keys()
+    ])).sort((a, b) => a.localeCompare(b));
+
+    return allKeys.map(key => ({
+      key,
+      name: leftMap.get(key)?.name || rightMap.get(key)?.name || "Exercise",
+      left: leftMap.get(key) || null,
+      right: rightMap.get(key) || null,
+      kind
+    }));
+  }
+
+  function openSplitCompareModal(row, compareStrength, compareCardio){
+    const leftStrength = Array.isArray(opts?.baseStrengthItems) ? opts.baseStrengthItems : [];
+    const leftCardio = Array.isArray(opts?.baseCardioItems) ? opts.baseCardioItems : [];
+    const rightStrength = Array.isArray(compareStrength) ? compareStrength : [];
+    const rightCardio = Array.isArray(compareCardio) ? compareCardio : [];
+
+    const mergedRows = [
+      ...buildCompareRows(leftStrength, rightStrength, "strength"),
+      ...buildCompareRows(leftCardio, rightCardio, "cardio")
+    ].sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+
+    const listHost = el("div", { class:"grid" });
+
+    function buildSideCard(nameText, valueText, metaText, align){
+      return el("div", {
+        class:"card",
+        style:[
+          "padding:12px",
+          "border:1px solid rgba(255,255,255,.10)",
+          "background:rgba(255,255,255,.05)",
+          "border-radius:16px",
+          "min-height:102px"
+        ].join(";")
+      }, [
+        el("div", {
+          style:[
+            "font-size:11px",
+            "font-weight:900",
+            "letter-spacing:.22px",
+            "opacity:.68",
+            "text-transform:uppercase",
+            `text-align:${align}`
+          ].join(";")
+        }, [nameText]),
+        el("div", {
+          style:[
+            "margin-top:8px",
+            "font-size:16px",
+            "font-weight:1000",
+            "line-height:1.15",
+            `text-align:${align}`,
+            "overflow:hidden",
+            "text-overflow:ellipsis",
+            "white-space:nowrap"
+          ].join(";")
+        }, [valueText]),
+        el("div", {
+          class:"note",
+          style:[
+            "margin-top:6px",
+            `text-align:${align}`,
+            "overflow:hidden",
+            "text-overflow:ellipsis",
+            "white-space:nowrap"
+          ].join(";")
+        }, [metaText])
+      ]);
+    }
+
+    function repaintCompare(filterText){
+      const q = normalizeCompareName(filterText || "");
+      listHost.innerHTML = "";
+
+      const filtered = mergedRows.filter(rowItem =>
+        !q || normalizeCompareName(rowItem?.name || "").includes(q)
+      );
+
+      if(!filtered.length){
+        listHost.appendChild(el("div", {
+          class:"note",
+          text:"No matching exercises found."
+        }));
+        return;
+      }
+
+      filtered.forEach(rowItem => {
+        const leftValue = buildCompareValue(rowItem.left, rowItem.kind);
+        const rightValue = buildCompareValue(rowItem.right, rowItem.kind);
+        const leftMeta = buildCompareMeta(rowItem.left, rowItem.kind);
+        const rightMeta = buildCompareMeta(rowItem.right, rowItem.kind);
+
+        listHost.appendChild(el("div", {
+          style:[
+            "display:grid",
+            "grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr)",
+            "gap:12px",
+            "align-items:stretch"
+          ].join(";")
+        }, [
+          buildSideCard(baseDisplayName, leftValue, leftMeta, "left"),
+          el("div", {
+            style:"background:rgba(255,255,255,.10); border-radius:999px;"
+          }),
+          buildSideCard(row.displayName || "User", rightValue, rightMeta, "left")
+        ]));
+
+        listHost.appendChild(el("div", {
+          style:[
+            "margin-top:-4px",
+            "margin-bottom:6px",
+            "padding:0 4px",
+            "font-size:12px",
+            "font-weight:900",
+            "opacity:.78",
+            "text-transform:uppercase",
+            "letter-spacing:.2px"
+          ].join(";")
+        }, [rowItem.name || "Exercise"]));
+      });
+    }
+
+    const compareSearchWrap = el("div", { class:"addExSearch" }, [
+      el("div", { class:"ico", text:"🔎" }),
+      el("input", {
+        type:"text",
+        value:"",
+        placeholder:"Search compared exercises…",
+        onInput: (e) => repaintCompare(e?.target?.value || "")
+      })
+    ]);
+
+    const compareHeader = el("div", {
+      class:"card",
+      style:[
+        "padding:12px",
+        "border:1px solid rgba(255,255,255,.10)",
+        "background:rgba(255,255,255,.04)"
+      ].join(";")
+    }, [
+      el("div", {
+        style:"display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:center;"
+      }, [
+        el("div", {
+          style:"font-weight:1000; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [baseDisplayName]),
+        el("div", {
+          style:"font-weight:1000; font-size:14px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+        }, [row.displayName || "User"])
+      ])
+    ]);
+
+    Modal.open({
+      title: `Compare • ${baseDisplayName} vs ${row.displayName}`,
+      bodyNode: el("div", { class:"grid" }, [
+        compareHeader,
+        compareSearchWrap,
+        listHost
+      ])
+    });
+
+    repaintCompare("");
+  }
 
   async function runSearch(){
     const q = normalizeUsername(queryInput.value);
@@ -10236,30 +10470,13 @@ function openCompareProfilePRModal(opts = {}){
         class:"item",
         style:"width:100%; text-align:left; color:inherit;",
         onClick: async () => {
-          selectedUser = row;
           Modal.close();
 
           const compareEvents = await Social.fetchProfileWorkoutHighlights(row.id);
           const compareStrength = getSharedStrengthAndCorePRsFromEvents(compareEvents);
           const compareCardio = getSharedCardioPRsFromEvents(compareEvents);
 
-          Modal.open({
-            title: `Compare • ${baseDisplayName} vs ${row.displayName}`,
-            bodyNode: el("div", { class:"grid" }, [
-              el("div", { class:"card" }, [
-                el("div", { style:"font-weight:1000; margin-bottom:8px;" }, [baseDisplayName]),
-                buildPRListRows(Array.isArray(opts?.baseStrengthItems) ? opts.baseStrengthItems : [], "strength"),
-                el("div", { style:"height:10px" }),
-                buildPRListRows(Array.isArray(opts?.baseCardioItems) ? opts.baseCardioItems : [], "cardio")
-              ]),
-              el("div", { class:"card" }, [
-                el("div", { style:"font-weight:1000; margin-bottom:8px;" }, [row.displayName || "User"]),
-                buildPRListRows(compareStrength, "strength"),
-                el("div", { style:"height:10px" }),
-                buildPRListRows(compareCardio, "cardio")
-              ])
-            ])
-          });
+          openSplitCompareModal(row, compareStrength, compareCardio);
         }
       }, [
         el("div", { class:"left" }, [
