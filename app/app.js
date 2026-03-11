@@ -7777,8 +7777,16 @@ statsHost.appendChild(el("div", { class:"pill" }, [
 
     const root = el("div", { class:"grid" });
 
-  const user = Social.getUser && Social.getUser();
-  const configured = Social.isConfigured && Social.isConfigured();
+    const friendsState = getState();
+  if(!normalizeUsername(friendsState?.profile?.username || "")){
+    requireFriendsUsernameOrPrompt();
+    return el("div", { class:"grid" }, [
+      el("div", { class:"card" }, [
+        el("h2", { text:"Friends" }),
+        el("div", { class:"note", text:"Create a username to continue." })
+      ])
+    ]);
+  }
 
          const friendsState = getState();
   if(!normalizeUsername(friendsState?.profile?.username || "")){
@@ -7881,6 +7889,23 @@ function openFollowerNotifsModal(){
     showToast("Sign in to view notifications");
     return;
   }
+
+  if(!requireFriendsUsernameOrPrompt()) return;
+
+  // Back-compat: bell button currently calls openNotificationsModal()
+  function openNotificationsModal(){
+    return openFollowerNotifsModal();
+  }
+
+  const topLeft = el("div", { class:"igNotifTopLeft" }, [
+    el("div", { class:"igNotifTitle", text:"Notifications" }),
+    el("div", {
+      class:"igNotifSub",
+      text:"Likes, comments, and follows appear here."
+    })
+  ]);
+
+  
 
   // Back-compat: bell button currently calls openNotificationsModal()
   function openNotificationsModal(){
@@ -8162,6 +8187,8 @@ function openFollowerNotifsModal(){
 }
 
 function openAddFriendModal(){
+  if(!requireFriendsUsernameOrPrompt()) return;
+
   let searchSeq = 0;
   let searchDebounce = null;
 
@@ -15876,12 +15903,21 @@ Views.RoutineEditor = function(){
       return;
     }
 
-    if(!(Social.getUser && Social.getUser())){
+       if(!(Social.getUser && Social.getUser())){
       showToast("Sign in to share routines");
       return;
     }
 
+    if(!requireFriendsUsernameOrPrompt()) return;
+
     const usernameInput = el("input", {
+      class:"connCodeInput",
+      type:"text",
+      placeholder:"@username",
+      autocapitalize:"off",
+      autocorrect:"off",
+      spellcheck:"false"
+    });
       class:"connCodeInput",
       type:"text",
       placeholder:"@username",
