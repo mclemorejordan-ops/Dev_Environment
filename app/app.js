@@ -1679,11 +1679,23 @@ async function signInWithOAuth(provider){
   await fetchFollowers();
 
   try{
-    const { data, error } = await sb
-      .from("activity_events")
-      .select("id, actor_id, type, payload, created_at")
-      .order("created_at", { ascending: false })
-      .limit(50);
+    // ✅ Build visible actor set: me + follows
+const myId = String(_user?.id || "");
+const followIds = (getFollows ? getFollows() : [])
+  .map(x => String(x || "").trim())
+  .filter(Boolean);
+
+const visibleActorIds = Array.from(new Set([
+  myId,
+  ...followIds
+])).filter(Boolean);
+
+const { data, error } = await sb
+  .from("activity_events")
+  .select("id, actor_id, type, payload, created_at")
+  .in("actor_id", visibleActorIds)   // ✅ CRITICAL FIX
+  .order("created_at", { ascending: false })
+  .limit(100); // slight bump for better coverage
 
     if(error) throw error;
 
@@ -1722,9 +1734,8 @@ async function signInWithOAuth(provider){
 
     const pollSocial = () => {
       try{
-        Promise.allSettled([
-          fetchFeed(),
-          fetchNotifications()
+        await fetchFeed();
+        await fetchNotifications();
         ]).catch(() => {});
       }catch(_){}
     };
