@@ -1275,9 +1275,12 @@ async function signInWithOAuth(provider){
     notify();
   }
 
-  async function fetchFollows(){
+    async function fetchFollows(){
     const sb = await ensureClient();
     if(!sb || !_user) { _follows = []; return []; }
+
+    const prev = Array.isArray(_follows) ? _follows.slice() : [];
+
     try{
       const { data, error } = await sb
         .from("follows")
@@ -1287,10 +1290,30 @@ async function signInWithOAuth(provider){
       _follows = (data || []).map(r => String(r.followee_id || "")).filter(Boolean);
       return _follows;
     }catch(_){
-      _follows = [];
-      return [];
+      _follows = prev;
+      return prev;
     }
   }
+  
+    async function fetchFollowers(){
+  const sb = await ensureClient();
+  if(!sb || !_user) { _followers = []; return []; }
+
+  const prev = Array.isArray(_followers) ? _followers.slice() : [];
+
+  try{
+    const { data, error } = await sb
+      .from("follows")
+      .select("follower_id")
+      .eq("followee_id", _user.id);
+    if(error) throw error;
+    _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
+    return _followers;
+  }catch(_){
+    _followers = prev;
+    return prev;
+  }
+}
   
     async function fetchFollowers(){
   const sb = await ensureClient();
@@ -8281,9 +8304,9 @@ const addFriendBtn = el("button", {
   onClick: () => openAddFriendModal()
 }, ["Add Friend"]);
      
-  function openConnectionsModal(initialTab){
+    function openConnectionsModal(initialTab){
   ui.connTab = initialTab || ui.connTab || "following";
-  ui.connSearch = ui.connSearch || "";
+  ui.connSearch = "";
   ui.connAddCode = ui.connAddCode || "";
 
   const statsRow = el("div", { class:"connStats" });
@@ -8322,9 +8345,25 @@ const addFriendBtn = el("button", {
 
   async function refreshLists(){
     try{
-      if(Social.fetchFollows) await Social.fetchFollows();
-      if(Social.fetchFollowers) await Social.fetchFollowers();
+      await Promise.all([
+        Social.fetchFollows ? Social.fetchFollows() : Promise.resolve([]),
+        Social.fetchFollowers ? Social.fetchFollowers() : Promise.resolve([])
+      ]);
     }catch(_){}
+  }
+
+  function hydrateNames(ids, paintSeq){
+    const list = Array.from(new Set((ids || []).map(x => String(x || "")).filter(Boolean)));
+    if(!list.length || !Social.fetchNames) return;
+
+    Promise.resolve().then(async () => {
+      try{
+        await Social.fetchNames(list);
+      }catch(_){}
+
+      if(paintSeq !== repaintSeq) return;
+      try{ repaintModal({ skipHydrate:true }); }catch(_){}
+    });
   }
 
   function avatarLetter(name){
@@ -8590,8 +8629,9 @@ const addFriendBtn = el("button", {
     ]);
   }
 
-  async function repaintModal(){
+  async function repaintModal(opts = {}){
     const paintSeq = ++repaintSeq;
+    const skipHydrate = !!opts.skipHydrate;
     const follows = Social.getFollows ? Social.getFollows() : [];
     const followers = Social.getFollowers ? Social.getFollowers() : [];
 
@@ -8613,13 +8653,6 @@ const addFriendBtn = el("button", {
       : (ui.connTab === "followers") ? followers
       : mutualIds).map(x => String(x || "")).filter(Boolean);
 
-    try{
-      const idsToHydrate = q ? allConnectionIds : currentTabIds;
-      if(idsToHydrate.length && Social.fetchNames) await Social.fetchNames(idsToHydrate);
-    }catch(_){}
-
-    if(paintSeq !== repaintSeq) return;
-
     bodyHost.innerHTML = "";
     searchStatus.style.display = "none";
 
@@ -8637,14 +8670,24 @@ const addFriendBtn = el("button", {
             : (ui.connTab === "followers") ? "No followers yet."
             : "No mutual connections yet."
         }));
-        return;
+      }else{
+        const items = sortConnectionIds(currentTabIds, "");
+        const mode = (ui.connTab === "following") ? "following" : "followers";
+        appendRows(items, mode, followsSet, followersSet);
       }
 
-      const items = sortConnectionIds(currentTabIds, "");
-      const mode = (ui.connTab === "following") ? "following" : "followers";
-      appendRows(items, mode, followsSet, followersSet);
+      if(!skipHydrate) hydrateNames(currentTabIds, paintSeq);
       return;
     }
+
+    try{
+      if(allConnectionIds.length && Social.fetchNames) await Social.fetchNames(allConnectionIds);
+    }catch(_){}
+
+    if(paintSeq !== repaintSeq) return;
+
+    bodyHost.innerHTML = "";
+    searchStatus.style.display = "none";
 
     const localMatches = sortConnectionIds(
       allConnectionIds.filter(id => matchesConnectionSearch(id, q)),
@@ -8722,7 +8765,8 @@ const addFriendBtn = el("button", {
     ])
   });
 
-  refreshLists().then(repaintModal);
+  repaintModal();
+  refreshLists().then(() => { try{ repaintModal(); }catch(_){} });
 }
      
      
@@ -8782,15 +8826,11 @@ root.appendChild(el("div", { class:"card" }, [
 
     const notifCount = (Social.getNotifications ? Social.getNotifications().length : 0);
 
-    const openConn = async (tab) => {
+       const openConn = (tab) => {
       if(!configured){
         showToast("Set up Friends in Settings first");
         return;
       }
-      try{
-        if(Social.fetchFollows) { try{ await Social.fetchFollows(); }catch(_){} }
-        if(Social.fetchFollowers) { try{ await Social.fetchFollowers(); }catch(_){} }
-      }catch(_){}
       openConnectionsModal(tab);
     };
 
