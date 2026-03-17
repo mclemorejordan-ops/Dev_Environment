@@ -1,7 +1,11 @@
 {
-  "version": "3.06",
+  "version": "3.07",
   "buildDate": "2026-03-11",
   "notes": [
-    "Version 3.06 - Friends Feed UI Fix"
+    "Version 3.7 Updates",
+    " - Friend UI Up and Running",
+    " - Refreshed historic data to new users feed",
+    " - Following/Followers now show users without needing to enter a user first",
+    " - Following and Follower count flash",
   ]
 }
