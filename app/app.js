@@ -87,7 +87,6 @@ const SOCIAL_PENDING_WORKOUT_SHARE_KEY = "pc.social.pendingWorkoutShare.v1";
 let __pendingWorkoutShareReplayBusy = false;
 
 const SOCIAL_WORKOUT_HISTORY_SYNC_KEY = "pc.social.workoutHistorySync.v1";
-const SOCIAL_FEED_BACKFILL_SYNC_KEY = "pc.social.feedBackfill.v1";
 
 function readWorkoutHistorySyncStamp(){
   try{
@@ -2087,10 +2086,10 @@ async function upsertWorkoutCompletedEvent({
       return;
     }
 
-    // ✅ Allow public workout-completed posts for previous days too.
-    // ✅ Keep explicit profile-only history hidden from the main feed.
-    const canInsertNew = !!profileOnly || !!String(dateISO || "").trim();
-    if(!canInsertNew) return;
+   // ✅ Normal feed posts are still today-only.
+  // ✅ Historical profile sync is allowed only when explicitly marked profileOnly.
+  const canInsertNew = (String(dateISO || "") === String(todayISO)) || !!profileOnly;
+  if(!canInsertNew) return;
 
     const { error } = await sb.from("activity_events").insert(row);
     if(error) throw error;
@@ -2729,15 +2728,9 @@ async function syncImportedProfileHistoryAfterImport(){
       return { ok:false, reason:"signed_out" };
     }
 
-    const result = await syncHistoricalSocialEventsFromLocalLogs();
-
     try{ await Social.fetchFeed?.(); }catch(_){}
 
-    return {
-      ok: !!result?.ok,
-      profileSynced: Number(result?.profileSynced || 0) || 0,
-      feedSynced: Number(result?.feedSynced || 0) || 0
-    };
+    return { ok:true };
   }catch(_){
     return { ok:false, reason:"sync_failed" };
   }
@@ -2918,120 +2911,7 @@ async function syncHistoricalProfileEventsFromLocalLogs(){
   }
 }
 
-async function syncHistoricalFeedEventsFromLocalLogs(){
-  try{
-    if(!(Social && typeof Social.isConfigured === "function" && Social.isConfigured())){
-      return { ok:false, reason:"not_configured", synced:0 };
-    }
 
-    if(!(Social && typeof Social.getUser === "function" && Social.getUser())){
-      return { ok:false, reason:"signed_out", synced:0 };
-    }
-
-    if(typeof Social.upsertWorkoutCompletedEvent !== "function"){
-      return { ok:false, reason:"no_upsert", synced:0 };
-    }
-
-    const user = Social.getUser();
-    const userId = String(user?.id || "").trim();
-    if(!userId){
-      return { ok:false, reason:"missing_user", synced:0 };
-    }
-
-    const logs = Array.isArray(state?.logs?.workouts) ? state.logs.workouts : [];
-    if(!logs.length){
-      return { ok:true, synced:0 };
-    }
-
-    const groups = new Map();
-
-    logs.forEach(entry => {
-      if(entry?.skipped) return;
-
-      const dateISO = String(entry?.dateISO || "").trim();
-      const routineId = String(entry?.routineId || "").trim();
-      const dayId = String(entry?.dayId || "").trim();
-
-      if(!dateISO || !routineId || !dayId) return;
-
-      const key = `${dateISO}__${routineId}__${dayId}`;
-      if(!groups.has(key)){
-        groups.set(key, { dateISO, routineId, dayId });
-      }
-    });
-
-    const jobs = Array.from(groups.values()).sort((a, b) => {
-      const dateCmp = String(a.dateISO || "").localeCompare(String(b.dateISO || ""));
-      if(dateCmp !== 0) return dateCmp;
-
-      const routineCmp = String(a.routineId || "").localeCompare(String(b.routineId || ""));
-      if(routineCmp !== 0) return routineCmp;
-
-      return String(a.dayId || "").localeCompare(String(b.dayId || ""));
-    });
-
-    const nextStamp = `${jobs.length}|${jobs.map(j => `${j.dateISO}:${j.routineId}:${j.dayId}`).join("|")}`;
-
-    let stampCache = {};
-    try{
-      stampCache = JSON.parse(localStorage.getItem(SOCIAL_FEED_BACKFILL_SYNC_KEY) || "{}") || {};
-    }catch(_){
-      stampCache = {};
-    }
-
-    if(String(stampCache?.[userId] || "") === nextStamp){
-      return { ok:true, synced:0, skipped:true };
-    }
-
-    let synced = 0;
-
-    for(const job of jobs){
-      const resolved = resolveRoutineAndDayForPendingShare(job.routineId, job.dayId);
-      const safeDay = resolved?.day || {
-        id: job.dayId,
-        label: null,
-        order: null,
-        exercises: []
-      };
-
-      const data = buildWorkoutEventData(job.dateISO, job.routineId, safeDay);
-
-      await Social.upsertWorkoutCompletedEvent({
-        dateISO: job.dateISO,
-        routineId: job.routineId,
-        dayId: job.dayId,
-        highlights: data?.highlights || {},
-        details: data?.details || null
-      });
-
-      synced += 1;
-    }
-
-    stampCache[userId] = nextStamp;
-    try{
-      localStorage.setItem(SOCIAL_FEED_BACKFILL_SYNC_KEY, JSON.stringify(stampCache));
-    }catch(_){}
-
-    try{ await Social.fetchFeed?.(); }catch(_){}
-
-    return { ok:true, synced };
-  }catch(_){
-    return { ok:false, reason:"sync_failed", synced:0 };
-  }
-}
-
-async function syncHistoricalSocialEventsFromLocalLogs(){
-  const profileResult = await syncHistoricalProfileEventsFromLocalLogs();
-  const feedResult = await syncHistoricalFeedEventsFromLocalLogs();
-
-  return {
-    ok: !!(profileResult?.ok && feedResult?.ok),
-    profileSynced: Number(profileResult?.synced || 0) || 0,
-    feedSynced: Number(feedResult?.synced || 0) || 0,
-    profileResult,
-    feedResult
-  };
-}
 
 
 // 1) Init Backup FIRST so we have the functions
@@ -14436,7 +14316,7 @@ if(ownerId && (!state.profile?.username || ownerId !== Social.getUser?.()?.id)){
                       importBackupJSON(txt);
 
                       try{ await Social.refreshUser?.(); }catch(_){}
-                      try{ await syncHistoricalSocialEventsFromLocalLogs(); }catch(_){}
+                      try{ await syncHistoricalProfileEventsFromLocalLogs(); }catch(_){}
 
                       Modal.close();
                       navigate("home");
@@ -16709,7 +16589,7 @@ const Bootstrap = initBootstrap({
   checkForUpdates,
   registerServiceWorker,
 
-  syncHistoricalProfileEvents: syncHistoricalSocialEventsFromLocalLogs,
+  syncHistoricalProfileEvents: syncHistoricalProfileEventsFromLocalLogs,
 
   fatal: __fatal
 });
