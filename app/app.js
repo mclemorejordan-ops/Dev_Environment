@@ -910,9 +910,9 @@ async function fetchNotifications(){
     return { names:_names, usernames:_usernames };
   }
 
-  async function requireFriendsUsernameOrPrompt(){
-  const state = getState();
-  const existing = normalizeUsername(state?.profile?.username || "");
+    async function requireFriendsUsernameOrPrompt(){
+  const live = (typeof stateRef === "function" ? stateRef() : null) || state;
+  const existing = normalizeUsername(live?.profile?.username || "");
   if(existing) return true;
 
   if(requireFriendsUsernameOrPrompt.__open) return false;
@@ -1052,7 +1052,7 @@ async function fetchNotifications(){
               return;
             }
 
-            const liveState = getState();
+            const liveState = (typeof stateRef === "function" ? stateRef() : null) || state;
             liveState.profile = liveState.profile || {};
             liveState.profile.username = nextUsername;
 
