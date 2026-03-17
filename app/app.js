@@ -1728,16 +1728,7 @@ const { data, error } = await sb
   notify();
 }
 
-    function startFeed(){
-  stopFeed();
-  if(!_user) return;
-
-  const pollSocial = async () => {
-    try{
-      await fetchFeed();
-      await fetchNotifications();
-    }catch(_){}
-  };
+    function startFeed(){ stopFeed(); if(!_user) return; const pollSocial = () => { try{ Promise.allSettled([ fetchFeed(), fetchNotifications() ]).catch(() => {}); }catch(_){} };
 
   // Warm both feed + bell immediately
   pollSocial();
