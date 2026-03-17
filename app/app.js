@@ -1728,23 +1728,24 @@ const { data, error } = await sb
   notify();
 }
 
-    function startFeed(){ stopFeed(); if(!_user) return; const pollSocial = () => { try{ Promise.allSettled([ fetchFeed(), fetchNotifications() ]).catch(() => {}); }catch(_){} };
+  function startFeed(){
+  stopFeed();
+  if(!_user) return;
+
+  const pollSocial = () => {
+    try{
+      await fetchFeed();
+      await fetchNotifications();
+      ]).catch(() => {});
+    }catch(_){}
+  };
 
   // Warm both feed + bell immediately
   pollSocial();
 
   // Keep both updated while app is open
-  _pollTimer = setInterval(() => {
-    pollSocial().catch(() => {});
-  }, 12000); // 12s: feels live, low cost
+  _pollTimer = setInterval(pollSocial, 12000); // 12s: feels live, low cost
 }
-
-    // Warm both feed + bell immediately
-    pollSocial();
-
-    // Keep both updated while app is open
-    _pollTimer = setInterval(pollSocial, 12000); // 12s: feels live, low cost
-  }
 
   function stopFeed(){
     if(_pollTimer){
