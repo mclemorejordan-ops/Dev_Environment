@@ -1732,19 +1732,20 @@ const { data, error } = await sb
   stopFeed();
   if(!_user) return;
 
-  const pollSocial = () => {
+  const pollSocial = async () => {
     try{
       await fetchFeed();
       await fetchNotifications();
-      ]).catch(() => {});
     }catch(_){}
   };
 
   // Warm both feed + bell immediately
-  pollSocial();
+  pollSocial().catch(() => {});
 
   // Keep both updated while app is open
-  _pollTimer = setInterval(pollSocial, 12000); // 12s: feels live, low cost
+  _pollTimer = setInterval(() => {
+    pollSocial().catch(() => {});
+  }, 12000); // 12s: feels live, low cost
 }
 
   function stopFeed(){
