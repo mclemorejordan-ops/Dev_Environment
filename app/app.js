@@ -2086,9 +2086,9 @@ async function upsertWorkoutCompletedEvent({
       return;
     }
 
-    // ✅ Normal feed posts are still today-only.
-    // ✅ Historical profile sync is allowed only when explicitly marked profileOnly.
-    const canInsertNew = (String(dateISO || "") === String(todayISO)) || !!profileOnly;
+    // ✅ Allow public workout-completed posts for previous days too.
+    // ✅ Keep explicit profile-only history hidden from the main feed.
+    const canInsertNew = !!profileOnly || !!String(dateISO || "").trim();
     if(!canInsertNew) return;
 
     const { error } = await sb.from("activity_events").insert(row);
