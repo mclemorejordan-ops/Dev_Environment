@@ -1688,7 +1688,7 @@ async function signInWithOAuth(provider){
   }
 }
 
-   async function fetchFeed(){
+    async function fetchFeed(){
   const sb = await ensureClient();
 
   // 🛡 Guard: never attempt feed queries without a configured Supabase client
@@ -1704,26 +1704,55 @@ async function signInWithOAuth(provider){
 
   try{
     // ✅ Build visible actor set: me + follows
-const myId = String(_user?.id || "");
-const followIds = (getFollows ? getFollows() : [])
-  .map(x => String(x || "").trim())
-  .filter(Boolean);
+    const myId = String(_user?.id || "");
+    const followIds = (getFollows ? getFollows() : [])
+      .map(x => String(x || "").trim())
+      .filter(Boolean);
 
-const visibleActorIds = Array.from(new Set([
-  myId,
-  ...followIds
-])).filter(Boolean);
+    const visibleActorIds = Array.from(new Set([
+      myId,
+      ...followIds
+    ])).filter(Boolean);
 
-const { data, error } = await sb
-  .from("activity_events")
-  .select("id, actor_id, type, payload, created_at")
-  .in("actor_id", visibleActorIds)   // ✅ CRITICAL FIX
-  .order("created_at", { ascending: false })
-  .limit(100); // slight bump for better coverage
+    if(!visibleActorIds.length){
+      _feed = [];
+      notify();
+      return;
+    }
 
-    if(error) throw error;
+    // ✅ Twitter-style timeline:
+    // Load ALL feed-visible events for me + followed users, newest first.
+    // We page through Supabase results to avoid the old hard 100-row cutoff.
+    const PAGE_SIZE = 500;
+    const MAX_PAGES = 20; // safety cap: up to 10,000 rows in one refresh
+    const allRows = [];
+    let page = 0;
+    let keepGoing = true;
 
-    _feed = (data || [])
+    while(keepGoing && page < MAX_PAGES){
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error } = await sb
+        .from("activity_events")
+        .select("id, actor_id, type, payload, created_at")
+        .in("actor_id", visibleActorIds)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if(error) throw error;
+
+      const rows = Array.isArray(data) ? data : [];
+      allRows.push(...rows);
+
+      if(rows.length < PAGE_SIZE){
+        keepGoing = false;
+      }else{
+        page += 1;
+      }
+    }
+
+    _feed = allRows
       .map(r => ({
         id: r.id,
         actorId: r.actor_id,
@@ -1731,14 +1760,14 @@ const { data, error } = await sb
         payload: r.payload || {},
         createdAt: r.created_at
       }))
-      // ✅ Historical profile-only events should never appear in the main feed.
+      // ✅ Historical/profile-sync only events stay off the main feed
       .filter(ev => String(ev?.payload?.visibility || "").trim() !== "profile_only");
 
     try{
       const ids = (_feed || []).map(x => x.id);
-      const actors = (_feed || []).map(x => x.actorId);
+      const actors = Array.from(new Set((_feed || []).map(x => x.actorId).filter(Boolean)));
 
-      // ✅ Batch hydration (parallel): faster feed paint, same results
+      // ✅ Batch hydration (parallel): same behavior, just on the expanded timeline
       await Promise.all([
         fetchNames(actors),
         fetchFeedLikes(ids),
