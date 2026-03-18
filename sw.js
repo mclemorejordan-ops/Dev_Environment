@@ -81,7 +81,6 @@ async function precacheShell(cache, urls){
     })
   );
 
-  // Install should only fail if core app entry is missing.
   const required = new Set([
     "./",
     "./index.html",
@@ -100,7 +99,6 @@ async function precacheShell(cache, urls){
     if(r.status === "rejected"){
       const url = urls[idx];
       if(required.has(url)) failedRequired.push(url);
-      // Intentionally silent in production-safe mode.
     }
   });
 
