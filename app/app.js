@@ -1251,45 +1251,27 @@ async function signInWithOAuth(provider){
   }
   
     async function fetchFollowers(){
-  const sb = await ensureClient();
-  if(!sb || !_user) { _followers = []; return []; }
+    const sb = await ensureClient();
+    if(!sb || !_user) { _followers = []; return []; }
 
-  const prev = Array.isArray(_followers) ? _followers.slice() : [];
+    const prev = Array.isArray(_followers) ? _followers.slice() : [];
 
-  try{
-    const { data, error } = await sb
-      .from("follows")
-      .select("follower_id")
-      .eq("followee_id", _user.id);
-    if(error) throw error;
-    _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
-    return _followers;
-  }catch(_){
-    _followers = prev;
-    return prev;
+    try{
+      const { data, error } = await sb
+        .from("follows")
+        .select("follower_id")
+        .eq("followee_id", _user.id);
+      if(error) throw error;
+      _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
+      return _followers;
+    }catch(_){
+      _followers = prev;
+      return prev;
+    }
   }
-}
-  
-    async function fetchFollowers(){
-  const sb = await ensureClient();
-  if(!sb || !_user) { _followers = []; return []; }
-  try{
-    const { data, error } = await sb
-      .from("follows")
-      .select("follower_id")
-      .eq("followee_id", _user.id);
-    if(error) throw error;
-    _followers = (data || []).map(r => String(r.follower_id || "")).filter(Boolean);
-    return _followers;
-  }catch(_){
-    _followers = [];
-    return [];
-  }
-}
 
-
-        let _myProfileRoutineEnabled = false;
-    let _routineSharesInbox = [];
+  let _myProfileRoutineEnabled = false;
+  let _routineSharesInbox = [];
 
   function buildPublicRoutineSnapshot(routine){
     const s = stateRef ? stateRef() : null;
