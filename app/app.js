@@ -866,51 +866,6 @@ async function fetchNotifications(){
     return { names:_names, usernames:_usernames };
   }
 
-    async function fetchNames(ids){
-    const sb = await ensureClient();
-    if(!sb || !_user) return { names:_names, usernames:_usernames };
-
-    const uniq = Array.from(new Set((ids || [])
-      .map(x => String(x || ""))
-      .filter(Boolean)
-    ));
-
-    const missing = uniq.filter(id =>
-      !Object.prototype.hasOwnProperty.call(_names, String(id)) ||
-      !Object.prototype.hasOwnProperty.call(_usernames, String(id))
-    );
-
-    if(!missing.length) return { names:_names, usernames:_usernames };
-
-    try{
-      const { data, error } = await sb
-        .from("profiles")
-        .select("id, display_name, username")
-        .in("id", missing);
-
-      if(error) throw error;
-
-      (data || []).forEach(r => {
-        const id = String(r.id || "");
-        if(!id) return;
-
-        const dn = String(r.display_name || "").trim();
-        const un = normalizeUsername(r.username || "");
-
-        _names[id] = dn || "User";
-        _usernames[id] = un || "";
-      });
-
-      missing.forEach(id => {
-        const k = String(id || "");
-        if(!Object.prototype.hasOwnProperty.call(_names, k)) _names[k] = "User";
-        if(!Object.prototype.hasOwnProperty.call(_usernames, k)) _usernames[k] = "";
-      });
-    }catch(_){}
-
-    return { names:_names, usernames:_usernames };
-  }
-
     async function requireFriendsUsernameOrPrompt(){
   const live = (typeof stateRef === "function" ? stateRef() : null) || state;
   const existing = normalizeUsername(live?.profile?.username || "");
@@ -5847,35 +5802,7 @@ async function maybePromptWorkoutFeedShare(dateISO, routineId, day){
       ])
     });
   }catch(_){}
-}
-  
-async function syncWorkoutCompletedEventForDay(dateISO, routineId, day){
-  try{
-    if(!Social) return;
-
-    const safeDayId = day?.id || null;
-    if(!dateISO || !routineId || !safeDayId) return;
-
-    if(!isDayComplete(dateISO, day)){
-      if(typeof Social.deleteWorkoutCompletedEvent === "function"){
-        await Social.deleteWorkoutCompletedEvent({ dateISO, routineId, dayId: safeDayId });
-      }
-      return;
-    }
-
-    if(typeof Social.upsertWorkoutCompletedEvent === "function"){
-      const data = buildWorkoutEventData(dateISO, routineId, day);
-      await Social.upsertWorkoutCompletedEvent({
-        dateISO,
-        routineId,
-        dayId: safeDayId,
-        highlights: data.highlights,
-        details: data.details
-      });
-    }
-  }catch(_){}
-}
-  
+}  
 
 function buildWeightliftingForm(){
   const rowsHost = el("div", { class:"logsetWLCard" }, []);
@@ -6220,61 +6147,6 @@ function hasRoutineExerciseLogged(dateISO, routineExerciseId){
 function isRoutineExerciseDone(dateISO, routineExerciseId){
   return hasRoutineExerciseLogged(dateISO, routineExerciseId) ||
          hasRoutineExerciseSkipped(dateISO, routineExerciseId);
-}
-
-function clearSkippedRoutineExercise(dateISO, routineExerciseId){
-  const before = (state.logs?.workouts || []).length;
-
-  state.logs.workouts = (state.logs.workouts || []).filter(e =>
-    !(
-      String(e?.dateISO || "") === String(dateISO || "") &&
-      String(e?.routineExerciseId || "") === String(routineExerciseId || "") &&
-      !!e?.skipped
-    )
-  );
-
-  if((state.logs.workouts || []).length !== before){
-    Storage.save(state);
-    return true;
-  }
-
-  return false;
-}
-
-function markRoutineExerciseSkipped({ dateISO, routineId, day, rx }){
-  if(!dateISO || !routineId || !day?.id || !rx?.id) return false;
-
-  // Do not overwrite a real logged exercise with skip.
-  if(hasRoutineExerciseLogged(dateISO, rx.id)) return false;
-
-  LogEngine.ensure();
-
-  state.logs.workouts = (state.logs.workouts || []).filter(e =>
-    !(
-      String(e?.dateISO || "") === String(dateISO || "") &&
-      String(e?.routineExerciseId || "") === String(rx.id || "")
-    )
-  );
-
-  state.logs.workouts.push({
-    id: uid("skip"),
-    createdAt: Date.now(),
-    dateISO,
-    type: rx.type,
-    exerciseId: rx.exerciseId,
-    routineExerciseId: rx.id,
-    routineId,
-    dayId: day.id,
-    dayOrder: day.order,
-    nameSnap: rx.nameSnap || resolveExerciseName(rx.type, rx.exerciseId, rx.nameSnap),
-    sets: [],
-    summary: {},
-    pr: {},
-    skipped: true
-  });
-
-  Storage.save(state);
-  return true;
 }
 
 function isDayComplete(dateISO, day){
