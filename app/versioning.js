@@ -233,18 +233,12 @@ export async function registerServiceWorker(){
 
     // When new SW takes control, mark applied version (metadata only) and reload once
     let reloaded = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if(reloaded) return;
-      reloaded = true;
-
-      if(__latestVersion){
-        __appliedVersion = __latestVersion;
-        localStorage.setItem(VERSION_APPLIED_KEY, __latestVersion);
-      }
-
-      // Reload under the new build; does NOT clear user profile/localStorage
-      location.reload();
-    });
+    if(versionChanged){
+  try{ await registerServiceWorker(); }catch(_){}
+  if(__swReg){
+    try{ await __swReg.update(); }catch(_){}
+  }
+}
 
   }catch(e){
     console.warn("Service worker registration failed:", e);
