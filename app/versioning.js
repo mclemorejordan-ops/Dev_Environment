@@ -38,6 +38,8 @@ let __swReg = null;
 let __swUrlRegistered = "";
 let __swUpdateReady = false;
 let __swInstalling = false;
+let __swControllerChangeBound = false;
+let __swControllerReloaded = false;
 
 // Let app.js provide a live state reference (so we can flush safely)
 let __getStateRef = () => null;
@@ -231,14 +233,23 @@ export async function registerServiceWorker(){
       });
     });
 
-    // When new SW takes control, mark applied version (metadata only) and reload once
-    let reloaded = false;
-    if(versionChanged){
-  try{ await registerServiceWorker(); }catch(_){}
-  if(__swReg){
-    try{ await __swReg.update(); }catch(_){}
-  }
-}
+    // Bind controllerchange exactly once for the lifetime of the page.
+    if(!__swControllerChangeBound){
+      __swControllerChangeBound = true;
+
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if(__swControllerReloaded) return;
+        __swControllerReloaded = true;
+
+        if(__latestVersion){
+          __appliedVersion = __latestVersion;
+          localStorage.setItem(VERSION_APPLIED_KEY, __latestVersion);
+        }
+
+        // Reload under the new build; does NOT clear user profile/localStorage
+        location.reload();
+      });
+    }
 
   }catch(e){
     console.warn("Service worker registration failed:", e);
