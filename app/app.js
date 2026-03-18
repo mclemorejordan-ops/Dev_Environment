@@ -1875,7 +1875,7 @@ async function signInWithOAuth(provider){
   }
   
 
-  async function flushOutbox(){
+    async function flushOutbox(){
     const sb = await ensureClient();
     if(!sb || !_user) return;
 
@@ -1883,15 +1883,131 @@ async function signInWithOAuth(provider){
     if(!items.length) return;
 
     const keep = [];
+
     for(const it of items){
       try{
-        const { error } = await sb.from("activity_events").insert(it);
-        if(error) throw error;
+        // Backward-compatible path:
+        // old queue items are plain activity_events rows
+        const op = String(it?.op || "").trim();
+
+        if(!op){
+          const { error } = await sb.from("activity_events").insert(it);
+          if(error) throw error;
+          continue;
+        }
+
+        // Future-safe typed ops
+        if(op === "insert_activity_event"){
+          const row = it?.row || null;
+          if(!row) throw new Error("Missing row for insert_activity_event");
+
+          const { error } = await sb.from("activity_events").insert(row);
+          if(error) throw error;
+          continue;
+        }
+
+        if(op === "delete_activity_event"){
+          const eventId = it?.eventId;
+          if(eventId === null || eventId === undefined) throw new Error("Missing eventId for delete_activity_event");
+
+          const { error } = await sb
+            .from("activity_events")
+            .delete()
+            .eq("id", eventId)
+            .eq("actor_id", _user.id);
+
+          if(error) throw error;
+          continue;
+        }
+
+        if(op === "upsert_workout_completed"){
+          const row = it?.row || null;
+          if(!row) throw new Error("Missing row for upsert_workout_completed");
+
+          const payload = row?.payload || {};
+          const dateISO = String(payload?.dateISO || "");
+          const routineId = payload?.routineId ?? null;
+          const dayId = payload?.dayId ?? null;
+
+          if(!dateISO) throw new Error("Missing dateISO for upsert_workout_completed");
+
+          // delete any existing matching workout_completed row for this actor/day
+          try{
+            const { data, error } = await sb
+              .from("activity_events")
+              .select("id, payload")
+              .eq("actor_id", _user.id)
+              .eq("type", "workout_completed");
+
+            if(error) throw error;
+
+            const matches = (data || []).filter(r => __sameWorkoutPayload(r?.payload || {}, {
+              dateISO,
+              routineId,
+              dayId
+            }));
+
+            for(const m of matches){
+              const { error: delErr } = await sb
+                .from("activity_events")
+                .delete()
+                .eq("id", m.id)
+                .eq("actor_id", _user.id);
+              if(delErr) throw delErr;
+            }
+          }catch(e){
+            throw e;
+          }
+
+          const { error } = await sb.from("activity_events").insert(row);
+          if(error) throw error;
+          continue;
+        }
+
+        if(op === "delete_workout_completed"){
+          const payload = it?.payload || {};
+          const dateISO = String(payload?.dateISO || "");
+          const routineId = payload?.routineId ?? null;
+          const dayId = payload?.dayId ?? null;
+
+          if(!dateISO) throw new Error("Missing dateISO for delete_workout_completed");
+
+          const { data, error } = await sb
+            .from("activity_events")
+            .select("id, payload")
+            .eq("actor_id", _user.id)
+            .eq("type", "workout_completed");
+
+          if(error) throw error;
+
+          const matches = (data || []).filter(r => __sameWorkoutPayload(r?.payload || {}, {
+            dateISO,
+            routineId,
+            dayId
+          }));
+
+          for(const m of matches){
+            const { error: delErr } = await sb
+              .from("activity_events")
+              .delete()
+              .eq("id", m.id)
+              .eq("actor_id", _user.id);
+            if(delErr) throw delErr;
+          }
+          continue;
+        }
+
+        // Unknown op: keep it so we never lose queued work
+        keep.push(it);
       }catch(_){
         keep.push(it);
       }
     }
+
     writeOutbox(keep);
+
+    // Best-effort UI refresh after successful replays
+    try{ await fetchFeed(); }catch(_){}
   }
 
     async function publishLogEvent(entry){
