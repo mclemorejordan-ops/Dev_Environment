@@ -23,6 +23,45 @@ export function initBootstrap({
 
   fatal
 }){
+  async function runShellPathDiagnostic(){
+    // Non-blocking production diagnostic:
+    // warns if critical deployed shell files are missing or mis-pathed.
+    if(!("fetch" in window)) return;
+
+    const critical = [
+      "./app/app.js",
+      "./app/versioning.js",
+      "./app/bootstrap.js",
+      "./app/router.js",
+      "./assets/styles.css",
+      "./version.json"
+    ];
+
+    try{
+      const results = await Promise.allSettled(
+        critical.map(async (url) => {
+          const res = await fetch(url, { method: "GET", cache: "no-store" });
+          return { url, ok: !!(res && res.ok), status: res?.status || 0 };
+        })
+      );
+
+      const failed = results
+        .map((r, i) => {
+          if(r.status === "fulfilled"){
+            return r.value.ok ? null : `${critical[i]} (${r.value.status})`;
+          }
+          return `${critical[i]} (fetch failed)`;
+        })
+        .filter(Boolean);
+
+      if(failed.length){
+        console.warn("[GymDash] Shell path diagnostic warning:", failed);
+      }
+    }catch(_){
+      // silent: diagnostic only
+    }
+  }
+
   async function start(){
     const state = getState();
 
@@ -47,6 +86,13 @@ export function initBootstrap({
     renderView();
     bindHeaderPills();
     setHeaderPills();
+
+    // Non-blocking shell/path verification after first paint
+    try{
+      setTimeout(() => {
+        runShellPathDiagnostic().catch(() => {});
+      }, 0);
+    }catch(_){}
 
     // ✅ Friends/Social: rehydrate OAuth session after redirect without requiring user to click "Save"
     // Keep this AFTER first render to avoid any perceived blank/slow boot.
