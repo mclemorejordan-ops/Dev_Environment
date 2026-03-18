@@ -32,8 +32,6 @@ const APP_SHELL = [
   "./app/attendance-ui.js",
   "./app/bootstrap.js",
 
-
-
   "./manifest.webmanifest",
   "./icon.svg"
 ];
@@ -62,11 +60,60 @@ async function computeCacheName(){
   return CACHE_NAME;
 }
 
+async function precacheShell(cache, urls){
+  const results = await Promise.allSettled(
+    (urls || []).map(async (url) => {
+      const req = new Request(url, { cache: "no-store" });
+      const res = await fetch(req);
+
+      if(!res || !res.ok){
+        throw new Error(`Precache failed: ${url} (${res?.status || "no response"})`);
+      }
+
+      await cache.put(req, res.clone());
+
+      // Also cache by raw string key so later cache.match("./index.html") lookups stay reliable.
+      try{
+        await cache.put(url, res.clone());
+      }catch(_){}
+
+      return url;
+    })
+  );
+
+  // Install should only fail if core app entry is missing.
+  const required = new Set([
+    "./",
+    "./index.html",
+    "./app/app.js",
+    "./app/state.js",
+    "./app/storage.js",
+    "./app/ui.js",
+    "./app/versioning.js",
+    "./app/router.js",
+    "./app/bootstrap.js"
+  ]);
+
+  const failedRequired = [];
+
+  results.forEach((r, idx) => {
+    if(r.status === "rejected"){
+      const url = urls[idx];
+      if(required.has(url)) failedRequired.push(url);
+      // Intentionally silent in production-safe mode.
+    }
+  });
+
+  if(failedRequired.length){
+    throw new Error(`Required shell files failed to precache: ${failedRequired.join(", ")}`);
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const name = await computeCacheName();
     const cache = await caches.open(name);
-    await cache.addAll(APP_SHELL);
+    await precacheShell(cache, APP_SHELL);
     // Do not auto-activate; we want controlled "Reload to update"
   })());
 });
@@ -88,7 +135,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  if (event?.data?.type === "SKIP_WAITING") self.skipWaiting();
+  if(event?.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -96,30 +143,30 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
 
   // Only handle same-origin
-  if (url.origin !== self.location.origin) return;
+  if(url.origin !== self.location.origin) return;
 
   // Always fetch version.json fresh (never from cache)
-  if (url.pathname.endsWith("/version.json")) {
+  if(url.pathname.endsWith("/version.json")) {
     event.respondWith(fetch(req, { cache: "no-store" }));
     return;
   }
 
-  // ✅ NETWORK-FIRST navigation (unchanged behavior)
-  if (req.mode === "navigate") {
+  // ✅ NETWORK-FIRST navigation
+  if(req.mode === "navigate") {
     event.respondWith((async () => {
       const name = await computeCacheName();
       const cache = await caches.open(name);
 
-      try {
+      try{
         const fresh = await fetch("./index.html", { cache: "no-store" });
-        if (fresh && fresh.ok) {
+        if(fresh && fresh.ok){
           await cache.put("./index.html", fresh.clone());
           return fresh;
         }
-      } catch (_) {}
+      }catch(_){}
 
       const cached = await cache.match("./index.html");
-      if (cached) return cached;
+      if(cached) return cached;
 
       return new Response("Offline", {
         status: 503,
@@ -134,16 +181,16 @@ self.addEventListener("fetch", (event) => {
     const name = await computeCacheName();
     const cache = await caches.open(name);
 
-    const cached = await cache.match(req);
-    if (cached) return cached;
+    const cached = await cache.match(req) || await cache.match(url.pathname) || await cache.match(url.pathname.replace(/^\//, "./"));
+    if(cached) return cached;
 
-    try {
+    try{
       const fresh = await fetch(req);
-      if (fresh && fresh.ok) {
+      if(fresh && fresh.ok){
         await cache.put(req, fresh.clone());
       }
       return fresh;
-    } catch (_) {
+    }catch(_){
       return new Response("Offline", {
         status: 503,
         headers: { "Content-Type": "text/plain" }
